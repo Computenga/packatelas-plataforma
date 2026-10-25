@@ -32,7 +32,8 @@ export function NavLinks({ nav, ready, variant }: { nav: NavItem[]; ready: strin
     <ul className={s.list}>
       {nav.map((item) => {
         const isReady = ready.includes(item.href);
-        const active = pathname === item.href;
+        const root = nav[0]?.href;
+        const active = item.href === root ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
         if (!isReady) {
           return (
             <li key={item.href}>

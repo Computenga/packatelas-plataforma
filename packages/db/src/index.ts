@@ -28,3 +28,5 @@ export const prisma = new Proxy({} as PrismaClient, {
 
 export * from "./ledger.ts";
 export * from "./password.ts";
+export * from "./scan.ts";
+export * from "./orders.ts";
