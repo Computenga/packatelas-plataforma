@@ -1,0 +1,568 @@
+// Modelo de datos de la Plataforma Packatelas.
+// Los IDs entre corchetes ([A01], [F02]…) remiten al Sheet de requerimientos.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ───────────────────────── Usuarios y sesiones [A13] ─────────────────────────
+
+enum Role {
+  ADMIN
+  OPERADOR
+  DESPACHADOR
+  REPARTIDOR
+  CLIENTE
+  EMPLEADO
+}
+
+model User {
+  id           String    @id @default(cuid())
+  username     String    @unique
+  email        String?   @unique
+  name         String
+  passwordHash String
+  role         Role
+  active       Boolean   @default(true)
+  totpSecret   String? // 2FA para administradores [P09], cifrado
+  clientId     String? // solo para rol CLIENTE
+  client       Client?   @relation(fields: [clientId], references: [id])
+  driver       Driver?
+  sessions     Session[]
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  auditLogs   AuditLog[]
+  orderEvents OrderEvent[]
+
+  @@index([clientId])
+}
+
+model Session {
+  id        String   @id // hash SHA-256 del token de la cookie
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ───────────────────────── Clientes [A15, C01] ─────────────────────────
+
+enum TariffMode {
+  FIXED // Tarifa fija para todas las órdenes
+  FLEX_DYNAMIC_PLUS_FIXED // Flex dinámica + externos con tarifa fija
+}
+
+model Client {
+  id               String  @id @default(cuid())
+  publicId         String  @unique // p. ej. cmx00125
+  name             String
+  contactName      String?
+  phone            String?
+  email            String?
+  active           Boolean @default(true)
+  paymentReference String  @unique // referencia para transferencias [C09]
+
+  // Datos fiscales [C01, I10]
+  rfc         String?
+  legalName   String?
+  taxRegime   String?
+  taxZip      String?
+  cfdiUse     String?
+  autoInvoice Boolean @default(false)
+
+  // Tarifas y cobro [F01, F07]
+  tariffMode        TariffMode @default(FIXED)
+  tariffAmount      Decimal    @default(0) @db.Decimal(12, 2)
+  chargingEnabled   Boolean    @default(true)
+  creditLimit       Decimal?   @db.Decimal(12, 2) // saldo máximo antes de bloquear recolecciones
+  pickupExemptUntil DateTime?
+  pickupExemptNote  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  branches   Branch[]
+  mlAccounts MlAccount[]
+  orders     Order[]
+  pickups    Pickup[]
+  ledger     LedgerEntry[]
+  payments   Payment[]
+  invoices   Invoice[]
+}
+
+model Branch {
+  id             String   @id @default(cuid())
+  clientId       String
+  client         Client   @relation(fields: [clientId], references: [id])
+  name           String
+  address        String
+  lat            Float?
+  lng            Float?
+  phone          String?
+  active         Boolean  @default(true)
+  autoPickup     Boolean  @default(false) // recolección automática [A06]
+  autoPickupDays Int[]    @default([]) // 1=lunes … 7=domingo
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  mlRoutes MlAccountRoute[]
+  orders   Order[]
+  pickups  Pickup[]
+
+  @@index([clientId])
+}
+
+// ───────────────────────── MercadoLibre [I01, I02, A02, A05] ─────────────────────────
+
+enum MlAccountStatus {
+  ACTIVE
+  TOKEN_EXPIRED
+  REVOKED
+  DISABLED
+}
+
+model MlAccount {
+  id              String          @id @default(cuid())
+  mlUserId        BigInt          @unique // seller_id de MercadoLibre
+  nickname        String
+  clientId        String
+  client          Client          @relation(fields: [clientId], references: [id])
+  status          MlAccountStatus @default(ACTIVE)
+  accessTokenEnc  String? // cifrado
+  refreshTokenEnc String? // cifrado
+  tokenExpiresAt  DateTime?
+  connectedAt     DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  routes MlAccountRoute[]
+  orders Order[]
+
+  @@index([clientId])
+}
+
+// Enrutamiento cuenta ML → sucursal(es) del cliente [A02]
+model MlAccountRoute {
+  mlAccountId String
+  mlAccount   MlAccount @relation(fields: [mlAccountId], references: [id], onDelete: Cascade)
+  branchId    String
+  branch      Branch    @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+
+  @@id([mlAccountId, branchId])
+}
+
+// ───────────────────────── Repartidores [A14, A05, R10] ─────────────────────────
+
+model Driver {
+  id             String    @id @default(cuid())
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id])
+  phone          String?
+  vehicleType    String? // moto, auto…
+  plate          String?
+  active         Boolean   @default(true)
+  onDuty         Boolean   @default(false)
+  shiftStartedAt DateTime?
+  lastLat        Float?
+  lastLng        Float?
+  lastLocationAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  flexIdentities FlexIdentity[]
+  orders         Order[]
+  routes         Route[]
+  pickups        Pickup[]
+  locations      LocationPing[]
+}
+
+// Vínculo driver Flex de ML ↔ repartidor para asignar al escanear [A05]
+model FlexIdentity {
+  id             String   @id @default(cuid())
+  flexDriverId   BigInt   @unique
+  driverId       String
+  driver         Driver   @relation(fields: [driverId], references: [id])
+  lastShipmentId BigInt?
+  updatedAt      DateTime @updatedAt
+  createdAt      DateTime @default(now())
+
+  @@index([driverId])
+}
+
+model LocationPing {
+  id         BigInt   @id @default(autoincrement())
+  driverId   String
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  speed      Float?
+  battery    Float?
+  recordedAt DateTime // hora del dispositivo
+  receivedAt DateTime @default(now())
+
+  @@index([driverId, recordedAt])
+}
+
+// ───────────────────────── Pedidos [A01, A03, A09–A12] ─────────────────────────
+
+enum OrderSource {
+  ML_FLEX
+  ML_OTHER
+  MANUAL
+  EXTERNAL_SCAN // paquete externo escaneado por el repartidor [R14]
+  IMPORT
+}
+
+enum OrderStatus {
+  CREATED // escaneado o registrado
+  ASSIGNED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  FAILED
+  RESCHEDULED
+  RETURNING // va de regreso al almacén
+  RETURNED_TO_WAREHOUSE
+  RETURNED_TO_SELLER
+  CANCELLED
+}
+
+model Order {
+  id           String      @id @default(cuid())
+  code         String      @unique // ML-48323149259 o PK-000123
+  source       OrderSource
+  status       OrderStatus @default(CREATED)
+  clientId     String
+  client       Client      @relation(fields: [clientId], references: [id])
+  branchId     String?
+  branch       Branch?     @relation(fields: [branchId], references: [id])
+  mlAccountId  String?
+  mlAccount    MlAccount?  @relation(fields: [mlAccountId], references: [id])
+  mlShipmentId BigInt?     @unique
+  mlOrderId    BigInt?
+  mlPackId     BigInt?
+  mlStatus     String?
+  mlSubstatus  String?
+
+  recipientName  String?
+  recipientPhone String?
+  addressLine    String
+  neighborhood   String?
+  city           String?
+  state          String?
+  zip            String?
+  lat            Float?
+  lng            Float?
+  instructions   String?
+  itemsSummary   String?
+  declaredValue  Decimal? @db.Decimal(12, 2)
+
+  requestedDeliveryAt DateTime?
+  deliveredAt         DateTime?
+  attempts            Int       @default(0)
+
+  driverId String?
+  driver   Driver? @relation(fields: [driverId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  events     OrderEvent[]
+  evidence   Evidence[]
+  routeStops RouteStop[]
+  return     ReturnCustody?
+  ledger     LedgerEntry[]
+
+  @@index([clientId, createdAt])
+  @@index([driverId, status])
+  @@index([status, createdAt])
+}
+
+enum EventSource {
+  SCAN
+  DRIVER_APP
+  ADMIN
+  CLIENT
+  ML_SYNC
+  FLEX_HANDSHAKE
+  IMPORT
+  SYSTEM
+}
+
+// Historia completa del pedido; el estado actual se deriva de aquí.
+model OrderEvent {
+  id            String       @id @default(cuid())
+  orderId       String
+  order         Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  type          String // created, assigned, scanned_loaded, delivered, failed, ml_synced…
+  fromStatus    OrderStatus?
+  toStatus      OrderStatus?
+  source        EventSource
+  actorUserId   String?
+  actor         User?        @relation(fields: [actorUserId], references: [id])
+  lat           Float?
+  lng           Float?
+  note          String?
+  data          Json?
+  clientEventId String?      @unique // idempotencia de la cola sin conexión [R11]
+  occurredAt    DateTime // hora real (del dispositivo si viene sin conexión)
+  recordedAt    DateTime     @default(now())
+
+  evidence Evidence[]
+
+  @@index([orderId, occurredAt])
+}
+
+enum EvidenceKind {
+  PHOTO
+  SIGNATURE
+}
+
+model Evidence {
+  id           String       @id @default(cuid())
+  orderId      String
+  order        Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventId      String?
+  event        OrderEvent?  @relation(fields: [eventId], references: [id])
+  kind         EvidenceKind
+  storageKey   String
+  receiverName String?
+  createdAt    DateTime     @default(now())
+
+  @@index([orderId])
+}
+
+// ───────────────────────── Rutas [A08, R02] ─────────────────────────
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Route {
+  id             String      @id @default(cuid())
+  driverId       String
+  driver         Driver      @relation(fields: [driverId], references: [id])
+  date           DateTime    @db.Date
+  status         RouteStatus @default(PLANNED)
+  optimizedAt    DateTime?
+  totalDistanceM Int?
+  totalDurationS Int?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  stops RouteStop[]
+
+  @@index([driverId, date])
+}
+
+model RouteStop {
+  id          String    @id @default(cuid())
+  routeId     String
+  route       Route     @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  sequence    Int
+  orderId     String?
+  order       Order?    @relation(fields: [orderId], references: [id])
+  pickupId    String?
+  pickup      Pickup?   @relation(fields: [pickupId], references: [id])
+  eta         DateTime?
+  completedAt DateTime?
+
+  @@index([routeId, sequence])
+}
+
+// ───────────────────────── Recolecciones [A06, R09, C05] ─────────────────────────
+
+enum PickupStatus {
+  SCHEDULED
+  ASSIGNED
+  COLLECTED
+  FAILED
+  CANCELLED
+  BLOCKED // bloqueada por adeudo [F07]
+}
+
+model Pickup {
+  id             String       @id @default(cuid())
+  clientId       String
+  client         Client       @relation(fields: [clientId], references: [id])
+  branchId       String
+  branch         Branch       @relation(fields: [branchId], references: [id])
+  scheduledFor   DateTime     @db.Date
+  status         PickupStatus @default(SCHEDULED)
+  automatic      Boolean      @default(false)
+  driverId       String?
+  driver         Driver?      @relation(fields: [driverId], references: [id])
+  expectedCount  Int?
+  collectedCount Int?
+  note           String?
+  collectedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  routeStops RouteStop[]
+
+  @@index([scheduledFor, status])
+  @@index([clientId])
+}
+
+// ───────────────────────── Devoluciones [A10, R13, C07] ─────────────────────────
+
+enum ReturnStatus {
+  PENDING_RECEIPT // el repartidor aún no lo entrega al almacén
+  IN_WAREHOUSE
+  RETURNED_TO_SELLER
+}
+
+model ReturnCustody {
+  id                String       @id @default(cuid())
+  orderId           String       @unique
+  order             Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status            ReturnStatus @default(PENDING_RECEIPT)
+  receivedAt        DateTime?
+  receivedById      String?
+  returnedAt        DateTime?
+  returnedById      String?
+  returnEvidenceKey String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@index([status])
+}
+
+// ───────────────────────── Dinero: libro mayor [F01–F11] ─────────────────────────
+// Montos con signo: cargos positivos (aumentan la deuda), abonos negativos.
+// Saldo del cliente = SUM(amount). Nunca se edita ni se borra un movimiento.
+
+enum LedgerType {
+  CHARGE // cargo por envío
+  PAYMENT // abono (transferencia, Mercado Pago, manual)
+  FEE // comisión por pago con tarjeta [I09]
+  ADJUSTMENT // corrección
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  clientId    String
+  client      Client     @relation(fields: [clientId], references: [id])
+  type        LedgerType
+  amount      Decimal    @db.Decimal(12, 2)
+  description String
+  orderId     String?
+  order       Order?     @relation(fields: [orderId], references: [id])
+  paymentId   String?
+  payment     Payment?   @relation(fields: [paymentId], references: [id])
+  createdById String?
+  createdAt   DateTime   @default(now())
+
+  @@unique([orderId, type]) // un solo cargo por pedido aunque se escanee dos veces
+  @@index([clientId, createdAt])
+}
+
+enum PaymentMethod {
+  TRANSFER
+  MERCADOPAGO
+  CASH
+  OTHER
+}
+
+enum PaymentSource {
+  GMAIL
+  MERCADOPAGO
+  MANUAL
+}
+
+enum PaymentStatus {
+  UNIDENTIFIED // no se encontró cliente [F05]
+  APPLIED
+  REJECTED
+}
+
+model Payment {
+  id          String        @id @default(cuid())
+  clientId    String?
+  client      Client?       @relation(fields: [clientId], references: [id])
+  method      PaymentMethod
+  source      PaymentSource
+  status      PaymentStatus
+  amount      Decimal       @db.Decimal(12, 2)
+  fee         Decimal       @default(0) @db.Decimal(12, 2)
+  reference   String?
+  trackingKey String?       @unique // clave de rastreo SPEI / id de Mercado Pago: evita duplicados
+  senderName  String?
+  receivedAt  DateTime
+  externalId  String?       @unique // id del correo o del pago externo
+  note        String?
+  appliedById String?
+  createdAt   DateTime      @default(now())
+
+  ledger   LedgerEntry[]
+  invoices Invoice[]
+
+  @@index([status, receivedAt])
+}
+
+enum InvoiceStatus {
+  PENDING
+  ISSUED
+  FAILED
+  CANCELLED
+}
+
+model Invoice {
+  id        String        @id @default(cuid())
+  clientId  String
+  client    Client        @relation(fields: [clientId], references: [id])
+  paymentId String?
+  payment   Payment?      @relation(fields: [paymentId], references: [id])
+  status    InvoiceStatus @default(PENDING)
+  uuid      String?       @unique // folio fiscal
+  series    String?
+  folio     String?
+  total     Decimal       @db.Decimal(12, 2)
+  pdfKey    String?
+  xmlKey    String?
+  error     String?
+  issuedAt  DateTime?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([clientId])
+}
+
+// ───────────────────────── Auditoría y ajustes [A19] ─────────────────────────
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+  action      String // payment.manual, client.tariff_updated, pickup.exempted…
+  entity      String
+  entityId    String?
+  summary     String
+  data        Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,12 @@
+{
+  "name": "packatelas-plataforma",
+  "private": true,
+  "packageManager": "pnpm@10.28.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter @packatelas/db generate && pnpm --filter web build",
+    "db:migrate": "pnpm --filter @packatelas/db migrate",
+    "db:seed": "pnpm --filter @packatelas/db seed",
+    "test": "pnpm -r test"
+  }
+}
