@@ -36,3 +36,13 @@ describe("readClientRows", () => {
     expect(readClientRows(t, nid, { negativeIsDebt: true }).rows[0].data.openingBalance).toBe(-1500);
   });
 });
+
+describe("ida y vuelta con la exportación de clientes", () => {
+  it("todos los encabezados exportados se reconocen al volver a importar", async () => {
+    const { readClientRows } = await import("./client-import");
+    const head = ["ID", "Nombre", "Contacto", "Teléfono", "Correo", "RFC", "Razón social", "Régimen", "CP fiscal", "Uso CFDI", "Tarifa", "Flex dinámica", "Cobro activo", "Activo", "Exento hasta", "Motivo exención", "Dirección de recolección", "Referencia de pago", "Saldo"];
+    const r = readClientRows([head, ["cmx00001", "Tienda", "", "", "", "", "", "", "", "", "85.00", "No", "Sí", "Sí", "", "", "Calle 1", "CMX00001", "0.00"]], (s) => s);
+    expect(r.unknown).toEqual(["Referencia de pago"]);
+    expect(r.fields).toHaveLength(head.length - 1);
+  });
+});
