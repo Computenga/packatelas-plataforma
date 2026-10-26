@@ -51,3 +51,17 @@ describe("Google Places (New)", () => {
     expect(parseGooglePlace({ formattedAddress: "x" }, "id")).toBeNull();
   });
 });
+
+describe("parseGoogleGeocode", () => {
+  it("marca preciso solo a nivel de número de casa", async () => {
+    const { parseGoogleGeocode } = await import("./geocode-google");
+    const r = (location_type: string, partial_match?: boolean) => ({
+      status: "OK",
+      results: [{ formatted_address: "X", partial_match, geometry: { location: { lat: 19.4, lng: -99.1 }, location_type } }],
+    });
+    expect(parseGoogleGeocode(r("ROOFTOP"))?.precise).toBe(true);
+    expect(parseGoogleGeocode(r("ROOFTOP", true))?.precise).toBe(false);
+    expect(parseGoogleGeocode(r("APPROXIMATE"))).toMatchObject({ lat: 19.4, precise: false });
+    expect(parseGoogleGeocode({ status: "ZERO_RESULTS" })).toBeNull();
+  });
+});

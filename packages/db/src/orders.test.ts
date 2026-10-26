@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, parseScan, registerScan, createManualOrder, getClientBalance } from "./index.ts";
+import { prisma, parseScan, registerScan, createManualOrder, getClientBalance, importOrders } from "./index.ts";
 
 const tag = `o${Date.now()}`;
 const seller = BigInt(Date.now()) * 10n; // id único de vendedor de prueba
@@ -93,5 +93,27 @@ describe("createManualOrder", () => {
     expect(Number(b.code.slice(3))).toBe(Number(a.code.slice(3)) + 1);
     expect(await prisma.orderEvent.count({ where: { orderId: a.id, type: "created" } })).toBe(1);
     expect(await prisma.ledgerEntry.count({ where: { orderId: a.id, type: "CHARGE" } })).toBe(1);
+  });
+});
+
+describe("importOrders", () => {
+  it("crea todos con cargo y un doble envío del mismo lote no duplica", async () => {
+    const batchId = `${tag}-batch`;
+    const before = await getClientBalance(prisma, clientId);
+    const rows = [
+      { recipientName: "Ana Prueba", addressLine: "Calle 1 10", zip: "06800" },
+      { recipientName: "Beto Prueba", addressLine: "Calle 2 20", lat: 19.4, lng: -99.1 },
+    ];
+    const [a, b] = await Promise.all([
+      importOrders(prisma, { batchId, clientId, branchId, rows }),
+      importOrders(prisma, { batchId, clientId, branchId, rows }),
+    ]);
+    expect([a.status, b.status].sort()).toEqual(["already", "created"]);
+    expect(a.codes).toEqual(b.codes);
+    expect(a.codes).toHaveLength(2);
+    const created = await prisma.order.findMany({ where: { code: { in: a.codes } } });
+    expect(created.every((o) => o.source === "IMPORT" && o.branchId === branchId)).toBe(true);
+    expect((await getClientBalance(prisma, clientId)).minus(before).toString()).toBe("200");
+    await prisma.auditLog.deleteMany({ where: { entityId: batchId } });
   });
 });

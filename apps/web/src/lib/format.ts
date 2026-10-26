@@ -58,3 +58,13 @@ export const PICKUP_LABEL: Record<PickupStatus, [string, "gray" | "blue" | "gree
   BLOCKED: ["Bloqueada por adeudo", "red"],
 };
 
+
+/** "35 min", "5 h", "2 d 3 h" desde `d` hasta ahora. */
+export function hace(d: Date, now = Date.now()): string {
+  const min = Math.max(0, Math.floor((now - d.getTime()) / 60_000));
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h} h`;
+  const days = Math.floor(h / 24);
+  return h % 24 ? `${days} d ${h % 24} h` : `${days} d`;
+}

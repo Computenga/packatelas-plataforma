@@ -6,11 +6,18 @@ const STATUSES = new Set<OrderStatus>([
   "RESCHEDULED", "RETURNING", "RETURNED_TO_WAREHOUSE", "RETURNED_TO_SELLER", "CANCELLED",
 ]);
 
-export type OrderFilters = { q: string; status: string; clientId: string; from: string; to: string; page: number };
+export type OrderView = "" | "vivo" | "recuperados";
+export type OrderFilters = { q: string; status: string; clientId: string; from: string; to: string; page: number; view: OrderView };
+
+/** Pedidos que siguen en la calle o en la bodega sin cerrar. */
+export const LIVE_STATUSES: OrderStatus[] = ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED", "RETURNING"];
+/** Estados de los que un pedido "se recupera" al entregarse después. */
+export const RECOVERED_FROM: OrderStatus[] = ["FAILED", "RESCHEDULED", "RETURNING", "RETURNED_TO_WAREHOUSE"];
 
 export function readFilters(sp: Record<string, string | string[] | undefined>): OrderFilters {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
-  return { q: s("q"), status: s("status"), clientId: s("clientId"), from: s("from"), to: s("to"), page: Math.max(1, Number(s("page")) || 1) };
+  const view = (["vivo", "recuperados"] as const).find((v) => v === s("vista")) ?? "";
+  return { q: s("q"), status: s("status"), clientId: s("clientId"), from: s("from"), to: s("to"), page: Math.max(1, Number(s("page")) || 1), view };
 }
 
 /** Filtros de trazabilidad [A09]: búsqueda libre, estado, cliente y rango de fechas (hora CDMX). */
@@ -18,7 +25,14 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
   const where: Prisma.OrderWhereInput = {};
   if (restrictClientId) where.clientId = restrictClientId;
   else if (f.clientId) where.clientId = f.clientId;
-  if (STATUSES.has(f.status as OrderStatus)) where.status = f.status as OrderStatus;
+  if (f.view === "vivo") where.status = { in: LIVE_STATUSES };
+  if (f.view === "recuperados") {
+    where.status = "DELIVERED";
+    where.events = { some: { toStatus: { in: RECOVERED_FROM } } };
+  }
+  if (STATUSES.has(f.status as OrderStatus) && (!f.view || (f.view === "vivo" && LIVE_STATUSES.includes(f.status as OrderStatus)))) {
+    where.status = f.status as OrderStatus;
+  }
   if (/^\d{4}-\d{2}-\d{2}$/.test(f.from) || /^\d{4}-\d{2}-\d{2}$/.test(f.to)) {
     where.createdAt = {
       ...(f.from ? { gte: new Date(`${f.from}T00:00:00-06:00`) } : {}),
@@ -42,6 +56,7 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
 
 export function filtersToQuery(f: OrderFilters, page = f.page) {
   const p = new URLSearchParams();
+  if (f.view) p.set("vista", f.view);
   for (const k of ["q", "status", "clientId", "from", "to"] as const) if (f[k]) p.set(k, f[k]);
   if (page > 1) p.set("page", String(page));
   return p.toString();

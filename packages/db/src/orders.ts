@@ -164,21 +164,60 @@ export type ManualOrderInput = {
   source?: "MANUAL" | "IMPORT" | "EXTERNAL_SCAN";
 };
 
+async function insertManualOrder(tx: Prisma.TransactionClient, input: ManualOrderInput, actorUserId?: string) {
+  const [{ n }] = await tx.$queryRaw<{ n: bigint }[]>`SELECT nextval('order_code_seq') AS n`;
+  const code = `PK-${n.toString().padStart(6, "0")}`;
+  const { source = "MANUAL", ...data } = input;
+  const order = await tx.order.create({ data: { ...data, code, source } });
+  await addOrderEvent(tx, {
+    orderId: order.id,
+    type: "created",
+    source: source === "IMPORT" ? "IMPORT" : "ADMIN",
+    toStatus: "CREATED",
+    actorUserId,
+  });
+  await chargeOrder(tx, order.id, actorUserId);
+  return order;
+}
+
 /** Alta manual de un pedido con código propio PK-000001 [A03]. También genera su cargo. */
 export async function createManualOrder(prisma: PrismaClient, input: ManualOrderInput, actorUserId?: string) {
-  return prisma.$transaction(async (tx) => {
-    const [{ n }] = await tx.$queryRaw<{ n: bigint }[]>`SELECT nextval('order_code_seq') AS n`;
-    const code = `PK-${n.toString().padStart(6, "0")}`;
-    const { source = "MANUAL", ...data } = input;
-    const order = await tx.order.create({ data: { ...data, code, source } });
-    await addOrderEvent(tx, {
-      orderId: order.id,
-      type: "created",
-      source: source === "IMPORT" ? "IMPORT" : "ADMIN",
-      toStatus: "CREATED",
-      actorUserId,
-    });
-    await chargeOrder(tx, order.id, actorUserId);
-    return order;
-  });
+  return prisma.$transaction((tx) => insertManualOrder(tx, input, actorUserId));
+}
+
+export const IMPORT_MAX_ROWS = 500;
+
+/**
+ * Carga masiva [A03]: todo o nada, en una sola transacción. `batchId` evita que un doble clic
+ * (o reenviar el formulario) cree los pedidos dos veces.
+ */
+export async function importOrders(
+  prisma: PrismaClient,
+  input: { batchId: string; clientId: string; branchId?: string; rows: Omit<ManualOrderInput, "clientId" | "branchId" | "source">[] },
+  actorUserId?: string,
+): Promise<{ status: "created" | "already"; codes: string[] }> {
+  if (!input.rows.length) throw new Error("No hay renglones para cargar");
+  if (input.rows.length > IMPORT_MAX_ROWS) throw new Error(`Máximo ${IMPORT_MAX_ROWS} pedidos por carga`);
+  return prisma.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"import:" + input.batchId}))`;
+      const prev = await tx.auditLog.findFirst({ where: { action: "orders.imported", entityId: input.batchId } });
+      if (prev) return { status: "already" as const, codes: ((prev.data as { codes?: string[] } | null)?.codes ?? []) };
+      const codes: string[] = [];
+      for (const row of input.rows) {
+        const o = await insertManualOrder(tx, { ...row, clientId: input.clientId, branchId: input.branchId, source: "IMPORT" }, actorUserId);
+        codes.push(o.code);
+      }
+      await audit(tx, {
+        actorUserId,
+        action: "orders.imported",
+        entity: "ImportBatch",
+        entityId: input.batchId,
+        summary: `Carga masiva de ${codes.length} pedido(s) (${codes[0]} a ${codes[codes.length - 1]})`,
+        data: { clientId: input.clientId, codes },
+      });
+      return { status: "created" as const, codes };
+    },
+    { timeout: 60_000, maxWait: 10_000 },
+  );
 }

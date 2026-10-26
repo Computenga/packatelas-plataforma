@@ -84,3 +84,37 @@ export async function googlePlaceDetails(placeId: string, sessionToken: string, 
   if (!res.ok) throw new Error(`Google details ${res.status}`);
   return parseGooglePlace(await res.json(), placeId);
 }
+
+export type GeocodeHit = { lat: number; lng: number; precise: boolean; label: string };
+
+type GeocodeJson = {
+  status: string;
+  results?: { formatted_address: string; partial_match?: boolean; geometry: { location: { lat: number; lng: number }; location_type: string } }[];
+};
+
+/** Resultado de la Geocoding API; "preciso" = a nivel de número de casa y sin coincidencia parcial. */
+export function parseGoogleGeocode(json: GeocodeJson): GeocodeHit | null {
+  const r = json.status === "OK" ? json.results?.[0] : undefined;
+  if (!r) return null;
+  return {
+    lat: r.geometry.location.lat,
+    lng: r.geometry.location.lng,
+    precise: ["ROOFTOP", "RANGE_INTERPOLATED"].includes(r.geometry.location_type) && !r.partial_match,
+    label: r.formatted_address,
+  };
+}
+
+/** Geocoding API (carga masiva): 10,000 búsquedas gratis al mes; requiere activar "Geocoding API" en la llave. */
+export async function googleGeocode(address: string, key: string): Promise<GeocodeHit | null> {
+  const url = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  url.searchParams.set("address", address);
+  url.searchParams.set("components", "country:MX");
+  url.searchParams.set("bounds", `${RECT.low.latitude},${RECT.low.longitude}|${RECT.high.latitude},${RECT.high.longitude}`);
+  url.searchParams.set("language", "es-419");
+  url.searchParams.set("key", key);
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+  if (!res.ok) throw new Error(`Google geocode ${res.status}`);
+  const json = (await res.json()) as GeocodeJson & { error_message?: string };
+  if (json.status === "REQUEST_DENIED" || json.status === "OVER_QUERY_LIMIT") throw new Error(`Google geocode ${json.status}: ${json.error_message ?? ""}`);
+  return parseGoogleGeocode(json);
+}
