@@ -52,7 +52,14 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
       <PageHeader
         eyebrow="Pedido"
         title={order.code}
-        actions={<Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>}
+        actions={
+          <>
+            {!order.mlShipmentId && (
+              <a href={`/etiqueta/${order.id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Etiqueta</a>
+            )}
+            <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+          </>
+        }
       >
         <Link href={`/admin/clientes/${order.clientId}`} className="text-brand hover:underline">{order.client.name}</Link>
         {order.branch && ` · ${order.branch.name}`}

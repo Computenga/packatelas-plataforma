@@ -31,7 +31,13 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
-      <h1 className="text-xl font-bold">{client.name}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">{client.name}</h1>
+        <div className="flex gap-2 text-sm">
+          <Link href="/cliente/carga" className="rounded-lg border border-slate-300 bg-white px-3 py-2">Cargar varios</Link>
+          <Link href="/cliente/nuevo" className="rounded-lg bg-brand px-3 py-2 font-medium text-white">Nuevo envío</Link>
+        </div>
+      </div>
       <div className="grid grid-cols-3 gap-3">
         <Stat label="En camino" value={inProgress} tone="amber" />
         <Stat label="Entregados" value={deliveredCount} tone="green" />

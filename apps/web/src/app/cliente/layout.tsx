@@ -10,7 +10,7 @@ export default async function ClienteLayout({ children }: LayoutProps<"/cliente"
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
       nav={CLIENT_NAV}
-      ready={["/cliente", "/cliente/recolecciones", "/cliente/cuenta"]}
+      ready={["/cliente", "/cliente/recolecciones", "/cliente/devoluciones", "/cliente/cuenta"]}
       mobileBottomNav
     >
       {children}

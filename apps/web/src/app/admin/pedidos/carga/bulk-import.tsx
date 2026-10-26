@@ -13,8 +13,14 @@ const MAX = 500;
 const CHUNK = 50;
 const selectCls = "mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm";
 
-export function BulkImport({ clients }: { clients: Client[] }) {
-  const [clientId, setClientId] = useState("");
+export function BulkImport({ clients, fixed = false, doneHref = "/admin/despacho", doneLabel = "Ir a despacho" }: {
+  clients: Client[];
+  /** Portal del cliente: un solo cliente, sin selector. */
+  fixed?: boolean;
+  doneHref?: string;
+  doneLabel?: string;
+}) {
+  const [clientId, setClientId] = useState(fixed ? (clients[0]?.id ?? "") : "");
   const [branchId, setBranchId] = useState("");
   const [raw, setRaw] = useState("");
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -97,7 +103,7 @@ export function BulkImport({ clients }: { clients: Client[] }) {
         </p>
         {n > 0 && <p className="mt-1 text-sm text-slate-600">Del {result.codes[0]} al {result.codes[n - 1]}, para {client?.name}.</p>}
         <div className="mt-4 flex gap-2">
-          <ButtonLink href="/admin/despacho">Ir a despacho</ButtonLink>
+          <ButtonLink href={doneHref}>{doneLabel}</ButtonLink>
           <Button variant="secondary" onClick={() => setResult(null)}>Otra carga</Button>
         </div>
       </Card>
@@ -108,13 +114,13 @@ export function BulkImport({ clients }: { clients: Client[] }) {
     <div className="space-y-4">
       <Card>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm">
+          {!fixed && <label className="block text-sm">
             <span className="font-medium text-slate-700">Cliente</span>
             <select value={clientId} onChange={(e) => { setClientId(e.target.value); setBranchId(""); }} className={selectCls} required>
               <option value="" disabled>Elige un cliente</option>
               {clients.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.publicId})</option>)}
             </select>
-          </label>
+          </label>}
           <label className="block text-sm">
             <span className="font-medium text-slate-700">Sucursal de recolección</span>
             <select value={branchId} onChange={(e) => setBranchId(e.target.value)} className={selectCls} disabled={!client}>
@@ -194,7 +200,7 @@ export function BulkImport({ clients }: { clients: Client[] }) {
             </table>
           </div>
           <p className="mt-3 text-xs text-slate-500">
-            Si algo no cuadra, corrige el texto de arriba y vuelve a dar Revisar. Los pedidos quedan en <Link href="/admin/despacho" className="text-brand">despacho</Link> para asignarlos.
+            Si algo no cuadra, corrige el texto de arriba y vuelve a dar Revisar.{!fixed && <> Los pedidos quedan en <Link href="/admin/despacho" className="text-brand">despacho</Link> para asignarlos.</>}
           </p>
         </Card>
       )}

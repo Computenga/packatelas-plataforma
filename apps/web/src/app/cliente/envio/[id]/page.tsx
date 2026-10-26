@@ -14,11 +14,13 @@ const EVENT_LABEL: Record<string, string> = {
   delivered: "Entregado",
   failed: "Intento de entrega fallido",
   cancelled: "Cancelado",
-  return_received: "Devuelto al almacén de Packatelas",
-  return_delivered: "Devuelto a tu sucursal",
+  return_required: "Regresará al almacén de Packatelas",
+  rescheduled: "Entrega reprogramada",
+  return_received: "Recibido en el almacén de Packatelas",
+  returned_to_seller: "Devuelto a tu tienda",
 };
 
-export default async function EnvioPage({ params }: PageProps<"/cliente/envio/[id]">) {
+export default async function EnvioPage({ params, searchParams }: PageProps<"/cliente/envio/[id]">) {
   const { clientId } = await requireClient();
   const { id } = await params;
   const order = await prisma.order.findFirst({
@@ -29,6 +31,8 @@ export default async function EnvioPage({ params }: PageProps<"/cliente/envio/[i
     },
   });
   if (!order) notFound();
+  const isNew = (await searchParams).nuevo === "1";
+  const own = order.source !== "ML_FLEX" && order.source !== "ML_OTHER";
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
@@ -36,6 +40,16 @@ export default async function EnvioPage({ params }: PageProps<"/cliente/envio/[i
         <h1 className="font-mono text-lg font-bold">{order.code}</h1>
         <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
       </div>
+      {isNew && (
+        <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+          Envío registrado. Imprime la etiqueta o escribe <span className="font-mono font-bold">{order.code}</span> en el paquete.
+        </div>
+      )}
+      {own && (
+        <div className="flex justify-end">
+          <a href={`/etiqueta/${order.id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Imprimir etiqueta</a>
+        </div>
+      )}
       <Card title="Destino">
         <p className="text-sm">{order.recipientName ?? "—"}</p>
         <p className="text-sm text-slate-600">{[order.addressLine, order.neighborhood, order.city, order.zip].filter(Boolean).join(", ")}</p>
@@ -46,7 +60,7 @@ export default async function EnvioPage({ params }: PageProps<"/cliente/envio/[i
             <li key={e.id} className="text-sm">
               <p className="font-medium">{EVENT_LABEL[e.type]}</p>
               <p className="text-xs text-slate-500">{fecha(e.occurredAt)}</p>
-              {e.type === "failed" && e.note && <p className="text-xs text-slate-600">{e.note}</p>}
+              {["failed", "rescheduled", "return_required"].includes(e.type) && e.note && <p className="text-xs text-slate-600">{e.note}</p>}
             </li>
           ))}
         </ol>

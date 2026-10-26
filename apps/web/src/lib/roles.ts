@@ -49,6 +49,7 @@ export function adminNavFor(role: Role): NavItem[] {
 export const CLIENT_NAV: NavItem[] = [
   { href: "/cliente", label: "Mis envíos" },
   { href: "/cliente/recolecciones", label: "Recolecciones" },
+  { href: "/cliente/devoluciones", label: "Devoluciones" },
   { href: "/cliente/cuenta", label: "Estado de cuenta" },
   { href: "/cliente/mercadolibre", label: "Cuentas ML" },
 ];

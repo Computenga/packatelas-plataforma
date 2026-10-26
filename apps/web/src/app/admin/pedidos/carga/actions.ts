@@ -9,7 +9,7 @@ export type GeoAnswer = { lat: number; lng: number; precise: boolean; label: str
 
 /** Busca coordenadas de varias direcciones (máx. 500), de 4 en 4 para no saturar al proveedor. */
 export async function geocodeBatch(queries: string[]): Promise<GeoAnswer[]> {
-  await requireUser(["ADMIN", "OPERADOR"]);
+  await requireUser(["ADMIN", "OPERADOR", "CLIENTE"]);
   const list = z.array(z.string().max(400)).max(IMPORT_MAX_ROWS).parse(queries);
   const out: GeoAnswer[] = new Array(list.length).fill(null);
   let next = 0;
@@ -48,15 +48,19 @@ const importSchema = z.object({
 export type ImportAnswer = { error?: string; codes?: string[]; already?: boolean };
 
 export async function createImportedOrders(input: unknown): Promise<ImportAnswer> {
-  const user = await requireUser(["ADMIN", "OPERADOR"]);
+  const user = await requireUser(["ADMIN", "OPERADOR", "CLIENTE"]);
   const parsed = importSchema.safeParse(input);
   if (!parsed.success) return { error: "Hay renglones inválidos; revisa la tabla y vuelve a intentar" };
   const d = parsed.data;
-  const client = await prisma.client.findUnique({ where: { id: d.clientId }, include: { branches: { where: { active: true } } } });
+  // La tienda solo puede cargar a su propia cuenta.
+  const byClient = user.role === "CLIENTE";
+  const clientId = byClient ? user.clientId : d.clientId;
+  if (!clientId) return { error: "Tu usuario no está ligado a un cliente" };
+  const client = await prisma.client.findUnique({ where: { id: clientId }, include: { branches: { where: { active: true } } } });
   if (!client?.active) return { error: "Cliente no encontrado o inactivo" };
   const branchId = d.branchId && client.branches.some((b) => b.id === d.branchId) ? d.branchId : client.branches[0]?.id;
   try {
-    const r = await importOrders(prisma, { batchId: d.batchId, clientId: client.id, branchId, rows: d.rows }, user.id);
+    const r = await importOrders(prisma, { batchId: d.batchId, clientId: client.id, branchId, byClient, rows: d.rows }, user.id);
     return { codes: r.codes, already: r.status === "already" };
   } catch (e) {
     console.error("[carga masiva]", e);

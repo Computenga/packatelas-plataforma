@@ -162,17 +162,19 @@ export type ManualOrderInput = {
   instructions?: string;
   itemsSummary?: string;
   source?: "MANUAL" | "IMPORT" | "EXTERNAL_SCAN";
+  /** Quién lo dio de alta (para el historial): administración o la propia tienda [C04]. */
+  eventSource?: "ADMIN" | "CLIENT" | "IMPORT";
 };
 
 async function insertManualOrder(tx: Prisma.TransactionClient, input: ManualOrderInput, actorUserId?: string) {
   const [{ n }] = await tx.$queryRaw<{ n: bigint }[]>`SELECT nextval('order_code_seq') AS n`;
   const code = `PK-${n.toString().padStart(6, "0")}`;
-  const { source = "MANUAL", ...data } = input;
+  const { source = "MANUAL", eventSource, ...data } = input;
   const order = await tx.order.create({ data: { ...data, code, source } });
   await addOrderEvent(tx, {
     orderId: order.id,
     type: "created",
-    source: source === "IMPORT" ? "IMPORT" : "ADMIN",
+    source: eventSource ?? (source === "IMPORT" ? "IMPORT" : "ADMIN"),
     toStatus: "CREATED",
     actorUserId,
   });
@@ -193,7 +195,7 @@ export const IMPORT_MAX_ROWS = 500;
  */
 export async function importOrders(
   prisma: PrismaClient,
-  input: { batchId: string; clientId: string; branchId?: string; rows: Omit<ManualOrderInput, "clientId" | "branchId" | "source">[] },
+  input: { batchId: string; clientId: string; branchId?: string; byClient?: boolean; rows: Omit<ManualOrderInput, "clientId" | "branchId" | "source" | "eventSource">[] },
   actorUserId?: string,
 ): Promise<{ status: "created" | "already"; codes: string[] }> {
   if (!input.rows.length) throw new Error("No hay renglones para cargar");
@@ -202,10 +204,18 @@ export async function importOrders(
     async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${"import:" + input.batchId}))`;
       const prev = await tx.auditLog.findFirst({ where: { action: "orders.imported", entityId: input.batchId } });
-      if (prev) return { status: "already" as const, codes: ((prev.data as { codes?: string[] } | null)?.codes ?? []) };
+      if (prev) {
+        const data = prev.data as { codes?: string[]; clientId?: string } | null;
+        if (data?.clientId !== input.clientId) throw new Error("Lote inválido");
+        return { status: "already" as const, codes: data?.codes ?? [] };
+      }
       const codes: string[] = [];
       for (const row of input.rows) {
-        const o = await insertManualOrder(tx, { ...row, clientId: input.clientId, branchId: input.branchId, source: "IMPORT" }, actorUserId);
+        const o = await insertManualOrder(
+          tx,
+          { ...row, clientId: input.clientId, branchId: input.branchId, source: "IMPORT", eventSource: input.byClient ? "CLIENT" : "IMPORT" },
+          actorUserId,
+        );
         codes.push(o.code);
       }
       await audit(tx, {
