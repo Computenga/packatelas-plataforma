@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/auth";
 import { mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { ButtonLink, Card, PageHeader, Table, Td } from "@/components/ui";
+import { AdmsCard } from "./adms-card";
 import { Stat } from "@/components/stat";
 import { justifyAction, removeJustification } from "./actions";
 
@@ -97,6 +98,7 @@ export default async function ChecadorPage({ searchParams }: PageProps<"/admin/c
           </ul>
         </Card>
       </div>
+      <AdmsCard />
     </div>
   );
 }

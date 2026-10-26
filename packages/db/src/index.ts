@@ -55,3 +55,4 @@ export * from "./fleet.ts";
 export * from "./onboarding.ts";
 export * from "./route-analysis.ts";
 export * from "./client-api.ts";
+export * from "./zkteco.ts";

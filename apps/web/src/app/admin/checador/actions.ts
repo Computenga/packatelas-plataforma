@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addJustification, audit, prisma } from "@packatelas/db";
+import { addJustification, audit, prisma, setAdmsConfig } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -26,4 +26,16 @@ export async function removeJustification(id: string) {
   const j = await prisma.justification.delete({ where: { id } });
   await audit(prisma, { actorUserId: user.id, action: "attendance.unjustified", entity: "Justification", entityId: id, summary: `Se quitó la justificación del ${j.date.toISOString().slice(0, 10)}` });
   revalidatePath("/admin/checador");
+}
+
+/** Recepción directa del ZKTeco (ADMS) [A23]: activar y registrar números de serie. */
+export async function admsConfigAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const enabled = fd.get("enabled") === "on";
+  const serials = String(fd.get("serials") ?? "").split(/[\s,;]+/);
+  const c = await setAdmsConfig(prisma, enabled, serials);
+  if (enabled && c.serials.length === 0) return { error: "Agrega el número de serie del reloj para activarlo" };
+  await audit(prisma, { actorUserId: user.id, action: "checador.adms_config", entity: "Setting", summary: `Recepción ZKTeco ${enabled ? "activada" : "apagada"} (${c.serials.join(", ") || "sin relojes"})` });
+  revalidatePath("/admin/checador");
+  return { ok: enabled ? "Recepción activada" : "Guardado (apagada)" };
 }
