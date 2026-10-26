@@ -33,7 +33,12 @@ export default async function EmpleadoPage({ params }: PageProps<"/admin/persona
       <PageHeader
         eyebrow={`Personal · #${e.employeeNo}`}
         title={e.name}
-        actions={<Link href={`/admin/checador/${e.id}?q=${q.key}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">Asistencia de la quincena</Link>}
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/admin/personal/${e.id}/documentos`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">Documentos RH</Link>
+            <Link href={`/admin/checador/${e.id}?q=${q.key}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">Asistencia de la quincena</Link>
+          </div>
+        }
       >
         {e.status === "ACTIVO" ? <Badge tone="green">Activo</Badge> : <Badge>Baja</Badge>} · Flotilla U-{e.employeeNo}
       </PageHeader>

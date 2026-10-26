@@ -26,6 +26,7 @@ ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/apps/web/.next/standalone ./
 COPY --from=build /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=build /app/apps/web/public ./apps/web/public
+COPY --from=build /app/apps/web/rh-templates ./apps/web/rh-templates
 RUN mkdir -p /data/uploads && chown -R node:node /data/uploads
 USER node
 EXPOSE 3000
