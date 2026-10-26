@@ -119,6 +119,8 @@ async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<Dri
   const occurredAt = e.occurredAt > now ? now : e.occurredAt;
 
   return prisma.$transaction(async (tx) => {
+    // Bloquea el pedido primero: un reintento simultáneo espera aquí y después ve el evento ya guardado.
+    await tx.$queryRaw`SELECT id FROM "Order" WHERE id = ${e.orderId} FOR UPDATE`;
     const dup = await tx.orderEvent.findUnique({ where: { clientEventId: e.clientEventId }, include: { order: true } });
     if (dup) return { ok: true as const, duplicate: true, status: dup.order.status };
     const order = await tx.order.findUnique({ where: { id: e.orderId } });
