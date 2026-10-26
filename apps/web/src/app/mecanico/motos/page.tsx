@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { prisma, type Vehicle } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ActionForm } from "@/components/action-form";
-import { Badge, Card } from "@/components/ui";
-import { saveVehicleAction } from "../actions";
+import { Badge, Card, TextArea } from "@/components/ui";
+import { importVehiclesAction, saveVehicleAction } from "../actions";
 
 export const metadata: Metadata = { title: "Motos" };
 const inp = "w-full rounded-lg border border-slate-300 px-2 py-1.5 text-sm";
@@ -28,7 +28,7 @@ function VehicleFields({ v }: { v?: Vehicle }) {
 }
 
 export default async function MotosPage() {
-  await requireUser(["MECANICO", "ADMIN"]);
+  const user = await requireUser(["MECANICO", "ADMIN"]);
   const vehicles = await prisma.vehicle.findMany({ orderBy: { code: "asc" } });
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -44,6 +44,14 @@ export default async function MotosPage() {
           </div>
         </details>
       ))}
+      {user.role === "ADMIN" && (
+        <details className="rounded-xl border border-slate-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-medium text-brand">Importar desde la app de flotilla actual</summary>
+          <ActionForm action={importVehiclesAction} submitLabel="Importar" className="mt-3">
+            <TextArea label="Pega la pestaña Vehiculos con encabezados (vehiculo_id, placa, marca…)" name="text" rows={6} />
+          </ActionForm>
+        </details>
+      )}
       <Card title="Nueva moto">
         <ActionForm action={saveVehicleAction.bind(null, null)} submitLabel="Dar de alta" resetOnSuccess><VehicleFields /></ActionForm>
       </Card>

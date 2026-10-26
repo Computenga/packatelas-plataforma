@@ -79,3 +79,41 @@ export async function saveVehicleAction(id: string | null, _: ActionState, fd: F
   revalidatePath("/mecanico/motos");
   return { ok: id ? "Guardado" : "Moto dada de alta" };
 }
+
+/**
+ * Importa motos pegadas desde la pestaña "Vehiculos" de la app de flotilla actual (solo lectura de ella):
+ * vehiculo_id, placa, marca, modelo, anio, color, num_serie, km_actual, estatus. Re-ejecutable por ID.
+ */
+export async function importVehiclesAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const lines = String(fd.get("text") ?? "").replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  if (!lines.length) return { error: "Pega las motos" };
+  const head = lines[0].split(/\t|,/).map((h) => h.trim().toLowerCase());
+  const col = (name: string) => head.indexOf(name);
+  if (col("vehiculo_id") < 0) return { error: "Falta la columna vehiculo_id (copia desde la fila de encabezados)" };
+  let created = 0, updated = 0;
+  for (const l of lines.slice(1)) {
+    const c = l.split(/\t|,/).map((x) => x.trim());
+    const get = (n: string) => (col(n) >= 0 ? c[col(n)] ?? "" : "");
+    const code = get("vehiculo_id").toUpperCase();
+    if (!/^[A-Z0-9-]{2,12}$/.test(code)) continue;
+    const year = Number(get("anio")), km = Number(get("km_actual"));
+    const status = /baja/i.test(get("estatus")) ? "BAJA" : /taller/i.test(get("estatus")) ? "TALLER" : "ACTIVO";
+    const data = {
+      plate: get("placa").toUpperCase() || null, brand: get("marca") || null, model: get("modelo") || null,
+      year: year >= 1990 && year <= 2100 ? year : null, color: get("color") || null, vin: get("num_serie") || null,
+      status: status as "ACTIVO" | "TALLER" | "BAJA",
+    };
+    const prev = await prisma.vehicle.findUnique({ where: { code } });
+    if (prev) {
+      await prisma.vehicle.update({ where: { code }, data: { ...data, ...(Number.isFinite(km) && km > prev.km ? { km } : {}) } });
+      updated++;
+    } else {
+      await prisma.vehicle.create({ data: { code, ...data, km: Number.isFinite(km) && km >= 0 ? Math.round(km) : 0 } });
+      created++;
+    }
+  }
+  await audit(prisma, { actorUserId: user.id, action: "fleet.vehicles_imported", entity: "Vehicle", entityId: "import", summary: `Motos importadas: ${created} nuevas, ${updated} actualizadas` });
+  revalidatePath("/mecanico/motos");
+  return { ok: `${created} moto(s) nuevas, ${updated} actualizadas` };
+}
