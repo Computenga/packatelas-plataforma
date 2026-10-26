@@ -63,14 +63,39 @@ El seed de desarrollo no se usa en producción. Para el primer acceso:
 2. Entrar con ese usuario y **borrar `BOOTSTRAP_ADMIN_PASSWORD`** de las variables.
 3. Los demás usuarios se dan de alta desde Administración → Usuarios.
 
-## 6. Respaldos
+## 6. Abonos automáticos desde Gmail (Fondeadora)
+
+El servicio `worker` revisa cada 2 minutos los correos "Depósito" de
+`info@negocios.fondeadora.com` y aplica el abono cuando el concepto trae el ID del cliente
+(`CMX00114`, `cmx00127-granjas`) o su referencia `PKT…`. Lo demás queda en Cobros →
+"Pagos sin identificar". Solo necesita permiso de **lectura** del correo.
+
+Autorización (una vez, con la cuenta que recibe los avisos, cguevara@computenga.com):
+
+1. En [console.cloud.google.com](https://console.cloud.google.com), proyecto "Packatelas":
+   - APIs y servicios → Biblioteca → activar **Gmail API**.
+   - Pantalla de consentimiento de OAuth → tipo **Interno** (solo cuentas de computenga.com;
+     así Google no exige verificación).
+   - Credenciales → Crear → **ID de cliente de OAuth** → tipo "Aplicación web" → URI de
+     redirección autorizado: `https://developers.google.com/oauthplayground`.
+2. Abrir [OAuth 2.0 Playground](https://developers.google.com/oauthplayground):
+   - Engrane (⚙) → "Use your own OAuth credentials" → pegar el ID y el secreto del paso 1.
+   - En el paso 1 del Playground escribir el alcance
+     `https://www.googleapis.com/auth/gmail.readonly` → Authorize APIs → entrar con la cuenta.
+   - Paso 2 → "Exchange authorization code for tokens" → copiar el **Refresh token**.
+3. En Coolify agregar `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET` y `GMAIL_REFRESH_TOKEN` y
+   volver a desplegar. En los registros del `worker` aparecerán los abonos aplicados.
+
+Para revocar el acceso: myaccount.google.com → Seguridad → Apps con acceso a la cuenta.
+
+## 7. Respaldos
 
 - Coolify → servicio `db` → Backups → diario, guardando en un almacenamiento S3 externo
   (por ejemplo IONOS S3 Object Storage o Backblaze B2). No dejar los respaldos solo en el VPS.
 - Las fotos de evidencia viven en el volumen `uploads`; incluirlo en el respaldo o moverlas a
   Object Storage (pendiente P10).
 
-## 7. Verificación
+## 8. Verificación
 
 - `https://nuevo.packatelas.mx/login` abre con candado (HTTPS).
 - Iniciar sesión con el administrador, crear un cliente de prueba, escanear un código y

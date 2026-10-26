@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { Badge, PageHeader, Table, Td } from "@/components/ui";
 import { Stat } from "@/components/stat";
-import { applyPaymentAction } from "./actions";
+import { applyPaymentAction, dismissPaymentAction } from "./actions";
 
 export const metadata: Metadata = { title: "Cobros" };
 
@@ -56,13 +56,16 @@ export default async function CobrosPage() {
       {unidentified.length > 0 && (
         <section>
           <h2 className="mb-2 font-semibold text-amber-800">Pagos sin identificar ({unidentified.length})</h2>
-          <Table head={["Fecha", "Monto", "Ordenante", "Referencia", "Aplicar a"]}>
+          <Table head={["Fecha", "Monto", "Ordenante", "Concepto", "Aplicar a", ""]}>
             {unidentified.map((p) => (
               <tr key={p.id}>
                 <Td>{fecha(p.receivedAt)}</Td>
                 <Td className="font-semibold">{mxn(p.amount)}</Td>
                 <Td>{p.senderName ?? "—"}</Td>
-                <Td className="font-mono text-xs">{p.reference ?? p.trackingKey ?? "—"}</Td>
+                <Td className="whitespace-normal">
+                  <span className="font-mono text-xs">{p.reference ?? "—"}</span>
+                  {p.note && <span className="block text-xs text-amber-700">{p.note.split(" (concepto")[0]}</span>}
+                </Td>
                 <Td>
                   <form action={applyPaymentAction.bind(null, p.id)} className="flex gap-2">
                     <select name="clientId" required defaultValue="" className="rounded-lg border border-slate-300 px-2 py-1 text-sm" aria-label="Cliente">
@@ -72,6 +75,11 @@ export default async function CobrosPage() {
                       ))}
                     </select>
                     <button className="rounded-lg bg-brand px-3 py-1 text-sm text-white">Aplicar</button>
+                  </form>
+                </Td>
+                <Td>
+                  <form action={dismissPaymentAction.bind(null, p.id)}>
+                    <button className="text-xs text-slate-500 hover:text-red-600" title="Traspasos propios, Mercado Pago, etc.">No es de cliente</button>
                   </form>
                 </Td>
               </tr>
@@ -88,7 +96,7 @@ export default async function CobrosPage() {
               <Td>{fecha(p.receivedAt)}</Td>
               <Td>{p.client?.name ?? <Badge tone="amber">Sin identificar</Badge>}</Td>
               <Td>{mxn(p.amount)}</Td>
-              <Td>{p.source === "MANUAL" ? "Manual" : p.source === "GMAIL" ? "Transferencia (Gmail)" : "Mercado Pago"}</Td>
+              <Td>{p.source === "MANUAL" ? "Manual" : p.source === "GMAIL" ? (p.status === "APPLIED" ? "Transferencia · automático" : p.status === "REJECTED" ? "No es de cliente" : "Transferencia") : "Mercado Pago"}</Td>
               <Td className="font-mono text-xs">{p.reference ?? "—"}</Td>
             </tr>
           ))}

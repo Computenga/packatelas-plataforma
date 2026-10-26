@@ -49,6 +49,17 @@ services:
     ports:
       - "3000"
 
+  worker:
+    build: { context: ., target: worker }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://packatelas:${POSTGRES_PASSWORD}@db:5432/packatelas
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      GMAIL_REFRESH_TOKEN: ${GMAIL_REFRESH_TOKEN:-}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
 volumes:
   pgdata:
   redisdata:

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { addAdjustment, applyUnidentifiedPayment, prisma, registerManualPayment, setPickupExemption } from "@packatelas/db";
+import { addAdjustment, applyUnidentifiedPayment, dismissPayment, prisma, registerManualPayment, setPickupExemption } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -70,6 +70,16 @@ export async function applyPaymentAction(paymentId: string, fd: FormData) {
     await applyUnidentifiedPayment(prisma, paymentId, clientId, user.id);
   } catch {
     // ya aplicado por otra persona: la página se refresca y lo muestra
+  }
+  revalidatePath("/admin/cobros");
+}
+
+export async function dismissPaymentAction(paymentId: string) {
+  const user = await requireUser(["ADMIN"]);
+  try {
+    await dismissPayment(prisma, paymentId, user.id);
+  } catch {
+    // ya procesado
   }
   revalidatePath("/admin/cobros");
 }

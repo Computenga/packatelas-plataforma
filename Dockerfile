@@ -14,6 +14,13 @@ FROM build AS migrate
 WORKDIR /app/packages/db
 CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx src/bootstrap.ts"]
 
+# Proceso en segundo plano (Gmail/Fondeadora y tareas programadas).
+FROM build AS worker
+ENV NODE_ENV=production
+WORKDIR /app/apps/worker
+USER node
+CMD ["npx", "tsx", "src/index.ts"]
+
 FROM base AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/apps/web/.next/standalone ./
