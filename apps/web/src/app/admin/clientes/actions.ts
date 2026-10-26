@@ -3,22 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { audit, hashPassword, prisma, Prisma } from "@packatelas/db";
+import { audit, hashPassword, nextPublicId, prisma, Prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
-import { ID_PREFIXES, referenceFromPublicId, type IdPrefix } from "@packatelas/db/public-id";
+import { ID_PREFIXES } from "@packatelas/db/public-id";
 import { opt } from "@/lib/format";
 import type { ActionState } from "@/components/action-form";
 
 const money = z.coerce.number().min(0, "No puede ser negativo").max(100000);
-
-/** Siguiente ID público de la zona (cmx00001… o emx00001…) según el mayor existente. */
-async function nextPublicId(prefix: IdPrefix) {
-  const rows = await prisma.$queryRaw<{ max: number | null }[]>`
-    SELECT MAX(CAST(SUBSTRING("publicId" FROM '^[a-z]{3}([0-9]+)') AS INTEGER)) AS max
-    FROM "Client" WHERE "publicId" ~ ${`^${prefix}[0-9]+(-|$)`}`;
-  const publicId = `${prefix}${String((rows[0]?.max ?? 0) + 1).padStart(5, "0")}`;
-  return { publicId, paymentReference: referenceFromPublicId(publicId) };
-}
 
 const createSchema = z.object({
   prefix: z.enum(ID_PREFIXES).default("cmx"),
@@ -37,7 +28,7 @@ export async function createClient(_: ActionState, fd: FormData): Promise<Action
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
 
-  const ids = await nextPublicId(d.prefix);
+  const ids = await nextPublicId(prisma, d.prefix);
   const client = await prisma.client.create({
     data: {
       ...ids,

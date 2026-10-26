@@ -18,7 +18,7 @@ export default async function AdminHome() {
   const user = await requireUser(STAFF_ROLES);
   const today = startOfTodayMx();
 
-  const [ordersToday, pending, delivered, clients, driversOnDuty, drivers, balance, lost, failed, toWarehouse, unidentified] = await Promise.all([
+  const [ordersToday, pending, delivered, clients, driversOnDuty, drivers, balance, lost, failed, toWarehouse, unidentified, signups] = await Promise.all([
     prisma.order.count({ where: { createdAt: { gte: today } } }),
     prisma.order.count({ where: { status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "RESCHEDULED"] } } }),
     prisma.order.count({ where: { status: "DELIVERED", deliveredAt: { gte: today } } }),
@@ -30,11 +30,13 @@ export default async function AdminHome() {
     prisma.order.count({ where: { status: "FAILED" } }),
     prisma.order.count({ where: { status: "RETURNING" } }),
     user.role === "ADMIN" ? prisma.payment.count({ where: { status: "UNIDENTIFIED" } }) : 0,
+    user.role === "ADMIN" ? prisma.clientSignup.count({ where: { status: "PENDING" } }) : 0,
   ]);
   const todo = [
     failed > 0 && { href: "/admin/pedidos?vista=vivo&status=FAILED", text: `${failed} fallido(s) por decidir: reprogramar o regresar a bodega` },
     toWarehouse > 0 && { href: "/admin/devoluciones", text: `${toWarehouse} paquete(s) que deben llegar a bodega` },
     unidentified > 0 && { href: "/admin/cobros", text: `${unidentified} transferencia(s) sin identificar` },
+    signups > 0 && { href: "/admin/clientes/solicitudes", text: `${signups} tienda(s) nueva(s) esperando aprobación` },
   ].filter(Boolean) as { href: string; text: string }[];
 
   return (

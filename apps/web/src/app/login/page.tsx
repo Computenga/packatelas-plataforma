@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/session";
 import { homeFor } from "@/lib/roles";
@@ -23,6 +24,9 @@ export default async function LoginPage() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <LoginForm />
         </div>
+        <p className="mt-6 text-center text-sm text-slate-500">
+          ¿Tienes una tienda y quieres enviar con nosotros? <Link href="/registro" className="text-brand hover:underline">Regístrate</Link>
+        </p>
       </div>
     </main>
   );

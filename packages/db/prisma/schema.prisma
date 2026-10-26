@@ -566,3 +566,41 @@ model Setting {
   value     Json
   updatedAt DateTime @updatedAt
 }
+
+enum SignupStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Solicitud de registro de un cliente nuevo desde el formulario público [C01].
+// Al aprobarla se crean el cliente (con su ID cmx/emx), la sucursal y el usuario.
+model ClientSignup {
+  id              String       @id @default(cuid())
+  status          SignupStatus @default(PENDING)
+  businessName    String
+  contactName     String
+  phone           String
+  email           String
+  zone            String // cmx | emx
+  pickupAddress   String
+  pickupReference String?
+  monthlyVolume   String?
+  salesChannels   String? // MercadoLibre, Tiendanube, redes…
+  rfc             String?
+  legalName       String?
+  taxRegime       String?
+  taxZip          String?
+  cfdiUse         String?
+  username        String
+  passwordHash    String
+  termsAcceptedAt DateTime
+  ip              String?
+  clientId        String?      @unique
+  reviewedById    String?
+  reviewedAt      DateTime?
+  reviewNote      String?
+  createdAt       DateTime     @default(now())
+
+  @@index([status, createdAt])
+}

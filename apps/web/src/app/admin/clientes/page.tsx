@@ -9,6 +9,7 @@ export const metadata: Metadata = { title: "Clientes" };
 
 export default async function ClientesPage({ searchParams }: PageProps<"/admin/clientes">) {
   await requireUser(["ADMIN"]);
+  const signups = await prisma.clientSignup.count({ where: { status: "PENDING" } });
   const q = String((await searchParams).q ?? "").trim();
 
   const clients = await prisma.client.findMany({
@@ -34,7 +35,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/admin/c
 
   return (
     <div className="mx-auto max-w-6xl">
-      <PageHeader eyebrow="Gestión" title="Clientes" actions={<><ButtonLink href="/admin/clientes/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/clientes/nuevo">Nuevo cliente</ButtonLink></>}>
+      <PageHeader eyebrow="Gestión" title="Clientes" actions={<><ButtonLink href="/admin/clientes/solicitudes" variant="secondary">Solicitudes{signups ? ` (${signups})` : ""}</ButtonLink><ButtonLink href="/admin/clientes/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/clientes/nuevo">Nuevo cliente</ButtonLink></>}>
         {clients.length} cliente(s){q && ` para "${q}"`}
       </PageHeader>
 

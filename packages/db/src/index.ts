@@ -38,3 +38,4 @@ export * from "./pickups.ts";
 export * from "./fondeadora.ts";
 export * from "./failures.ts";
 export * from "./migration.ts";
+export * from "./signups.ts";
