@@ -38,6 +38,7 @@ export default async function RepartidorHome() {
       <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div>
           <p className="font-semibold">Hola, {user.name.split(" ")[0]}</p>
+          <a href="/repartidor/asistencia" className="text-xs text-brand">Mi asistencia</a>
           <p className={`text-sm ${driver.onDuty ? "text-emerald-600" : "text-slate-500"}`}>
             {driver.onDuty ? `En turno desde ${fecha(driver.shiftStartedAt)}` : "Fuera de turno"}
           </p>

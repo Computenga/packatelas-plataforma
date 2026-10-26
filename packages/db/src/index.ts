@@ -45,3 +45,4 @@ export * from "./ml-routes.ts";
 export * from "./credit.ts";
 export * from "./reports.ts";
 export * from "./notifications.ts";
+export * from "./attendance.ts";

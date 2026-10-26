@@ -34,6 +34,7 @@ model User {
   clientId     String? // solo para rol CLIENTE
   client       Client?   @relation(fields: [clientId], references: [id])
   driver       Driver?
+  employee     Employee?
   sessions     Session[]
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
@@ -641,4 +642,82 @@ model Notification {
 
   @@index([status, createdAt])
   @@index([clientId])
+}
+
+// ── Fase 3: personal y asistencia [A22, A23, A25] ──────────────────────────
+// Independiente de los sistemas actuales (Sheet del portal, ZKTeco, RH local): aquí solo se
+// importa; nada se escribe de regreso.
+
+enum EmployeeStatus {
+  ACTIVO
+  BAJA
+}
+
+// Base maestra de empleados (mismos campos que la pestaña "Personal").
+model Employee {
+  id            String         @id @default(cuid())
+  employeeNo    Int            @unique // ID del ZKTeco; en flotilla U-<no>
+  name          String
+  rfc           String?
+  curp          String?
+  nss           String?
+  position      String?
+  area          String?
+  kind          String? // repartidor, oficina, bodega, mecánico…
+  status        EmployeeStatus @default(ACTIVO)
+  hireDate      DateTime?      @db.Date
+  endDate       DateTime?      @db.Date
+  dailySalary   Decimal?       @db.Decimal(10, 2)
+  clabe         String?
+  bank          String?
+  phone         String?
+  email         String?
+  entryTime     String? // "10:00"
+  workdays      Int[]          @default([1, 2, 3, 4, 5, 6]) // 1 = lunes … 7 = domingo
+  lunchMinutes  Int            @default(60)
+  punchesPerDay Int            @default(2) // 2 = entrada/salida, 4 = con comida
+  motoType      String?
+  address       String?
+  emergency     Json?
+  notes         String?
+  userId        String?        @unique // acceso a la plataforma (empleado o repartidor)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  punches        Punch[]
+  justifications Justification[]
+
+  @@index([status])
+}
+
+// Checadas (ZKTeco u otras fuentes).
+model Punch {
+  id         String   @id @default(cuid())
+  employeeId String
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  at         DateTime
+  kind       String? // entrada, salida_comida, regreso_comida, salida (si el reloj lo manda)
+  device     String?
+  method     String?
+  source     String   @default("import")
+  externalId String?  @unique // UUID de la checada en la hoja
+  createdAt  DateTime @default(now())
+
+  @@unique([employeeId, at])
+  @@index([at])
+}
+
+// Días justificados (vacaciones, incapacidad, permiso, día festivo para todos…).
+model Justification {
+  id          String    @id @default(cuid())
+  date        DateTime  @db.Date
+  employeeId  String? // vacío = todos
+  employee    Employee? @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  reason      String
+  note        String?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  @@index([date])
 }

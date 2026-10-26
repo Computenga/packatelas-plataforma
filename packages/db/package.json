@@ -27,6 +27,7 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./public-id": "./src/public-id.ts"
+    "./public-id": "./src/public-id.ts",
+    "./attendance": "./src/attendance-rules.ts"
   }
 }
