@@ -24,3 +24,11 @@ describe("extractText", () => {
     expect(parseFondeadoraDeposit(t)).toMatchObject({ amount: "2288.00", concept: "packatelas CMX00136", trackingKey: "CPO184365690835" });
   });
 });
+
+describe("whatsappSender", () => {
+  it("sin credenciales no hay envío", async () => {
+    const { whatsappSender } = await import("./whatsapp.ts");
+    expect(whatsappSender({})).toBeNull();
+    expect(whatsappSender({ WHATSAPP_TOKEN: "x", WHATSAPP_PHONE_ID: "1" })).toBeTypeOf("function");
+  });
+});

@@ -101,14 +101,31 @@ Autorización (una vez, con la cuenta que recibe los avisos, cguevara@computenga
 
 Para revocar el acceso: myaccount.google.com → Seguridad → Apps con acceso a la cuenta.
 
-## 7. Respaldos
+## 7. Avisos por WhatsApp (Meta)
+
+Los avisos (en camino, entregado, no entregado, regreso a la tienda, recolección en pausa y
+recordatorio de pago) se registran siempre en **Admin → Avisos**. Para que se envíen:
+
+1. En [business.facebook.com](https://business.facebook.com) crea (o usa) el portafolio de
+   Computenga y agrega **WhatsApp** con un número que no esté en la app de WhatsApp del teléfono.
+2. En WhatsApp Manager → Plantillas, crea una plantilla de categoría **Utilidad**, idioma
+   **Español (MEX)**, por cada aviso de Admin → Avisos, con el **mismo nombre** (`pk_en_camino`,
+   `pk_entregado`…) y el mismo texto con sus variables `{{1}}`, `{{2}}`…
+3. En Configuración del negocio → Usuarios del sistema, crea uno con permiso sobre la cuenta de
+   WhatsApp y genera un **token permanente** con `whatsapp_business_messaging`.
+4. En Coolify agrega `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` (el "Phone number ID" de la API) y
+   `PUBLIC_URL=https://admin.packatelas.mx`; vuelve a desplegar.
+
+**Admin → Salud operativa** muestra si las credenciales funcionan y cuántos avisos fallan.
+
+## 8. Respaldos
 
 - Coolify → servicio `db` → Backups → diario, guardando en un almacenamiento S3 externo
   (por ejemplo IONOS S3 Object Storage o Backblaze B2). No dejar los respaldos solo en el VPS.
 - Las fotos de evidencia viven en el volumen `uploads`; incluirlo en el respaldo o moverlas a
   Object Storage (pendiente P10).
 
-## 8. Verificación
+## 9. Verificación
 
 - `https://nuevo.packatelas.mx/login` abre con candado (HTTPS).
 - Iniciar sesión con el administrador, crear un cliente de prueba, escanear un código y

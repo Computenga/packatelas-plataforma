@@ -2,6 +2,7 @@
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { isPickupBlocked } from "./ledger.ts";
+import { notifyPickupBlocked } from "./notifications.ts";
 
 /** Fecha YYYY-MM-DD → Date a medianoche UTC, como se guarda en columnas @db.Date. */
 export const dateOnly = (ymd: string) => new Date(`${ymd}T00:00:00Z`);
@@ -34,6 +35,7 @@ export async function generateAutoPickups(prisma: PrismaClient, ymd: string): Pr
       await tx.pickup.create({
         data: { clientId: b.clientId, branchId: b.id, scheduledFor: date, automatic: true, status: blocked ? "BLOCKED" : "SCHEDULED" },
       });
+      if (blocked) await notifyPickupBlocked(tx, b.clientId);
       created++;
     }
     return created;
@@ -46,10 +48,12 @@ export async function generateAutoPickups(prisma: PrismaClient, ymd: string): Pr
  */
 export async function refreshBlockedPickups(prisma: PrismaClient, clientId: string) {
   const blocked = await isPickupBlocked(prisma, clientId);
-  await prisma.pickup.updateMany({
+  const r = await prisma.pickup.updateMany({
     where: { clientId, scheduledFor: { gte: dateOnly(todayMx()) }, status: blocked ? "SCHEDULED" : "BLOCKED" },
     data: { status: blocked ? "BLOCKED" : "SCHEDULED" },
   });
+  // Recién pausada: avisar a la tienda (una vez al día) [C11].
+  if (blocked && r.count) await notifyPickupBlocked(prisma, clientId);
 }
 
 /**

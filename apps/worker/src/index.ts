@@ -1,6 +1,7 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { ingestFondeadoraEmail, prisma, refreshAllBlockedPickups } from "@packatelas/db";
+import { deliverPending, getCreditRules, ingestFondeadoraEmail, prisma, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { whatsappSender } from "./whatsapp.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
 
 const QUERY = process.env.GMAIL_QUERY ?? 'from:info@negocios.fondeadora.com subject:"Depósito" newer_than:3d';
@@ -29,31 +30,71 @@ export async function pollOnce(cfg: GmailConfig) {
   return { seen: ids.length, applied, unidentified };
 }
 
-/** Cada hora: bloqueo/desbloqueo de recolecciones (el lunes, los de crédito sin liquidar) [F08]. */
+const DAYS = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+
+/** Cada hora: bloqueos de recolección (el lunes, crédito sin liquidar) [F08] y recordatorios de pago [F10]. */
 function startHourlyJobs() {
-  const run = () =>
-    refreshAllBlockedPickups(prisma)
-      .then((n) => n && console.log(`[worker] Bloqueos de recolección revisados (${n} cliente(s))`))
-      .catch((e) => console.error("[worker] Error al revisar bloqueos:", e instanceof Error ? e.message : e));
+  const run = async () => {
+    try {
+      const n = await refreshAllBlockedPickups(prisma);
+      if (n) console.log(`[worker] Bloqueos de recolección revisados (${n} cliente(s))`);
+      const rules = await getCreditRules(prisma);
+      const r = await sendWeeklyReminders(prisma, new Date(), DAYS[rules.cutWeekday]);
+      if (r) console.log(`[worker] ${r} recordatorio(s) de pago en cola`);
+      await reportHealth(prisma, "tareas", true, `Bloqueos revisados: ${n}; recordatorios: ${r}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[worker] Error en tareas por hora:", msg);
+      await reportHealth(prisma, "tareas", false, msg).catch(() => {});
+    }
+  };
   void run();
   setInterval(run, 3600_000);
 }
 
+/** Cada 30 s: envía los avisos pendientes por WhatsApp [I04]. Cada minuto: latido. */
+function startNotifier() {
+  let busy = false;
+  const tick = async () => {
+    if (busy) return;
+    busy = true;
+    const sender = whatsappSender();
+    try {
+      const r = await deliverPending(prisma, sender);
+      if (r.sent || r.failed) console.log(`[worker] Avisos: ${r.sent} enviados, ${r.failed} fallidos`);
+      await reportHealth(prisma, "whatsapp", !!sender && !r.failed, sender ? `Últimos: ${r.sent} enviados, ${r.failed} fallidos` : "Sin credenciales (WHATSAPP_TOKEN, WHATSAPP_PHONE_ID)");
+    } catch (e) {
+      await reportHealth(prisma, "whatsapp", false, e instanceof Error ? e.message : String(e)).catch(() => {});
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(tick, 30_000);
+  const beat = () => reportHealth(prisma, "worker", true).catch(() => {});
+  void beat();
+  setInterval(beat, 60_000);
+}
+
 async function main() {
   startHourlyJobs();
+  startNotifier();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();
     if (!cfg) {
       console.log("[worker] Faltan GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET o GMAIL_REFRESH_TOKEN; reintento en 10 min.");
+      await reportHealth(prisma, "gmail", false, "Sin autorizar (faltan GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET o GMAIL_REFRESH_TOKEN)").catch(() => {});
       await new Promise((r) => setTimeout(r, 600_000));
       continue;
     }
     try {
       const r = await pollOnce(cfg);
       if (r.applied || r.unidentified) console.log(`[worker] ${r.applied} abono(s) aplicados, ${r.unidentified} por revisar`);
+      await reportHealth(prisma, "gmail", true, `${r.seen} aviso(s) recientes; ${r.applied} aplicados y ${r.unidentified} por revisar en esta vuelta`);
     } catch (e) {
-      console.error("[worker] Error al revisar Gmail:", e instanceof Error ? e.message : e);
+      const msg = e instanceof Error ? e.message : String(e);
+      console.error("[worker] Error al revisar Gmail:", msg);
+      await reportHealth(prisma, "gmail", false, msg).catch(() => {});
     }
     await new Promise((r) => setTimeout(r, EVERY_MS));
   }

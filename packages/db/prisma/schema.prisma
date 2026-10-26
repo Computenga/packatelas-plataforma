@@ -611,3 +611,34 @@ model ClientSignup {
 
   @@index([status, createdAt])
 }
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  SKIPPED // sin credenciales o aviso desactivado al momento de enviarlo
+}
+
+// Bitácora de avisos por WhatsApp [C11, C12, F10, I04]. Cada aviso se guarda antes de enviarse;
+// dedupeKey evita mandar dos veces el mismo aviso (p. ej. reintentos de la cola del repartidor).
+model Notification {
+  id         String             @id @default(cuid())
+  event      String // en_camino, entregado, no_entregado, recoleccion_bloqueada, recordatorio_pago
+  channel    String             @default("whatsapp")
+  to         String // teléfono con lada 52…
+  template   String // nombre de la plantilla aprobada en Meta
+  params     Json // valores de la plantilla, en orden
+  preview    String // texto aproximado de lo que recibe la persona
+  status     NotificationStatus @default(PENDING)
+  error      String?
+  attempts   Int                @default(0)
+  dedupeKey  String             @unique
+  orderId    String?
+  clientId   String?
+  externalId String? // id del mensaje en WhatsApp
+  createdAt  DateTime           @default(now())
+  sentAt     DateTime?
+
+  @@index([status, createdAt])
+  @@index([clientId])
+}

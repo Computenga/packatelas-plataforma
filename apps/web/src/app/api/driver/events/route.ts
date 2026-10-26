@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { applyDriverEvent, FAIL_REASONS, prisma } from "@packatelas/db";
+import { applyDriverEvent, FAIL_REASONS, notifyOrderStatus, prisma } from "@packatelas/db";
+import { trackingPath } from "@/lib/tracking";
 import { getDriverSession, unauthorized } from "@/lib/driver-api";
 
 const eventSchema = z.object({
@@ -34,6 +35,13 @@ export async function POST(request: Request) {
     }
     const r = await applyDriverEvent(prisma, { ...parsed.data, driverId: s.driver.id, actorUserId: s.user.id });
     results.push({ clientEventId: parsed.data.clientEventId, ...r, permanent: !r.ok });
+    if (r.ok && !r.duplicate) {
+      // Aviso al comprador (en camino / entregado / no entregado); nunca bloquea la respuesta.
+      const base = process.env.PUBLIC_URL?.replace(/\/$/, "") || new URL(request.url).origin;
+      await notifyOrderStatus(prisma, parsed.data.orderId, { trackingUrl: `${base}${trackingPath(parsed.data.orderId)}` }).catch((e) =>
+        console.error("[avisos]", e instanceof Error ? e.message : e),
+      );
+    }
   }
   return Response.json({ results });
 }
