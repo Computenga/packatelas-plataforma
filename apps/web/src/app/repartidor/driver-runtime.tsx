@@ -22,6 +22,7 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
   const [wake, setWake] = useState(false);
   const [gps, setGps] = useState<"ok" | "denied" | "off">("off");
+  const [awayMin, setAwayMin] = useState(0);
   const buffer = useRef<{ lat: number; lng: number; accuracy?: number; speed?: number | null; at: string }[]>([]);
   const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
 
@@ -89,6 +90,22 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     };
   }, [onDuty]);
 
+  // Si la app estuvo en segundo plano durante el turno, no se mandó ubicación: avisarle [P04].
+  useEffect(() => {
+    if (!onDuty) return;
+    let hiddenAt = 0;
+    const onChange = () => {
+      if (document.visibilityState === "hidden") hiddenAt = Date.now();
+      else if (hiddenAt) {
+        const min = Math.floor((Date.now() - hiddenAt) / 60_000);
+        if (min >= 5) setAwayMin(min);
+        hiddenAt = 0;
+      }
+    };
+    document.addEventListener("visibilitychange", onChange);
+    return () => document.removeEventListener("visibilitychange", onChange);
+  }, [onDuty]);
+
   // Pantalla encendida (plan B de ubicación en iPhone): se reactiva al volver a la app.
   useEffect(() => {
     if (!wake) return;
@@ -134,6 +151,18 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
           </button>
         )}
       </div>
+      {onDuty && gps === "denied" && (
+        <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
+          <p className="font-semibold">Despacho no puede ver tu ubicación</p>
+          <p>Activa el permiso de ubicación para esta app en los ajustes del teléfono y vuelve a abrirla.</p>
+        </div>
+      )}
+      {awayMin > 0 && (
+        <div className="flex items-start justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          <span>Estuviste {awayMin} min fuera de la app y no se envió tu ubicación. Déjala abierta durante el turno (puedes activar &quot;Mantener pantalla encendida&quot;).</span>
+          <button type="button" className="shrink-0 text-xs underline" onClick={() => setAwayMin(0)}>Entendido</button>
+        </div>
+      )}
       {failed.map((f) => (
         <div key={f.clientEventId} className="flex items-start justify-between gap-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
           <span>

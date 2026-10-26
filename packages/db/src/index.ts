@@ -36,3 +36,4 @@ export * from "./returns.ts";
 export * from "./payments.ts";
 export * from "./pickups.ts";
 export * from "./fondeadora.ts";
+export * from "./failures.ts";

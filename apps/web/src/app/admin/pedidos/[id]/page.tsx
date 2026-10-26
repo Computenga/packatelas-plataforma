@@ -6,7 +6,8 @@ import { requireUser } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
-import { cancelOrder } from "../actions";
+import { cancelOrder, rescheduleAction, sendToWarehouseAction } from "../actions";
+import { ActionForm } from "@/components/action-form";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -17,7 +18,12 @@ const SOURCE_LABEL: Record<string, string> = {
 const EVENT_LABEL: Record<string, string> = {
   created: "Pedido registrado", scanned: "Escaneado de nuevo", assigned: "Asignado", delivered: "Entregado",
   failed: "Entrega fallida", cancelled: "Cancelado", scanned_loaded: "Cargado por repartidor",
+  unassigned: "Regresado a por asignar", return_required: "Llevar a bodega", rescheduled: "Reprogramado",
+  return_received: "Recibido en bodega", returned_to_seller: "Devuelto al vendedor",
 };
+
+const CAN_SEND_BACK = ["FAILED", "RESCHEDULED", "ASSIGNED", "OUT_FOR_DELIVERY"];
+const CAN_RESCHEDULE = ["FAILED", "RETURNING", "RETURNED_TO_WAREHOUSE", "RESCHEDULED"];
 
 export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[id]">) {
   const user = await requireUser(STAFF_ROLES);
@@ -36,6 +42,9 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
   });
   if (!order) notFound();
   const charge = order.ledger.find((l) => l.type === "CHARGE");
+  const canAct = ["ADMIN", "OPERADOR", "DESPACHADOR"].includes(user.role);
+  const canSendBack = canAct && CAN_SEND_BACK.includes(order.status);
+  const canReschedule = canAct && CAN_RESCHEDULE.includes(order.status);
   const canCancel = user.role === "ADMIN" && !["DELIVERED", "CANCELLED", "RETURNED_TO_SELLER"].includes(order.status);
 
   return (
@@ -118,6 +127,29 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               <p className="mt-2 text-xs text-slate-500">Envío ML {order.mlShipmentId.toString()} · {order.mlStatus ?? "sin sincronizar"}</p>
             )}
           </Card>
+          {(canSendBack || canReschedule) && (
+            <Card title="Siguiente paso">
+              {order.status === "RETURNING" && (
+                <p className="mb-3 text-sm text-amber-800">
+                  {order.driver ? `${order.driver.user.name} debe dejarlo en bodega.` : "Pendiente de llegar a bodega."} Al llegar, escanéalo en Devoluciones → Recibir.
+                </p>
+              )}
+              {canReschedule && (
+                <ActionForm action={rescheduleAction.bind(null, order.id)} submitLabel="Reprogramar entrega" className="mb-4">
+                  <label className="block text-sm">
+                    <span className="text-slate-600">Fecha (opcional)</span>
+                    <input type="date" name="date" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                  </label>
+                  <input name="note" placeholder="Nota (p. ej. cliente pidió por la tarde)" maxLength={200} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </ActionForm>
+              )}
+              {canSendBack && (
+                <ActionForm action={sendToWarehouseAction.bind(null, order.id)} submitLabel="Regresar a bodega">
+                  <p className="text-xs text-slate-500">El repartidor que lo trae lo verá en su lista de &quot;Llevar a bodega&quot;.</p>
+                </ActionForm>
+              )}
+            </Card>
+          )}
           {canCancel && (
             <form action={cancelOrder.bind(null, order.id)}>
               <Button variant="danger" className="w-full">Cancelar pedido</Button>

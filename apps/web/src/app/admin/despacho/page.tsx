@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { prisma } from "@packatelas/db";
+import { driversWithoutLocation, prisma } from "@packatelas/db";
+import { NoLocationAlert } from "@/components/no-location-alert";
 import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
 import { DispatchBoard, type BoardDriver, type BoardOrder } from "./board";
@@ -9,9 +10,9 @@ export const metadata: Metadata = { title: "Despacho" };
 export default async function DespachoPage() {
   await requireUser(["ADMIN", "DESPACHADOR"]);
 
-  const [orders, drivers] = await Promise.all([
+  const [orders, drivers, lost] = await Promise.all([
     prisma.order.findMany({
-      where: { status: { in: ["CREATED", "RESCHEDULED", "FAILED", "ASSIGNED", "OUT_FOR_DELIVERY"] } },
+      where: { status: { in: ["CREATED", "RESCHEDULED", "FAILED", "ASSIGNED", "OUT_FOR_DELIVERY", "RETURNING"] } },
       orderBy: { createdAt: "asc" },
       take: 2000,
       include: { client: { select: { name: true } } },
@@ -21,6 +22,7 @@ export default async function DespachoPage() {
       include: { user: { select: { name: true } } },
       orderBy: [{ onDuty: "desc" }, { user: { name: "asc" } }],
     }),
+    driversWithoutLocation(prisma),
   ]);
 
   const boardOrders: BoardOrder[] = orders.map((o) => ({
@@ -50,6 +52,7 @@ export default async function DespachoPage() {
       <PageHeader eyebrow="Operación" title="Despacho">
         Selecciona pedidos en la lista o en el mapa y asígnalos a un repartidor. Se actualiza cada 30 segundos.
       </PageHeader>
+      <NoLocationAlert drivers={lost} />
       <DispatchBoard orders={boardOrders} drivers={boardDrivers} />
     </div>
   );

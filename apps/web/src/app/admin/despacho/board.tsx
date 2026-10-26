@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import type { OrderStatus } from "@packatelas/db";
 import { STATUS_LABEL } from "@/lib/format";
 import { assignAction, unassignAction } from "./actions";
+import { bulkFailureAction } from "../pedidos/actions";
 
 const DispatchMap = dynamic(() => import("./dispatch-map").then((m) => m.DispatchMap), {
   ssr: false,
@@ -62,6 +63,8 @@ export function DispatchBoard({ orders, drivers }: { orders: BoardOrder[]; drive
     return [o.code, o.client, o.recipient, o.address, o.zip].some((v) => v?.toLowerCase().includes(f));
   });
   const byDriver = (id: string) => orders.filter((o) => o.driverId === id && (o.status === "ASSIGNED" || o.status === "OUT_FOR_DELIVERY"));
+  const toWarehouse = (id: string) => orders.filter((o) => o.driverId === id && (o.status === "RETURNING" || o.status === "FAILED"));
+  const selectedFailed = unassigned.filter((o) => selected.has(o.id) && o.status !== "CREATED").length;
 
   const toggle = (id: string) =>
     setSelected((s) => {
@@ -79,7 +82,8 @@ export function DispatchBoard({ orders, drivers }: { orders: BoardOrder[]; drive
       router.refresh();
     });
 
-  const mapOrders = focusDriver ? orders.filter((o) => o.driverId === focusDriver) : orders;
+  const onStreet = orders.filter((o) => o.status !== "RETURNING");
+  const mapOrders = focusDriver ? onStreet.filter((o) => o.driverId === focusDriver) : onStreet;
 
   return (
     <div className="grid gap-4 xl:grid-cols-[380px_1fr_300px]">
@@ -151,6 +155,26 @@ export function DispatchBoard({ orders, drivers }: { orders: BoardOrder[]; drive
               Asignar {selected.size || ""}
             </button>
           </div>
+          {selectedFailed > 0 && (
+            <div className="flex gap-2 text-xs">
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => run(() => bulkFailureAction([...selected], "warehouse"))}
+                className="flex-1 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 font-medium text-amber-900 disabled:opacity-50"
+              >
+                Regresar a bodega ({selectedFailed})
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() => run(() => bulkFailureAction([...selected], "reschedule"))}
+                className="flex-1 rounded-lg border border-slate-300 px-2 py-1.5 font-medium text-slate-700 disabled:opacity-50"
+              >
+                Reprogramar
+              </button>
+            </div>
+          )}
           {msg.ok && <p role="status" className="text-xs text-emerald-700">{msg.ok}</p>}
           {msg.error && <p role="alert" className="text-xs text-red-600">{msg.error}</p>}
         </div>
@@ -186,6 +210,7 @@ export function DispatchBoard({ orders, drivers }: { orders: BoardOrder[]; drive
                 </button>
                 <p className="mt-1 pl-5 text-xs text-slate-500">
                   {list.length} en ruta · {out} cargados
+                  {toWarehouse(d.id).length > 0 && <span className="text-amber-700"> · {toWarehouse(d.id).length} para bodega</span>}
                   {d.lastLocationAt && ` · visto ${new Date(d.lastLocationAt).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}`}
                 </p>
                 {focusDriver === d.id && list.length > 0 && (

@@ -1,6 +1,7 @@
 // Despacho y acciones del repartidor [A04, A05, R01, R03, R06, R07, R10, R11, R14].
 import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
+import { getMaxAttempts, markReturning, mustReturn } from "./failures.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -175,7 +176,12 @@ async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<Dri
     if (e.photoKey) {
       await tx.evidence.create({ data: { orderId: order.id, eventId: ev.id, kind: "PHOTO", storageKey: e.photoKey } });
     }
-    await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
+    const updated = await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
+    if (mustReturn(reason, updated.attempts, await getMaxAttempts(tx))) {
+      const why = reason === "rechazo" ? "el cliente lo rechazó" : `${updated.attempts} intento(s) sin entregar`;
+      await markReturning(tx, order.id, `Llevar a bodega: ${why}`, "SYSTEM");
+      return { ok: true as const, duplicate: false, status: "RETURNING" as OrderStatus };
+    }
     return { ok: true as const, duplicate: false, status: "FAILED" as OrderStatus };
   });
 }

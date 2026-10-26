@@ -15,7 +15,7 @@ async function findByScan(prisma: PrismaClient, raw: string) {
   const p = parseScan(raw);
   if (p.kind === "INVALID") return null;
   const where = p.kind === "CODE" ? { code: p.code } : { mlShipmentId: p.shipmentId };
-  return prisma.order.findUnique({ where, include: { client: true, return: true } });
+  return prisma.order.findUnique({ where, include: { client: true, return: true, driver: { include: { user: { select: { name: true } } } } } });
 }
 
 /** Primer escaneo: el paquete llega al almacén de Packatelas. */
@@ -33,7 +33,10 @@ export async function receiveReturn(prisma: PrismaClient, raw: string, actorUser
       update: { status: "IN_WAREHOUSE", receivedAt: new Date(), receivedById: actorUserId },
       create: { orderId: order.id, status: "IN_WAREHOUSE", receivedAt: new Date(), receivedById: actorUserId },
     });
-    await addOrderEvent(tx, { orderId: order.id, type: "return_received", source: "SCAN", toStatus: "RETURNED_TO_WAREHOUSE", actorUserId, note: "Recibido en Packatelas" });
+    // Ya no lo trae el repartidor: sale de su lista de "llevar a bodega".
+    if (order.driverId) await tx.order.update({ where: { id: order.id }, data: { driverId: null } });
+    const from = order.driver ? ` · lo entregó ${order.driver.user.name}` : "";
+    await addOrderEvent(tx, { orderId: order.id, type: "return_received", source: "SCAN", toStatus: "RETURNED_TO_WAREHOUSE", actorUserId, note: `Recibido en Packatelas${from}` });
   });
   return { status: "ok", ...ref };
 }

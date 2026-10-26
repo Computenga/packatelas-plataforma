@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
-import { prisma } from "@packatelas/db";
+import Link from "next/link";
+import { driversWithoutLocation, prisma } from "@packatelas/db";
+import { NoLocationAlert } from "@/components/no-location-alert";
 import { requireUser } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 import { Stat, mxn } from "@/components/stat";
@@ -16,20 +18,33 @@ export default async function AdminHome() {
   const user = await requireUser(STAFF_ROLES);
   const today = startOfTodayMx();
 
-  const [ordersToday, pending, delivered, clients, driversOnDuty, drivers, balance] = await Promise.all([
+  const [ordersToday, pending, delivered, clients, driversOnDuty, drivers, balance, lost, failed, toWarehouse, unidentified] = await Promise.all([
     prisma.order.count({ where: { createdAt: { gte: today } } }),
-    prisma.order.count({ where: { status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
+    prisma.order.count({ where: { status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "RESCHEDULED"] } } }),
     prisma.order.count({ where: { status: "DELIVERED", deliveredAt: { gte: today } } }),
     prisma.client.count({ where: { active: true } }),
     prisma.driver.count({ where: { active: true, onDuty: true } }),
     prisma.driver.count({ where: { active: true } }),
     user.role === "ADMIN" ? prisma.ledgerEntry.aggregate({ _sum: { amount: true } }) : null,
+    driversWithoutLocation(prisma),
+    prisma.order.count({ where: { status: "FAILED" } }),
+    prisma.order.count({ where: { status: "RETURNING" } }),
+    user.role === "ADMIN" ? prisma.payment.count({ where: { status: "UNIDENTIFIED" } }) : 0,
   ]);
+  const todo = [
+    failed > 0 && { href: "/admin/pedidos?vista=vivo&status=FAILED", text: `${failed} fallido(s) por decidir: reprogramar o regresar a bodega` },
+    toWarehouse > 0 && { href: "/admin/devoluciones", text: `${toWarehouse} paquete(s) que deben llegar a bodega` },
+    unidentified > 0 && { href: "/admin/cobros", text: `${unidentified} transferencia(s) sin identificar` },
+  ].filter(Boolean) as { href: string; text: string }[];
 
   return (
     <div className="mx-auto max-w-6xl">
       <p className="text-xs font-semibold uppercase tracking-wider text-brand">Administración</p>
       <h1 className="mt-1 text-2xl font-bold">Resumen de hoy</h1>
+
+      <div className="mt-4">
+        <NoLocationAlert drivers={lost} />
+      </div>
 
       <div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Pedidos hoy" value={ordersToday} />
@@ -42,13 +57,18 @@ export default async function AdminHome() {
         )}
       </div>
 
-      <section className="mt-8 rounded-xl border border-dashed border-slate-300 bg-white p-6">
-        <h2 className="font-semibold">Fase 1 en construcción</h2>
-        <p className="mt-1 text-sm text-slate-600">
-          Las secciones marcadas como &quot;pronto&quot; se irán habilitando: escaneo de envíos ML, despacho con mapa
-          y rutas, pedidos, devoluciones, clientes, repartidores y cobros.
-        </p>
-      </section>
+      {todo.length > 0 && (
+        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="font-semibold">Pendientes</h2>
+          <ul className="mt-2 space-y-1 text-sm">
+            {todo.map((t) => (
+              <li key={t.href}>
+                <Link href={t.href} className="text-brand hover:underline">{t.text}</Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

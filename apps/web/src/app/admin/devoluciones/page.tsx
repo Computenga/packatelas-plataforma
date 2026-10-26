@@ -1,15 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@packatelas/db";
+import { getMaxAttempts, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, startOfTodayMx, STATUS_LABEL } from "@/lib/format";
 import { Card, PageHeader } from "@/components/ui";
 import { Stat } from "@/components/stat";
 import { ReturnStation } from "./return-station";
+import { ActionForm } from "@/components/action-form";
+import { rescheduleAction } from "../pedidos/actions";
+import { maxAttemptsAction } from "./actions";
 
 export const metadata: Metadata = { title: "Devoluciones" };
 
-type Row = { id: string; code: string; status: keyof typeof STATUS_LABEL; updatedAt: Date; client: { id: string; name: string } };
+type Row = { id: string; code: string; status: keyof typeof STATUS_LABEL; updatedAt: Date; client: { id: string; name: string }; driver: { user: { name: string } } | null };
 
 function byClient(rows: Row[]) {
   const map = new Map<string, { name: string; rows: Row[] }>();
@@ -22,15 +25,17 @@ function byClient(rows: Row[]) {
 }
 
 export default async function DevolucionesPage({ searchParams }: PageProps<"/admin/devoluciones">) {
-  await requireUser(["ADMIN", "OPERADOR"]);
+  const user = await requireUser(["ADMIN", "OPERADOR"]);
   const tab = String((await searchParams).tab ?? "recibir");
-  const select = { id: true, code: true, status: true, updatedAt: true, client: { select: { id: true, name: true } } } as const;
+  const select = { id: true, code: true, status: true, updatedAt: true, client: { select: { id: true, name: true } }, driver: { select: { user: { select: { name: true } } } } } as const;
 
-  const [toReceive, inWarehouse, returnedToday] = await Promise.all([
+  const [toReceive, inWarehouse, returnedToday, maxAttempts] = await Promise.all([
     prisma.order.findMany({ where: { status: { in: ["FAILED", "RETURNING", "CANCELLED"] } }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
     prisma.order.findMany({ where: { status: "RETURNED_TO_WAREHOUSE" }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
     prisma.returnCustody.count({ where: { status: "RETURNED_TO_SELLER", returnedAt: { gte: startOfTodayMx() } } }),
+    getMaxAttempts(prisma),
   ]);
+  const inWarehouseTab = tab === "almacen";
   const groups = byClient(tab === "almacen" ? inWarehouse : toReceive);
 
   return (
@@ -66,9 +71,17 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
               </summary>
               <ul className="divide-y divide-slate-100 border-t border-slate-100 text-sm">
                 {g.rows.map((r) => (
-                  <li key={r.id} className="flex justify-between px-4 py-1.5">
+                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-1.5">
                     <Link href={`/admin/pedidos/${r.id}`} className="font-mono text-xs text-brand hover:underline">{r.code}</Link>
-                    <span className="text-xs text-slate-500">{STATUS_LABEL[r.status]} · {fecha(r.updatedAt)}</span>
+                    <span className="flex items-center gap-3 text-xs text-slate-500">
+                      {STATUS_LABEL[r.status]} · {fecha(r.updatedAt)}
+                      {!inWarehouseTab && r.driver && ` · lo trae ${r.driver.user.name}`}
+                      {inWarehouseTab && (
+                        <form action={async (fd) => { "use server"; await rescheduleAction(r.id, {}, fd); }}>
+                          <button className="text-brand hover:underline">Reintentar entrega</button>
+                        </form>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -76,6 +89,18 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
           ))}
         </div>
       </Card>
+
+      {user.role === "ADMIN" && (
+        <Card title="Regla de regreso a bodega">
+          <ActionForm action={maxAttemptsAction} submitLabel="Guardar" className="max-w-sm">
+            <label className="block text-sm">
+              <span className="text-slate-700">Intentos de entrega antes de regresar a bodega</span>
+              <input type="number" name="max" min={1} max={10} defaultValue={maxAttempts} className="mt-1 w-24 rounded-lg border border-slate-300 px-3 py-2" />
+            </label>
+            <p className="text-xs text-slate-500">Si el cliente rechaza el paquete, regresa a bodega desde el primer intento.</p>
+          </ActionForm>
+        </Card>
+      )}
     </div>
   );
 }
