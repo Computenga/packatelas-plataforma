@@ -22,7 +22,7 @@ entrar al servidor; lo demás se hace desde el navegador.
 
 ## 2. DNS
 
-En el administrador de DNS de packatelas.mx crear registros **A** hacia la IP del VPS:
+El DNS de packatelas.mx está en **GoDaddy** (no en IONOS). Crear registros **A** hacia la IP del VPS:
 
 | Nombre | Uso |
 |---|---|
@@ -44,12 +44,13 @@ En el administrador de DNS de packatelas.mx crear registros **A** hacia la IP de
 
    | Variable | Valor |
    |---|---|
-   | `POSTGRES_PASSWORD` | Contraseña larga y aleatoria |
+   | `POSTGRES_PASSWORD` | Resultado de `openssl rand -hex 24` (solo letras y números: va dentro de la URL de conexión) |
    | `ENCRYPTION_KEY` | Resultado de `openssl rand -base64 32` |
    | `GOOGLE_MAPS_API_KEY` | Llave de Google Maps con **Places API (New)** (buscador de direcciones) y **Geocoding API** (carga masiva; 10,000 gratis al mes) activadas, cuando exista |
    | `OSRM_URL` | Vacío por ahora (se agrega al montar OSRM) |
 
-3. En el servicio **web**: dominio `https://nuevo.packatelas.mx`, puerto 3000.
+3. En el servicio **web**: dominio `https://nuevo.packatelas.mx`, puerto 3000. Coolify agrega solo un `www.`; quitarlo (no tiene DNS y rompe el certificado).
+   `PUBLIC_URL` = `https://nuevo.packatelas.mx` mientras se prueba.
 4. Activar **Automatic deployment** (cada push a `main` publica).
 5. Deploy. El servicio `migrate` crea las tablas antes de arrancar la web.
 
