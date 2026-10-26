@@ -7,7 +7,7 @@ import { ScanStation } from "./scan-station";
 export const metadata: Metadata = { title: "Escanear envíos" };
 
 export default async function EscanearPage() {
-  await requireUser(["ADMIN", "OPERADOR"]);
+  const user = await requireUser(["ADMIN", "OPERADOR"]);
   // Solo importan las sucursales de cuentas ML que llegan a más de una [A02].
   const routes = await prisma.mlAccountRoute.findMany({
     where: { mlAccount: { routes: { some: { isDefault: false } } } },
@@ -16,13 +16,16 @@ export default async function EscanearPage() {
   const branches = [...new Map(routes.map((r) => [r.branch.id, r.branch])).values()].sort((a, b) =>
     a.client.publicId.localeCompare(b.client.publicId),
   );
+  const clients = user.role === "ADMIN"
+    ? await prisma.client.findMany({ where: { active: true }, select: { publicId: true, name: true }, orderBy: { publicId: "asc" } })
+    : [];
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader eyebrow="Operación" title="Escanear envíos">
         Cada etiqueta crea el pedido en la sucursal correcta y registra el cargo del cliente. Escanear dos veces no
         duplica nada.
       </PageHeader>
-      <ScanStation branches={branches.map((b) => ({ id: b.id, label: `${b.client.publicId} · ${b.name}` }))} />
+      <ScanStation clients={clients} branches={branches.map((b) => ({ id: b.id, label: `${b.client.publicId} · ${b.name}` }))} />
     </div>
   );
 }

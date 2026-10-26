@@ -150,6 +150,9 @@ export async function addBranch(clientId: string, _: ActionState, fd: FormData):
       autoPickupDays: days,
     },
   });
+  // Cuentas ML del cliente que aún no llegan a ninguna sucursal (p. ej. importadas) llegan a esta.
+  const orphan = await prisma.mlAccount.findMany({ where: { clientId, routes: { none: {} } }, select: { id: true } });
+  if (orphan.length) await prisma.mlAccountRoute.createMany({ data: orphan.map((a) => ({ mlAccountId: a.id, branchId: branch.id, isDefault: true })) });
   await audit(prisma, { actorUserId: user.id, action: "branch.created", entity: "Branch", entityId: branch.id, summary: `Sucursal ${d.name} agregada` });
   revalidatePath(`/admin/clientes/${clientId}`);
   return { ok: `Sucursal ${d.name} agregada` };
