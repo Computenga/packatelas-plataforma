@@ -18,6 +18,17 @@ function fresh(h: HealthEntry | undefined, maxMin: number, t: number): Level {
   return h.ok ? "ok" : "warn";
 }
 
+async function pingOsrm(): Promise<"ok" | "off" | "down"> {
+  const base = process.env.OSRM_URL?.replace(/\/$/, "");
+  if (!base) return "off";
+  try {
+    const r = await fetch(`${base}/nearest/v1/driving/-99.1332,19.4326`, { signal: AbortSignal.timeout(2000), cache: "no-store" });
+    return r.ok ? "ok" : "down";
+  } catch {
+    return "down";
+  }
+}
+
 /** Estado de integraciones y procesos [A20]. */
 export default async function SaludPage() {
   await requireUser(["ADMIN"]);
@@ -31,6 +42,7 @@ export default async function SaludPage() {
     driversWithoutLocation(prisma),
     prisma.payment.findFirst({ where: { source: "GMAIL" }, orderBy: { receivedAt: "desc" }, select: { receivedAt: true } }),
   ]);
+  const osrm = await pingOsrm();
   const mlCount = (s: string) => ml.find((m) => m.status === s)?._count._all ?? 0;
   const mlTotal = ml.reduce((a, m) => a + m._count._all, 0);
   const wa = health.whatsapp;
@@ -87,8 +99,8 @@ export default async function SaludPage() {
     },
     {
       name: "Rutas con tiempos reales",
-      level: process.env.OSRM_URL ? "ok" : "off",
-      detail: process.env.OSRM_URL ? "OSRM configurado" : "Orden en línea recta hasta montar OSRM",
+      level: osrm === "ok" ? "ok" : osrm === "off" ? "off" : "warn",
+      detail: osrm === "ok" ? "OSRM respondiendo (mapa CDMX y Edomex)" : osrm === "off" ? "Orden en línea recta hasta montar OSRM" : "OSRM aún preparando el mapa o sin responder; mientras, orden en línea recta",
     },
     {
       name: "Repartidores con ubicación",

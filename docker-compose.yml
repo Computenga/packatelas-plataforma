@@ -41,7 +41,7 @@ services:
       GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
       PUBLIC_URL: ${PUBLIC_URL:-}
       UPLOAD_DIR: /data/uploads
-      OSRM_URL: ${OSRM_URL:-}
+      OSRM_URL: ${OSRM_URL:-http://osrm:5000}
       ML_CLIENT_ID: ${ML_CLIENT_ID:-}
       ML_CLIENT_SECRET: ${ML_CLIENT_SECRET:-}
       WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
@@ -71,7 +71,40 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
 
+  # Rutas con tiempos reales [A08, A26]: OSRM con el mapa de CDMX y Edomex (OpenStreetMap).
+  # La primera vez descarga y procesa el mapa (~20-30 min); después solo arranca.
+  osrm-prep:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    volumes:
+      - osrm:/data
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ -f /data/zmvm.osrm.mldgr ]; then echo "Mapa listo"; exit 0; fi
+        apt-get update -qq && apt-get install -y -qq wget osmium-tool >/dev/null
+        wget -q -O /data/mexico.osm.pbf https://download.geofabrik.de/north-america/mexico-latest.osm.pbf
+        osmium extract -b -99.75,18.85,-98.55,20.05 /data/mexico.osm.pbf -o /data/zmvm.osm.pbf --overwrite
+        rm /data/mexico.osm.pbf
+        osrm-extract -p /opt/car.lua /data/zmvm.osm.pbf
+        osrm-partition /data/zmvm.osrm
+        osrm-customize /data/zmvm.osrm
+        echo "Mapa listo"
+    restart: "no"
+
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    volumes:
+      - osrm:/data
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        until [ -f /data/zmvm.osrm.mldgr ]; do echo "Esperando el mapa…"; sleep 30; done
+        exec osrm-routed --algorithm mld --max-table-size 500 /data/zmvm.osrm
+    restart: unless-stopped
+
 volumes:
+  osrm:
   pgdata:
   redisdata:
   uploads:
