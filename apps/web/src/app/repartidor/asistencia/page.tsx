@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requireUser } from "@/lib/auth";
 import { MyAttendance } from "@/components/my-attendance";
 import { MyDocuments } from "@/components/my-documents";
+import { MyPayroll } from "@/components/my-payroll";
 
 export const metadata: Metadata = { title: "Mi asistencia" };
 
@@ -11,6 +12,7 @@ export default async function AsistenciaRepartidorPage({ searchParams }: PagePro
     <div className="space-y-4">
       <h1 className="text-lg font-bold">Mi asistencia</h1>
       <MyAttendance userId={user.id} q={(await searchParams).q} base="/repartidor/asistencia" />
+      <MyPayroll userId={user.id} />
       <MyDocuments userId={user.id} />
     </div>
   );
