@@ -99,6 +99,19 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               <Row label="Entregado" value={order.deliveredAt ? fecha(order.deliveredAt) : null} />
             </dl>
           </Card>
+          {order.evidence.length > 0 && (
+            <Card title="Evidencia">
+              <div className="grid grid-cols-2 gap-2">
+                {order.evidence.map((ev) => (
+                  <a key={ev.id} href={`/api/evidence/${ev.storageKey}`} target="_blank" rel="noreferrer" className="block">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={`/api/evidence/${ev.storageKey}`} alt="Evidencia de entrega" className="aspect-square w-full rounded-lg object-cover" />
+                    {ev.receiverName && <span className="mt-1 block text-xs text-slate-600">Recibió: {ev.receiverName}</span>}
+                  </a>
+                ))}
+              </div>
+            </Card>
+          )}
           <Card title="Cobro">
             <p className="text-sm">{charge ? `Cargo de ${mxn(charge.amount)} el ${fecha(charge.createdAt)}` : "Sin cargo"}</p>
             {order.mlShipmentId && (

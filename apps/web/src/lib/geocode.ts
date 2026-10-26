@@ -8,13 +8,15 @@ export type GeoResult = {
   city?: string;
   state?: string;
   zip?: string;
-  lat: number;
-  lng: number;
+  /** Sin coordenadas cuando viene de Google: se piden al elegir (placeId). */
+  lat?: number;
+  lng?: number;
+  placeId?: string;
 };
 
 // Zona de operación: CDMX y Estado de México (lng mín, lat mín, lng máx, lat máx).
-const BBOX = "-99.75,18.85,-98.55,20.05";
-const BIAS = { lat: 19.4326, lon: -99.1332 };
+export const BBOX = "-99.75,18.85,-98.55,20.05";
+export const BIAS = { lat: 19.4326, lon: -99.1332 };
 
 type PhotonFeature = {
   geometry: { coordinates: [number, number] };
@@ -65,30 +67,4 @@ export function withTypedNumber(addressLine: string, query: string): string {
   if (/\d/.test(addressLine)) return addressLine;
   const m = query.match(/(?:^|\s|#)(\d{1,4}[a-zA-Z]?)(?=\s|,|$)/);
   return m ? `${addressLine} ${m[1].toUpperCase()}` : addressLine;
-}
-
-async function photon(q: string): Promise<GeoResult[]> {
-  const url = new URL("https://photon.komoot.io/api/");
-  url.searchParams.set("q", q);
-  url.searchParams.set("limit", "8");
-  url.searchParams.set("bbox", BBOX);
-  url.searchParams.set("lat", String(BIAS.lat));
-  url.searchParams.set("lon", String(BIAS.lon));
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Packatelas-Plataforma/1.0 (operacion@packatelas.mx)" },
-    signal: AbortSignal.timeout(5000),
-  });
-  if (!res.ok) throw new Error(`Photon ${res.status}`);
-  return parsePhoton(await res.json());
-}
-
-/** Busca direcciones con el proveedor configurado (GEOCODER=photon por defecto). */
-export async function searchAddress(q: string): Promise<GeoResult[]> {
-  const provider = process.env.GEOCODER ?? "photon";
-  switch (provider) {
-    case "photon":
-      return photon(q);
-    default:
-      throw new Error(`Proveedor de direcciones no soportado: ${provider}`);
-  }
 }

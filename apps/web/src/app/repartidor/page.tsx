@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
-import { Stat } from "@/components/stat";
+import { fecha } from "@/lib/format";
+import { toggleShift } from "./actions";
+import { RouteList } from "./route-list";
 
 export const metadata: Metadata = { title: "Mi ruta" };
 
@@ -12,24 +14,24 @@ export default async function RepartidorHome() {
     return <p className="text-slate-600">Tu usuario aún no tiene perfil de repartidor. Avisa a tu supervisor.</p>;
   }
 
-  const [pending, delivered] = await Promise.all([
-    prisma.order.count({ where: { driverId: driver.id, status: { in: ["ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
-    prisma.order.count({ where: { driverId: driver.id, status: "DELIVERED" } }),
-  ]);
-
   return (
-    <div className="mx-auto max-w-md">
-      <h1 className="text-xl font-bold">Hola, {user.name.split(" ")[0]}</h1>
-      <p className={`mt-1 text-sm ${driver.onDuty ? "text-emerald-600" : "text-slate-500"}`}>
-        {driver.onDuty ? "En turno" : "Fuera de turno"}
-      </p>
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <Stat label="Por entregar" value={pending} tone="amber" />
-        <Stat label="Entregados" value={delivered} tone="green" />
+    <div>
+      <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
+        <div>
+          <p className="font-semibold">Hola, {user.name.split(" ")[0]}</p>
+          <p className={`text-sm ${driver.onDuty ? "text-emerald-600" : "text-slate-500"}`}>
+            {driver.onDuty ? `En turno desde ${fecha(driver.shiftStartedAt)}` : "Fuera de turno"}
+          </p>
+        </div>
+        <form action={toggleShift}>
+          <button
+            className={`rounded-lg px-4 py-2.5 text-sm font-semibold ${driver.onDuty ? "border border-slate-300 bg-white text-slate-700" : "bg-emerald-600 text-white"}`}
+          >
+            {driver.onDuty ? "Terminar turno" : "Iniciar turno"}
+          </button>
+        </form>
       </div>
-      <p className="mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-4 text-sm text-slate-600">
-        Pronto: inicio de turno, ruta ordenada por tu ubicación, escaneo y entregas sin conexión.
-      </p>
+      <RouteList />
     </div>
   );
 }

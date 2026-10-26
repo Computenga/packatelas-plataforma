@@ -33,13 +33,17 @@ export function AddressPicker({ variant = "order", defaults }: { variant?: "orde
   });
   const [pos, setPos] = useState<{ lat?: number; lng?: number }>({ lat: defaults?.lat, lng: defaults?.lng });
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Token de sesión de Google: agrupa las teclas y el detalle en un solo cobro.
+  const session = useRef<string>("");
+  const newSession = () => (session.current = crypto.randomUUID());
 
   useEffect(() => {
     clearTimeout(timer.current);
     if (q.trim().length < 4) return;
     timer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`);
+        if (!session.current) newSession();
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}&session=${session.current}`);
         const data = (await res.json()) as { results: GeoResult[]; error?: string };
         setResults(data.results);
         setNote(data.error ?? (data.results.length === 0 ? "Sin coincidencias. Captura la dirección y ubica el pin en el mapa." : undefined));
@@ -50,7 +54,19 @@ export function AddressPicker({ variant = "order", defaults }: { variant?: "orde
     }, 450);
   }, [q]);
 
-  const pick = (r: GeoResult) => {
+  const pick = async (choice: GeoResult) => {
+    let r = choice;
+    if (r.placeId && r.lat == null) {
+      try {
+        const res = await fetch(`/api/geocode/place?id=${encodeURIComponent(r.placeId)}&session=${session.current}`);
+        const data = (await res.json()) as { result?: GeoResult; error?: string };
+        if (data.result) r = data.result;
+        else setNote(data.error);
+      } catch {
+        setNote("No se pudo obtener la ubicación; colócala en el mapa.");
+      }
+    }
+    newSession();
     const street = withTypedNumber(r.addressLine, q);
     setF({
       addressLine: variant === "branch" ? r.label.replace(r.addressLine, street) : street,
@@ -62,7 +78,7 @@ export function AddressPicker({ variant = "order", defaults }: { variant?: "orde
     setPos({ lat: r.lat, lng: r.lng });
     setOpen(false);
     setQ("");
-    setNote("Revisa que el pin esté sobre el lugar exacto; puedes arrastrarlo.");
+    if (r.lat != null) setNote("Revisa que el pin esté sobre el lugar exacto; puedes arrastrarlo.");
   };
 
   const set = (k: keyof Fields) => (e: React.ChangeEvent<HTMLInputElement>) => setF({ ...f, [k]: e.target.value });

@@ -10,7 +10,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
       nav={adminNavFor(user.role)}
-      ready={["/admin", "/admin/escanear", "/admin/pedidos", "/admin/clientes", "/admin/repartidores", "/admin/usuarios", "/admin/auditoria"]}
+      ready={["/admin", "/admin/escanear", "/admin/despacho", "/admin/pedidos", "/admin/clientes", "/admin/repartidores", "/admin/usuarios", "/admin/auditoria"]}
     >
       {children}
     </AppShell>

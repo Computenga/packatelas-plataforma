@@ -36,6 +36,11 @@ services:
       DATABASE_URL: postgresql://packatelas:${POSTGRES_PASSWORD}@db:5432/packatelas
       REDIS_URL: redis://redis:6379
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:?define ENCRYPTION_KEY}
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+      UPLOAD_DIR: /data/uploads
+      OSRM_URL: ${OSRM_URL:-}
+    volumes:
+      - uploads:/data/uploads
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_started }
@@ -45,3 +50,4 @@ services:
 volumes:
   pgdata:
   redisdata:
+  uploads:
