@@ -46,8 +46,10 @@ services:
       ML_CLIENT_SECRET: ${ML_CLIENT_SECRET:-}
       WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
       WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
+      BACKUP_DIR: /backups
     volumes:
       - uploads:/data/uploads
+      - backups:/backups:ro
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_started }
@@ -68,8 +70,38 @@ services:
       PUBLIC_URL: ${PUBLIC_URL:-}
       ML_CLIENT_ID: ${ML_CLIENT_ID:-}
       ML_CLIENT_SECRET: ${ML_CLIENT_SECRET:-}
+      DRIVE_REFRESH_TOKEN: ${DRIVE_REFRESH_TOKEN:-}
+      BACKUP_DIR: /backups
+    volumes:
+      - backups:/backups:ro
     depends_on:
       migrate: { condition: service_completed_successfully }
+
+  # Respaldos [P08]: copia diaria de la base (formato pg_dump) en el volumen "backups".
+  # El worker la sube a Google Drive si hay DRIVE_REFRESH_TOKEN; el admin la descarga desde Salud.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - backups:/backups
+    entrypoint: ["sh", "-c"]
+    command:
+      - |
+        while true; do
+          f=/backups/packatelas-$$(date -u +%Y-%m-%d).dump
+          hay=$$(ls /backups/*.dump 2>/dev/null | head -1)
+          # 09:00 UTC = 03:00 CDMX; el primer respaldo se hace al arrancar.
+          if [ ! -f "$$f" ] && { [ "$$(date -u +%H)" -ge 9 ] || [ -z "$$hay" ]; }; then
+            if pg_dump -h db -U packatelas -Fc packatelas > "$$f.tmp"; then mv "$$f.tmp" "$$f"; echo "Respaldo listo: $$f"; else rm -f "$$f.tmp"; echo "Falló el respaldo"; fi
+          fi
+          find /backups -name '*.dump' -mtime +$$KEEP_DAYS -delete
+          sleep 900
+        done
+    depends_on:
+      db: { condition: service_healthy }
 
   # Rutas con tiempos reales [A08, A26]: OSRM con el mapa de CDMX y Edomex (OpenStreetMap).
   # La primera vez descarga y procesa el mapa (~20-30 min); después solo arranca.
@@ -119,6 +151,7 @@ services:
     restart: unless-stopped
 
 volumes:
+  backups:
   osrm:
   pgdata:
   redisdata:

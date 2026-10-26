@@ -103,6 +103,18 @@ export default async function SaludPage() {
       detail: osrm === "ok" ? "OSRM respondiendo (mapa CDMX y Edomex)" : osrm === "off" ? "Orden en línea recta hasta montar OSRM" : "OSRM aún preparando el mapa o sin responder; mientras, orden en línea recta",
     },
     {
+      name: "Respaldos de la base",
+      level: !health.respaldos ? "off" : health.respaldos.ok ? fresh(health.respaldos, 90, t) : health.respaldos.detail?.includes("falta DRIVE_REFRESH_TOKEN") ? "warn" : "bad",
+      detail: (
+        <>
+          {health.respaldos?.detail ?? "Aún sin datos: el worker revisa cada 30 min"}
+          {health.respaldos && !health.respaldos.detail?.startsWith("Aún no hay") && (
+            <a href="/admin/salud/respaldo" className="mt-1 block text-brand hover:underline">Descargar el más reciente</a>
+          )}
+        </>
+      ),
+    },
+    {
       name: "Repartidores con ubicación",
       level: lost.length ? "warn" : "ok",
       detail: lost.length ? `${lost.length} en turno sin ubicación: ${lost.map((d) => d.user.name).join(", ")}` : "Todos los que están en turno reportan",

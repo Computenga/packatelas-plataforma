@@ -2,6 +2,7 @@
 import "dotenv/config";
 import { deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
+import { startBackups } from "./backups.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
 
 const QUERY = process.env.GMAIL_QUERY ?? 'from:info@negocios.fondeadora.com subject:"Depósito" newer_than:3d';
@@ -103,6 +104,7 @@ async function main() {
   startHourlyJobs();
   startMlSync();
   startNotifier();
+  startBackups();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

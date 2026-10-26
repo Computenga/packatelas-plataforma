@@ -145,3 +145,11 @@ recordatorio de pago) se registran siempre en **Admin → Avisos**. Para que se 
 - Iniciar sesión con el administrador, crear un cliente de prueba, escanear un código y
   revisar que aparezca en Pedidos.
 - Instalar la app en un teléfono (menú del navegador → "Agregar a pantalla de inicio").
+
+## Respaldos
+
+- El servicio `backup` guarda una copia diaria de la base (03:00 CDMX) en el volumen `backups` y conserva 14 días (`BACKUP_KEEP_DAYS`).
+- Admin → Salud operativa → "Descargar el más reciente" baja el último `.dump` (queda en auditoría).
+- Copia fuera del VPS: con `DRIVE_REFRESH_TOKEN` (mismo cliente OAuth que Gmail, alcance `https://www.googleapis.com/auth/drive.file`) el worker sube cada copia a la carpeta "Packatelas · respaldos" de Google Drive y deja las últimas 30.
+- Restaurar: `pg_restore --clean --if-exists -h <host> -U packatelas -d packatelas packatelas-AAAA-MM-DD.dump`.
+- Las fotos de evidencia (volumen `uploads`) aún no se copian fuera del VPS.
