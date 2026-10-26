@@ -110,6 +110,8 @@ model Client {
   ledger     LedgerEntry[]
   payments   Payment[]
   invoices   Invoice[]
+  apiKeys    ApiKey[]
+  webhook    WebhookEndpoint?
 }
 
 model Branch {
@@ -235,6 +237,7 @@ enum OrderSource {
   MANUAL
   EXTERNAL_SCAN // paquete externo escaneado por el repartidor [R14]
   IMPORT
+  API // creado por el sistema del cliente [I08]
 }
 
 enum OrderStatus {
@@ -278,6 +281,7 @@ model Order {
   lng            Float?
   instructions   String?
   itemsSummary   String?
+  externalRef    String? // referencia del cliente al crear por API [I08]
   declaredValue  Decimal? @db.Decimal(12, 2)
 
   requestedDeliveryAt DateTime?
@@ -296,6 +300,7 @@ model Order {
   return     ReturnCustody?
   ledger     LedgerEntry[]
 
+  @@unique([clientId, externalRef])
   @@index([clientId, createdAt])
   @@index([driverId, status])
   @@index([status, createdAt])
@@ -1056,4 +1061,56 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// API para clientes grandes [I08]: llaves por cliente (solo se guarda el hash) y webhooks de estado.
+model ApiKey {
+  id         String    @id @default(cuid())
+  clientId   String
+  client     Client    @relation(fields: [clientId], references: [id])
+  name       String
+  prefix     String // primeros caracteres, para reconocerla
+  hash       String    @unique // sha256 de la llave completa
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  @@index([clientId])
+}
+
+model WebhookEndpoint {
+  id         String            @id @default(cuid())
+  clientId   String            @unique
+  client     Client            @relation(fields: [clientId], references: [id])
+  url        String
+  secret     String // cifrado con ENCRYPTION_KEY
+  active     Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  deliveries WebhookDelivery[]
+}
+
+enum WebhookStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model WebhookDelivery {
+  id            String          @id @default(cuid())
+  endpointId    String
+  endpoint      WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+  orderId       String
+  event         String
+  payload       Json
+  status        WebhookStatus   @default(PENDING)
+  attempts      Int             @default(0)
+  nextAttemptAt DateTime        @default(now())
+  lastError     String?
+  responseCode  Int?
+  createdAt     DateTime        @default(now())
+  sentAt        DateTime?
+
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }

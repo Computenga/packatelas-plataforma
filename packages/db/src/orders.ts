@@ -4,6 +4,7 @@ import { chargeOrder } from "./ledger.ts";
 import { parseScan } from "./scan.ts";
 import { pickRoute } from "./ml-routes.ts";
 import { enqueueMlJob } from "./ml-api.ts";
+import { enqueueWebhook } from "./client-api.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -59,6 +60,8 @@ export async function addOrderEvent(
         ...(input.toStatus === "DELIVERED" ? { deliveredAt: input.occurredAt ?? new Date() } : {}),
       },
     });
+    // Aviso al sistema del cliente si tiene webhook [I08].
+    await enqueueWebhook(db, input.orderId, order.status, input.toStatus, input.occurredAt ?? new Date(), input.note);
   }
   return event;
 }
@@ -169,7 +172,8 @@ export type ManualOrderInput = {
   lng?: number;
   instructions?: string;
   itemsSummary?: string;
-  source?: "MANUAL" | "IMPORT" | "EXTERNAL_SCAN";
+  source?: "MANUAL" | "IMPORT" | "EXTERNAL_SCAN" | "API";
+  externalRef?: string;
   /** Quién lo dio de alta (para el historial): administración o la propia tienda [C04]. */
   eventSource?: "ADMIN" | "CLIENT" | "IMPORT";
 };

@@ -24,6 +24,10 @@ export default async function CuentaPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Estado de cuenta</h1>
+      <Card title="API e integraciones">
+        <p className="text-sm text-slate-600">Conecta tu tienda o sistema para crear envíos y recibir cambios de estado en automático.</p>
+        <Link href="/cliente/api" className="mt-2 inline-block text-sm text-brand hover:underline">Configurar →</Link>
+      </Card>
       <Card title="Mis cuentas de MercadoLibre">
         <MlConnect clientId={clientId} self />
       </Card>

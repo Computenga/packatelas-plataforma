@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
@@ -100,11 +100,29 @@ function startMlSync() {
   setInterval(tick, 15_000);
 }
 
+/** Webhooks de estado a sistemas de clientes [I08], cada 15 s. */
+function startWebhooks() {
+  let busy = false;
+  setInterval(async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const r = await processWebhooks(prisma);
+      if (r.sent || r.failed) console.log(`[worker] Webhooks: ${r.sent} enviados, ${r.failed} con error`);
+    } catch (e) {
+      console.error("[worker] Webhooks:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  }, 15_000);
+}
+
 async function main() {
   startHourlyJobs();
   startMlSync();
   startNotifier();
   startBackups();
+  startWebhooks();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();
