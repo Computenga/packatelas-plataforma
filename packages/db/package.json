@@ -28,6 +28,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./public-id": "./src/public-id.ts",
-    "./attendance": "./src/attendance-rules.ts"
+    "./attendance": "./src/attendance-rules.ts",
+    "./onboarding-roles": "./src/onboarding-roles.ts"
   }
 }

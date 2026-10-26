@@ -686,8 +686,9 @@ model Employee {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
 
-  punches        Punch[]
-  justifications Justification[]
+  punches           Punch[]
+  justifications    Justification[]
+  employeeDocuments EmployeeDocument[]
 
   @@index([status])
 }
@@ -878,4 +879,94 @@ model EmployeeCharge {
   createdAt   DateTime @default(now())
 
   @@index([employeeId, createdAt])
+}
+
+// ── Altas y expedientes [A22, A25] (mismas pestañas del portal actual: DocsTipos,
+// DocsEmpleado, Altas, Apps). Independiente del portal actual.
+
+model DocType {
+  key         String  @id // ine_frente, curp, licencia…
+  name        String
+  description String?
+  positions   String  @default("todos") // todos | repartidor | lista separada por comas
+  required    Boolean @default(true)
+  order       Int     @default(100)
+  active      Boolean @default(true)
+}
+
+enum DocStatus {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+model EmployeeDocument {
+  id            String           @id @default(cuid())
+  employeeId    String?
+  employee      Employee?        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  applicationId String?
+  application   HireApplication? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  docType       String
+  fileKey       String
+  fileName      String?
+  mime          String
+  status        DocStatus        @default(PENDIENTE)
+  comment       String?
+  reviewedById  String?
+  reviewedAt    DateTime?
+  uploadedAt    DateTime         @default(now())
+
+  @@index([employeeId, docType])
+  @@index([applicationId])
+}
+
+enum HireStatus {
+  EN_PROCESO // la persona está llenando
+  ENVIADA // terminó; falta revisión
+  APROBADA // ya es empleado
+  RECHAZADA
+}
+
+model HireApplication {
+  id                String     @id @default(cuid())
+  tokenHash         String     @unique
+  status            HireStatus @default(EN_PROCESO)
+  role              String     @default("repartidor") // repartidor | oficina | bodega | mecanico…
+  name              String?
+  rfc               String?
+  curp              String?
+  nss               String?
+  phone             String?
+  email             String?
+  address           String?
+  clabe             String?
+  bank              String?
+  emergencyName     String?
+  emergencyPhone    String?
+  emergencyRelation String?
+  notes             String?
+  employeeId        String?    @unique
+  resolvedById      String?
+  resolvedAt        DateTime?
+  submittedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  documents EmployeeDocument[]
+
+  @@index([status, createdAt])
+}
+
+model OnboardingApp {
+  key         String  @id
+  name        String
+  description String?
+  icon        String?
+  kind        String // playstore | apk | web
+  installUrl  String?
+  openUrl     String?
+  positions   String  @default("todos")
+  required    Boolean @default(true)
+  order       Int     @default(100)
+  active      Boolean @default(true)
 }

@@ -25,7 +25,7 @@ export default async function PersonalPage({ searchParams }: PageProps<"/admin/p
       <PageHeader
         eyebrow="Interno"
         title="Personal"
-        actions={<><ButtonLink href="/admin/personal/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/personal/nuevo">Nuevo empleado</ButtonLink></>}
+        actions={<><ButtonLink href="/admin/personal/altas" variant="secondary">Altas</ButtonLink><ButtonLink href="/admin/personal/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/personal/nuevo">Nuevo empleado</ButtonLink></>}
       >
         Base maestra de empleados. El número es el mismo del ZKTeco y de la flotilla (U-número).
       </PageHeader>
