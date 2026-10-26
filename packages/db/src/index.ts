@@ -32,3 +32,6 @@ export * from "./scan.ts";
 export * from "./orders.ts";
 export * from "./dispatch.ts";
 export * from "./routing.ts";
+export * from "./returns.ts";
+export * from "./payments.ts";
+export * from "./pickups.ts";

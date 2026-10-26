@@ -1,4 +1,4 @@
-import type { OrderStatus } from "@packatelas/db";
+import type { OrderStatus, PickupStatus } from "@packatelas/db";
 
 const TZ = "America/Mexico_City";
 
@@ -48,3 +48,13 @@ export const opt = (v: FormDataEntryValue | null) => {
   const s = typeof v === "string" ? v.trim() : "";
   return s === "" ? undefined : s;
 };
+
+export const PICKUP_LABEL: Record<PickupStatus, [string, "gray" | "blue" | "green" | "amber" | "red"]> = {
+  SCHEDULED: ["Programada", "gray"],
+  ASSIGNED: ["Asignada", "blue"],
+  COLLECTED: ["Recolectada", "green"],
+  FAILED: ["Fallida", "amber"],
+  CANCELLED: ["Cancelada", "gray"],
+  BLOCKED: ["Bloqueada por adeudo", "red"],
+};
+

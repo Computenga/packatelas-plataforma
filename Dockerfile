@@ -12,7 +12,7 @@ RUN pnpm --filter @packatelas/db generate && pnpm --filter web build
 # Imagen ligera para correr migraciones al desplegar (servicio "migrate" en docker-compose).
 FROM build AS migrate
 WORKDIR /app/packages/db
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["sh", "-c", "npx prisma migrate deploy && npx tsx src/bootstrap.ts"]
 
 FROM base AS web
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
