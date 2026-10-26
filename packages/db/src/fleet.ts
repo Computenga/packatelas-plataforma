@@ -9,6 +9,7 @@
 //   como adeudo sin aprobación (se le avisa).
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
+import { sendPush } from "./push.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 const TZ = "-06:00";
@@ -92,6 +93,11 @@ export async function createBeforeRouteCheck(
       },
     });
     return { ok: true as const, faultId: fault.id };
+  }).then(async (r) => {
+    const users = await prisma.user.findMany({ where: { active: true, role: { in: ["MECANICO", "ADMIN"] } }, select: { id: true } });
+    const v = await prisma.vehicle.findUnique({ where: { id: input.vehicleId }, select: { code: true } });
+    void sendPush(prisma, users.map((u) => u.id), { title: `Falla reportada en ${v?.code ?? "moto"}`, body: input.description.trim().slice(0, 120), url: "/mecanico", tag: "fallas" });
+    return r;
   });
 }
 

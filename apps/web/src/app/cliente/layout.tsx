@@ -6,6 +6,7 @@ export default async function ClienteLayout({ children }: LayoutProps<"/cliente"
   const user = await requireUser(["CLIENTE"]);
   return (
     <AppShell
+      push={false}
       title="Portal cliente"
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}

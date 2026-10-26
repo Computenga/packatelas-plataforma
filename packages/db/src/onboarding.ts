@@ -9,6 +9,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
 
 import { HIRE_ROLES } from "./onboarding-roles.ts";
+import { adminUserIds, sendPush } from "./push.ts";
 export { HIRE_ROLES };
 const appliesTo = (positions: string, role: string) => positions === "todos" || positions.split(",").map((s) => s.trim()).includes(role);
 
@@ -53,7 +54,10 @@ export async function addDocument(
 
 export async function reviewDocument(prisma: PrismaClient, docId: string, status: Exclude<DocStatus, "PENDIENTE">, comment: string | null, actorUserId: string) {
   if (status === "RECHAZADO" && !comment?.trim()) throw new Error("Escribe por qué se rechaza para que lo corrija");
-  const d = await prisma.employeeDocument.update({ where: { id: docId }, data: { status, comment: comment?.slice(0, 300) || null, reviewedById: actorUserId, reviewedAt: new Date() } });
+  const d = await prisma.employeeDocument.update({ where: { id: docId }, data: { status, comment: comment?.slice(0, 300) || null, reviewedById: actorUserId, reviewedAt: new Date() }, include: { employee: { select: { userId: true } } } });
+  if (status === "RECHAZADO" && d.employee?.userId) {
+    void sendPush(prisma, [d.employee.userId], { title: "Documento rechazado", body: `${d.docType}: ${comment}`, url: "/empleado", tag: `doc-${d.id}` });
+  }
   await audit(prisma, { actorUserId, action: "employee.document_reviewed", entity: "EmployeeDocument", entityId: docId, summary: `Documento ${d.docType} ${status === "APROBADO" ? "aprobado" : "rechazado"}` });
   return d;
 }
@@ -81,7 +85,8 @@ export async function missingForSubmit(db: Db, appId: string) {
 export async function submitApplication(prisma: PrismaClient, appId: string) {
   const missing = await missingForSubmit(prisma, appId);
   if (missing.length) return { ok: false as const, missing };
-  await prisma.hireApplication.update({ where: { id: appId }, data: { status: "ENVIADA", submittedAt: new Date() } });
+  const a = await prisma.hireApplication.update({ where: { id: appId }, data: { status: "ENVIADA", submittedAt: new Date() } });
+  void adminUserIds(prisma).then((ids) => sendPush(prisma, ids, { title: "Nueva solicitud de alta", body: `${a.name ?? "Sin nombre"} (${HIRE_ROLES[a.role] ?? a.role}) envió sus documentos`, url: `/admin/personal/altas/${a.id}`, tag: `alta-${a.id}` }));
   return { ok: true as const };
 }
 

@@ -2,6 +2,7 @@
 import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { getMaxAttempts, markReturning, mustReturn } from "./failures.ts";
+import { sendPush } from "./push.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -42,6 +43,7 @@ export async function assignOrders(prisma: PrismaClient, orderIds: string[], dri
       assigned++;
     });
   }
+  if (assigned) void sendPush(prisma, [driver.userId], { title: "Pedidos asignados", body: `Tienes ${assigned} pedido(s) nuevo(s) en tu ruta`, url: "/repartidor", tag: "asignados" });
   return assigned;
 }
 

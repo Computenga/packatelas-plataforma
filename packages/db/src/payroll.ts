@@ -4,6 +4,7 @@
 import { Prisma, type PrismaClient, type PayrollLineKind } from "../generated/prisma/client.ts";
 import { attendanceReport, quincenaOf } from "./attendance.ts";
 import { audit } from "./orders.ts";
+import { sendPush } from "./push.ts";
 
 const D = (n: string | number | Prisma.Decimal) => new Prisma.Decimal(n);
 export const PAY_DAYS = 15;
@@ -95,4 +96,13 @@ export async function setPayrollStatus(prisma: PrismaClient, receiptId: string, 
     },
   });
   await audit(prisma, { actorUserId, action: "payroll.status", entity: "PayrollReceipt", entityId: receiptId, summary: `Recibo ${r.quincena}: ${r.status} → ${to}` });
+  if (to !== "BORRADOR" && r.status !== "PAGADO") {
+    const emp = await prisma.employee.findUnique({ where: { id: r.employeeId }, select: { userId: true } });
+    if (emp?.userId) {
+      const net = receiptTotals(r.lines).net.toFixed(2);
+      void sendPush(prisma, [emp.userId], to === "PAGADO"
+        ? { title: "Se pagó tu nómina", body: `Quincena ${r.quincena}: $${net}`, url: `/recibo/${r.id}`, tag: `nomina-${r.id}` }
+        : { title: "Tu recibo de nómina está listo", body: `Quincena ${r.quincena}: $${net}`, url: `/recibo/${r.id}`, tag: `nomina-${r.id}` });
+    }
+  }
 }

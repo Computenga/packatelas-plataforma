@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { logout } from "@/app/login/actions";
 import type { NavItem } from "@/lib/roles";
 import { NavLinks } from "./nav-links";
+import { PushPrompt } from "./push-prompt";
 
 type Props = {
   title: string;
@@ -13,10 +14,12 @@ type Props = {
   ready: string[];
   /** Repartidor y cliente en celular: navegación inferior. */
   mobileBottomNav?: boolean;
+  /** Ofrecer notificaciones push (personal interno). */
+  push?: boolean;
   children: ReactNode;
 };
 
-export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, children }: Props) {
+export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, push = true, children }: Props) {
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
@@ -49,7 +52,10 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
         </nav>
       )}
 
-      <main className={`flex-1 p-4 md:p-8 ${mobileBottomNav ? "pb-24 md:pb-8" : ""}`}>{children}</main>
+      <main className={`flex-1 p-4 md:p-8 ${mobileBottomNav ? "pb-24 md:pb-8" : ""}`}>
+        {push && <PushPrompt />}
+        {children}
+      </main>
 
       {mobileBottomNav && (
         <nav className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
