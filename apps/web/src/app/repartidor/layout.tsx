@@ -13,7 +13,7 @@ export default async function RepartidorLayout({ children }: LayoutProps<"/repar
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
       nav={DRIVER_NAV}
-      ready={["/repartidor", "/repartidor/escanear", "/repartidor/recolecciones"]}
+      ready={["/repartidor", "/repartidor/escanear", "/repartidor/recolecciones", "/repartidor/moto"]}
       mobileBottomNav
     >
       <div className="mx-auto max-w-md">

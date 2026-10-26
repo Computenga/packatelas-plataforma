@@ -19,6 +19,7 @@ enum Role {
   REPARTIDOR
   CLIENTE
   EMPLEADO
+  MECANICO
 }
 
 model User {
@@ -720,4 +721,161 @@ model Justification {
   createdAt   DateTime  @default(now())
 
   @@index([date])
+}
+
+// ── Flotilla [A24] (misma estructura que la app actual: Vehiculos, Checks, Combustible,
+// Fallas, Reparaciones, Documentos). Independiente de la app actual.
+
+enum VehicleStatus {
+  ACTIVO
+  TALLER
+  BAJA
+}
+
+model Vehicle {
+  id        String        @id @default(cuid())
+  code      String        @unique // M-01 (va en el QR)
+  plate     String?
+  brand     String?
+  model     String?
+  year      Int?
+  color     String?
+  vin       String?
+  km        Int           @default(0)
+  size      String        @default("grande") // chica: solo CDMX, sin carreteras ni cerros
+  ownership String        @default("empresa") // empresa | propia
+  ownerId   String? // empleado dueño si es moto propia
+  status    VehicleStatus @default(ACTIVO)
+  notes     String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  documents VehicleDocument[]
+  checks    VehicleCheck[]
+  fuel      FuelLoad[]
+  faults    Fault[]
+  repairs   Repair[]
+}
+
+model VehicleDocument {
+  id          String    @id @default(cuid())
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  type        String // tarjeta_circulacion, seguro, verificacion, permiso, refrendo…
+  folio       String?
+  issuedAt    DateTime? @db.Date
+  expiresAt   DateTime? @db.Date
+  evidenceKey String?
+  updatedById String?
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([vehicleId, type])
+}
+
+enum CheckKind {
+  MATUTINO // al recibir la moto: 4 fotos + odómetro + km
+  ANTES_RUTA // antes de salir: daños que no se reportaron en la mañana
+}
+
+model VehicleCheck {
+  id          String    @id @default(cuid())
+  kind        CheckKind
+  vehicleId   String
+  vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
+  employeeId  String
+  at          DateTime  @default(now())
+  km          Int?
+  kmDriven    Int? // desde el check matutino anterior de esa moto (se le asigna a quien la traía)
+  photos      String[]
+  odometerKey String?
+  description String?
+  lat         Float?
+  lng         Float?
+
+  fuel   FuelLoad[]
+  faults Fault[]
+
+  @@index([vehicleId, at])
+  @@index([employeeId, at])
+}
+
+model FuelLoad {
+  id         String        @id @default(cuid())
+  checkId    String?
+  check      VehicleCheck? @relation(fields: [checkId], references: [id])
+  vehicleId  String
+  vehicle    Vehicle       @relation(fields: [vehicleId], references: [id])
+  employeeId String
+  at         DateTime      @default(now())
+  amount     Decimal       @db.Decimal(10, 2)
+  liters     Decimal?      @db.Decimal(8, 2)
+  ticketKey  String?
+
+  @@index([vehicleId, at])
+}
+
+enum FaultStatus {
+  ABIERTA
+  EN_REPARACION
+  CERRADA
+  DESCARTADA
+}
+
+model Fault {
+  id            String        @id @default(cuid())
+  kind          String        @default("reportada") // reportada | no_reportada (hallada antes de ruta)
+  checkId       String?
+  check         VehicleCheck? @relation(fields: [checkId], references: [id])
+  vehicleId     String
+  vehicle       Vehicle       @relation(fields: [vehicleId], references: [id])
+  reportedById  String // empleado
+  responsibleId String? // quien hizo el check matutino de esa moto
+  description   String
+  severity      String        @default("media") // baja | media | alta
+  photos        String[]
+  status        FaultStatus   @default(ABIERTA)
+  mechanicNote  String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  repair Repair?
+
+  @@index([status, createdAt])
+}
+
+model Repair {
+  id             String    @id @default(cuid())
+  faultId        String?   @unique
+  fault          Fault?    @relation(fields: [faultId], references: [id])
+  vehicleId      String
+  vehicle        Vehicle   @relation(fields: [vehicleId], references: [id])
+  mechanicUserId String?
+  startedAt      DateTime  @default(now())
+  closedAt       DateTime?
+  description    String?
+  photos         String[]
+  partsCost      Decimal   @default(0) @db.Decimal(10, 2)
+  laborCost      Decimal   @default(0) @db.Decimal(10, 2)
+  cause          String? // desgaste | mal_uso | ambos
+  responsibleId  String? // empleado
+  employeeAmount Decimal   @default(0) @db.Decimal(10, 2)
+  companyAmount  Decimal   @default(0) @db.Decimal(10, 2)
+
+  charge EmployeeCharge?
+
+  @@index([closedAt])
+}
+
+// Adeudos de empleados (p. ej. reparación por mal uso). Base para descuentos de nómina.
+model EmployeeCharge {
+  id          String   @id @default(cuid())
+  employeeId  String
+  amount      Decimal  @db.Decimal(10, 2)
+  description String
+  repairId    String?  @unique
+  repair      Repair?  @relation(fields: [repairId], references: [id])
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([employeeId, createdAt])
 }

@@ -9,6 +9,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   REPARTIDOR: "Repartidor",
   CLIENTE: "Cliente",
   EMPLEADO: "Empleado",
+  MECANICO: "Mecánico",
 };
 
 /** Página de inicio de cada rol. */
@@ -20,6 +21,8 @@ export function homeFor(role: Role): string {
       return "/cliente";
     case "EMPLEADO":
       return "/empleado";
+    case "MECANICO":
+      return "/mecanico";
     default:
       return "/admin";
   }
@@ -40,6 +43,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
   { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },
   { href: "/admin/personal", label: "Personal", roles: ["ADMIN"] },
+  { href: "/admin/flotilla", label: "Flotilla", roles: ["ADMIN"] },
   { href: "/admin/checador", label: "Checador", roles: ["ADMIN"] },
   { href: "/admin/informes", label: "Informes", roles: ["ADMIN"] },
   { href: "/admin/avisos", label: "Avisos", roles: ["ADMIN"] },
@@ -64,4 +68,11 @@ export const DRIVER_NAV: NavItem[] = [
   { href: "/repartidor", label: "Mi ruta" },
   { href: "/repartidor/escanear", label: "Escanear" },
   { href: "/repartidor/recolecciones", label: "Recolecciones" },
+  { href: "/repartidor/moto", label: "Moto" },
+];
+
+export const MECHANIC_NAV: NavItem[] = [
+  { href: "/mecanico", label: "Fallas" },
+  { href: "/mecanico/documentos", label: "Documentos" },
+  { href: "/mecanico/motos", label: "Motos" },
 ];

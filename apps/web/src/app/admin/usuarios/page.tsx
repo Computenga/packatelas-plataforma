@@ -33,6 +33,7 @@ export default async function UsuariosPage() {
               <option value="DESPACHADOR">Despachador</option>
               <option value="ADMIN">Administrador</option>
               <option value="EMPLEADO">Empleado</option>
+              <option value="MECANICO">Mecánico</option>
             </Select>
             <Field label="Teléfono" name="phone" inputMode="tel" hint="Solo repartidores" />
             <Field label="Contraseña" name="password" type="password" minLength={8} required />

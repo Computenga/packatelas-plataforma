@@ -6,7 +6,7 @@ import { audit, hashPassword, prisma, Prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
-const STAFF = ["ADMIN", "OPERADOR", "DESPACHADOR", "REPARTIDOR", "EMPLEADO"] as const;
+const STAFF = ["ADMIN", "OPERADOR", "DESPACHADOR", "REPARTIDOR", "EMPLEADO", "MECANICO"] as const;
 
 const createSchema = z.object({
   username: z.string().trim().toLowerCase().regex(/^[a-z0-9._-]{3,40}$/, "Usuario: 3 a 40 letras, números, punto o guion"),
