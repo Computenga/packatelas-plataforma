@@ -1,6 +1,7 @@
 // Libro mayor de clientes [F02, F03, F06, F07].
 // Cargos positivos, abonos negativos; saldo = suma. Nada se edita ni se borra.
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
+import { accountState } from "./credit.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -56,11 +57,7 @@ export async function chargeOrder(db: Db, orderId: string, actorUserId?: string)
   }
 }
 
-/** Indica si las recolecciones del cliente deben bloquearse por adeudo [F07]. */
+/** Indica si las recolecciones del cliente deben bloquearse por adeudo [F07, F08]. */
 export async function isPickupBlocked(db: Db, clientId: string, now = new Date()): Promise<boolean> {
-  const client = await db.client.findUniqueOrThrow({ where: { id: clientId } });
-  if (client.pickupExemptUntil && client.pickupExemptUntil > now) return false;
-  const balance = await getClientBalance(db, clientId);
-  const limit = client.creditLimit ?? new Prisma.Decimal(0);
-  return balance.gt(limit);
+  return (await accountState(db, clientId, now)).blocked;
 }

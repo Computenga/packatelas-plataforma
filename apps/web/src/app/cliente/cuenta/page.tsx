@@ -1,20 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getClientBalance, isPickupBlocked, prisma } from "@packatelas/db";
+import { accountState, getClientBalance, getCreditRules, prisma } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { fecha, mxn } from "@/lib/format";
 import { Card } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
+const DAYS = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const TYPE_LABEL = { CHARGE: "Envío", PAYMENT: "Pago recibido", FEE: "Comisión", ADJUSTMENT: "Ajuste" } as const;
 
 export default async function CuentaPage() {
   const { clientId } = await requireClient();
-  const [client, balance, blocked, entries] = await Promise.all([
-    prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true, creditLimit: true } }),
+  const [client, balance, state, rules, entries] = await Promise.all([
+    prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true, creditLimit: true, creditMode: true } }),
     getClientBalance(prisma, clientId),
-    isPickupBlocked(prisma, clientId),
+    accountState(prisma, clientId),
+    getCreditRules(prisma),
     prisma.ledgerEntry.findMany({ where: { clientId }, orderBy: { createdAt: "desc" }, take: 200, include: { order: { select: { id: true, code: true } } } }),
   ]);
 
@@ -24,7 +26,18 @@ export default async function CuentaPage() {
       <div className={`rounded-xl p-5 ${balance.gt(0) ? "bg-red-50" : "bg-emerald-50"}`}>
         <p className="text-sm text-slate-600">{balance.gt(0) ? "Saldo por pagar" : "Saldo a favor"}</p>
         <p className={`text-3xl font-bold ${balance.gt(0) ? "text-red-700" : "text-emerald-700"}`}>{mxn(balance.abs())}</p>
-        {blocked && <p className="mt-2 text-sm text-red-700">Tus recolecciones están en pausa hasta que el saldo baje de {mxn(client.creditLimit ?? 0)}.</p>}
+        {client.creditMode === "WEEKLY_CREDIT" && (
+          <p className="mt-2 text-sm text-slate-700">
+            Crédito semanal: liquida lo de cada semana antes del {DAYS[rules.cutWeekday]} para que tus recolecciones sigan activas.
+            {state.overdue > 0 && <> Pendiente de la semana anterior: <strong>{mxn(state.overdue)}</strong>.</>}
+          </p>
+        )}
+        {state.blocked && (
+          <p className="mt-2 text-sm font-medium text-red-700">
+            Tus recolecciones están en pausa. Se reactivan al pagar{" "}
+            {client.creditMode === "WEEKLY_CREDIT" && state.overdue > 0 ? mxn(state.overdue) : client.creditLimit ? `hasta dejar el saldo bajo ${mxn(client.creditLimit)}` : "tu saldo"}.
+          </p>
+        )}
       </div>
 
       <Card title="Cómo pagar">

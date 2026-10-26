@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getClientBalance, isPickupBlocked, prisma } from "@packatelas/db";
+import { accountState, getClientBalance, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -19,24 +19,26 @@ export default async function EstadoCuentaPage({ params, searchParams }: PagePro
   const client = await prisma.client.findUnique({ where: { id } });
   if (!client) notFound();
 
-  const [balance, blocked, entries, count] = await Promise.all([
+  const [balance, state, entries, count] = await Promise.all([
     getClientBalance(prisma, id),
-    isPickupBlocked(prisma, id),
+    accountState(prisma, id),
     prisma.ledgerEntry.findMany({ where: { clientId: id }, orderBy: { createdAt: "desc" }, skip: (page - 1) * 100, take: 100, include: { order: { select: { id: true, code: true } } } }),
     prisma.ledgerEntry.count({ where: { clientId: id } }),
   ]);
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
-  const exempt = client.pickupExemptUntil && client.pickupExemptUntil > new Date();
+  const { blocked, exempt } = state;
 
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader
         eyebrow={`Estado de cuenta · ${client.publicId}`}
         title={client.name}
-        actions={blocked ? <Badge tone="red">Recolección bloqueada</Badge> : exempt ? <Badge tone="blue">Exento</Badge> : <Badge tone="green">Recolección habilitada</Badge>}
+        actions={blocked ? <span title={state.reason ?? ""}><Badge tone="red">Recolección bloqueada</Badge></span> : exempt ? <Badge tone="blue">Exento</Badge> : <Badge tone="green">Recolección habilitada</Badge>}
       >
         Saldo <strong className={balance.gt(0) ? "text-red-600" : "text-emerald-700"}>{balance.gt(0) ? mxn(balance) : `${mxn(balance.abs())} a favor`}</strong>
-        {" · "}Límite {client.creditLimit ? mxn(client.creditLimit) : "$0.00"} · Referencia <span className="font-mono">{client.paymentReference}</span>
+        {" · "}{client.creditMode === "WEEKLY_CREDIT" ? "Crédito semanal" : "Prepago"}
+        {state.overdue > 0 && client.creditMode === "WEEKLY_CREDIT" && <> · <span className="text-red-600">vencido {mxn(state.overdue)}</span></>}
+        {" · "}Límite {client.creditLimit ? mxn(client.creditLimit) : "—"} · Referencia <span className="font-mono">{client.paymentReference}</span>
         {" · "}<Link href={`/admin/clientes/${id}`} className="text-brand hover:underline">Ficha del cliente</Link>
       </PageHeader>
 

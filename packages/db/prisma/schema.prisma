@@ -59,6 +59,11 @@ model Session {
 
 // ───────────────────────── Clientes [A15, C01] ─────────────────────────
 
+enum CreditMode {
+  PREPAID // si debe, se bloquea la recolección
+  WEEKLY_CREDIT // acumula en la semana; el día de corte amanece bloqueado hasta liquidar
+}
+
 enum TariffMode {
   FIXED // Tarifa fija para todas las órdenes
   FLEX_DYNAMIC_PLUS_FIXED // Flex dinámica + externos con tarifa fija
@@ -86,6 +91,7 @@ model Client {
   tariffMode        TariffMode @default(FIXED)
   tariffAmount      Decimal    @default(0) @db.Decimal(12, 2)
   chargingEnabled   Boolean    @default(true)
+  creditMode        CreditMode @default(PREPAID) // [F08]
   creditLimit       Decimal?   @db.Decimal(12, 2) // saldo máximo antes de bloquear recolecciones
   pickupExemptUntil DateTime?
   pickupExemptNote  String?

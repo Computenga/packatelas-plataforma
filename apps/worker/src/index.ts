@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { ingestFondeadoraEmail, prisma } from "@packatelas/db";
+import { ingestFondeadoraEmail, prisma, refreshAllBlockedPickups } from "@packatelas/db";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
 
 const QUERY = process.env.GMAIL_QUERY ?? 'from:info@negocios.fondeadora.com subject:"Depósito" newer_than:3d';
@@ -29,7 +29,18 @@ export async function pollOnce(cfg: GmailConfig) {
   return { seen: ids.length, applied, unidentified };
 }
 
+/** Cada hora: bloqueo/desbloqueo de recolecciones (el lunes, los de crédito sin liquidar) [F08]. */
+function startHourlyJobs() {
+  const run = () =>
+    refreshAllBlockedPickups(prisma)
+      .then((n) => n && console.log(`[worker] Bloqueos de recolección revisados (${n} cliente(s))`))
+      .catch((e) => console.error("[worker] Error al revisar bloqueos:", e instanceof Error ? e.message : e));
+  void run();
+  setInterval(run, 3600_000);
+}
+
 async function main() {
+  startHourlyJobs();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

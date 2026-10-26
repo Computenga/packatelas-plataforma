@@ -8,6 +8,7 @@ import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { cancelOrder, rescheduleAction, sendToWarehouseAction } from "../actions";
 import { ActionForm } from "@/components/action-form";
+import { trackingPath } from "@/lib/tracking";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -54,6 +55,7 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
         title={order.code}
         actions={
           <>
+            <a href={trackingPath(order.id)} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Seguimiento</a>
             {!order.mlShipmentId && (
               <a href={`/etiqueta/${order.id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Etiqueta</a>
             )}

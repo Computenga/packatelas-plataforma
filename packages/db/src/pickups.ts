@@ -52,6 +52,20 @@ export async function refreshBlockedPickups(prisma: PrismaClient, clientId: stri
   });
 }
 
+/**
+ * Recalcula el bloqueo de todas las recolecciones pendientes. Lo corre el proceso en segundo
+ * plano cada hora: así el lunes amanecen bloqueados los de crédito que no liquidaron [F08].
+ */
+export async function refreshAllBlockedPickups(prisma: PrismaClient): Promise<number> {
+  const pending = await prisma.pickup.findMany({
+    where: { scheduledFor: { gte: dateOnly(todayMx()) }, status: { in: ["SCHEDULED", "BLOCKED"] } },
+    select: { clientId: true },
+    distinct: ["clientId"],
+  });
+  for (const p of pending) await refreshBlockedPickups(prisma, p.clientId);
+  return pending.length;
+}
+
 /** Solicitud de recolección (portal cliente o administración). Nace bloqueada si hay adeudo. */
 export async function requestPickup(
   prisma: PrismaClient,

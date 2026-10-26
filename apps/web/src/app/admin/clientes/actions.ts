@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { audit, hashPassword, nextPublicId, prisma, Prisma, setMlRoutes } from "@packatelas/db";
+import { audit, hashPassword, nextPublicId, prisma, Prisma, refreshBlockedPickups, setMlRoutes } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ID_PREFIXES } from "@packatelas/db/public-id";
 import { opt } from "@/lib/format";
@@ -92,6 +92,7 @@ const tariffSchema = z.object({
   tariffMode: z.enum(["FIXED", "FLEX_DYNAMIC_PLUS_FIXED"]),
   tariffAmount: money,
   creditLimit: z.union([money, z.literal("")]).optional(),
+  creditMode: z.enum(["PREPAID", "WEEKLY_CREDIT"]).default("PREPAID"),
 });
 
 export async function updateTariff(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
@@ -108,14 +109,16 @@ export async function updateTariff(clientId: string, _: ActionState, fd: FormDat
       tariffAmount: d.tariffAmount,
       chargingEnabled,
       creditLimit: d.creditLimit === "" || d.creditLimit === undefined ? null : d.creditLimit,
+      creditMode: d.creditMode,
     },
   });
+  await refreshBlockedPickups(prisma, clientId);
   await audit(prisma, {
     actorUserId: user.id,
     action: "client.tariff_updated",
     entity: "Client",
     entityId: clientId,
-    summary: `Tarifa de ${before.name}: ${before.tariffAmount} → ${d.tariffAmount}; cobro ${chargingEnabled ? "habilitado" : "deshabilitado"}`,
+    summary: `Tarifa de ${before.name}: ${before.tariffAmount} → ${d.tariffAmount}; cobro ${chargingEnabled ? "habilitado" : "deshabilitado"}; ${d.creditMode === "WEEKLY_CREDIT" ? "crédito semanal" : "prepago"}`,
   });
   revalidatePath(`/admin/clientes/${clientId}`);
   return { ok: "Tarifa guardada" };

@@ -74,6 +74,10 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
                 <option value="FIXED">Tarifa fija para todas las órdenes</option>
                 <option value="FLEX_DYNAMIC_PLUS_FIXED">Flex dinámica + externos con tarifa fija</option>
               </Select>
+              <Select label="Forma de pago" name="creditMode" defaultValue={client.creditMode}>
+                <option value="PREPAID">Prepago: si debe, se bloquea la recolección</option>
+                <option value="WEEKLY_CREDIT">Crédito semanal: liquida cada semana antes del corte</option>
+              </Select>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Tarifa por envío (MXN)" name="tariffAmount" type="number" step="0.01" min="0" defaultValue={client.tariffAmount.toString()} />
                 <Field
@@ -83,7 +87,7 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
                   step="0.01"
                   min="0"
                   defaultValue={client.creditLimit?.toString() ?? ""}
-                  hint="Si el saldo lo supera, se bloquean recolecciones. Vacío = 0."
+                  hint="Prepago: saldo permitido antes de bloquear (vacío = 0). Crédito: tope a media semana (vacío = sin tope)."
                 />
               </div>
               <Checkbox label="Cobro habilitado (se cobra al escanear)" name="chargingEnabled" defaultChecked={client.chargingEnabled} />

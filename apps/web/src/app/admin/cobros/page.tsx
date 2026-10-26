@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@packatelas/db";
+import { accountStates, prisma } from "@packatelas/db";
+import { CobrosTabs } from "./tabs";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { Badge, PageHeader, Table, Td } from "@/components/ui";
@@ -11,12 +12,13 @@ export const metadata: Metadata = { title: "Cobros" };
 
 export default async function CobrosPage() {
   await requireUser(["ADMIN"]);
-  const [byClient, totals, clients, recent, unidentified] = await Promise.all([
+  const [byClient, totals, clients, recent, unidentified, states] = await Promise.all([
     prisma.ledgerEntry.groupBy({ by: ["clientId"], _sum: { amount: true } }),
     prisma.ledgerEntry.groupBy({ by: ["type"], _sum: { amount: true } }),
     prisma.client.findMany({ select: { id: true, name: true, publicId: true, creditLimit: true, pickupExemptUntil: true } }),
     prisma.payment.findMany({ orderBy: { receivedAt: "desc" }, take: 15, include: { client: { select: { name: true } } } }),
     prisma.payment.findMany({ where: { status: "UNIDENTIFIED" }, orderBy: { receivedAt: "asc" }, take: 100 }),
+    accountStates(prisma),
   ]);
   const balance = new Map(byClient.map((b) => [b.clientId, Number(b._sum.amount ?? 0)]));
   const sum = (t: string) => Number(totals.find((x) => x.type === t)?._sum.amount ?? 0);
@@ -25,11 +27,11 @@ export default async function CobrosPage() {
     .map((c) => ({ ...c, bal: balance.get(c.id) ?? 0 }))
     .filter((c) => c.bal !== 0)
     .sort((a, b) => b.bal - a.bal);
-  const now = new Date();
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader eyebrow="Facturación" title="Cobros">Saldos por cliente, abonos y ajustes. Saldo positivo = el cliente debe.</PageHeader>
+      <CobrosTabs active="saldos" />
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat label="Cargos" value={mxn(sum("CHARGE") + sum("FEE"))} />
         <Stat label="Abonos" value={mxn(-sum("PAYMENT"))} tone="green" />
@@ -37,17 +39,21 @@ export default async function CobrosPage() {
         <Stat label="Por cobrar" value={mxn(owed)} tone="red" />
       </div>
 
-      <Table head={["Cliente", "ID", "Saldo", "Límite", "Recolección"]} empty={rows.length ? undefined : "Sin saldos"}>
+      <Table head={["Cliente", "ID", "Saldo", "Forma de pago", "Recolección"]} empty={rows.length ? undefined : "Sin saldos"}>
         {rows.map((c) => {
-          const exempt = c.pickupExemptUntil && c.pickupExemptUntil > now;
-          const blocked = c.bal > Number(c.creditLimit ?? 0) && !exempt;
+          const st = states.get(c.id);
+          const exempt = st?.exempt;
+          const blocked = st?.blocked;
           return (
             <tr key={c.id} className="hover:bg-slate-50">
               <Td><Link href={`/admin/cobros/${c.id}`} className="font-medium text-brand hover:underline">{c.name}</Link></Td>
               <Td className="font-mono text-xs">{c.publicId}</Td>
               <Td className={c.bal > 0 ? "font-semibold text-red-600" : "text-emerald-700"}>{c.bal > 0 ? mxn(c.bal) : `${mxn(-c.bal)} a favor`}</Td>
-              <Td>{c.creditLimit ? mxn(c.creditLimit) : "—"}</Td>
-              <Td>{blocked ? <Badge tone="red">Bloqueada</Badge> : exempt ? <Badge tone="blue">Exenta</Badge> : <Badge tone="green">Habilitada</Badge>}</Td>
+              <Td className="text-xs">
+                {st?.mode === "WEEKLY_CREDIT" ? "Crédito semanal" : "Prepago"}
+                {st?.mode === "WEEKLY_CREDIT" && st.overdue > 0 && <span className="block text-red-600">vencido {mxn(st.overdue)}</span>}
+              </Td>
+              <Td>{blocked ? <span title={st?.reason ?? ""}><Badge tone="red">Bloqueada</Badge></span> : exempt ? <Badge tone="blue">Exenta</Badge> : <Badge tone="green">Habilitada</Badge>}</Td>
             </tr>
           );
         })}
