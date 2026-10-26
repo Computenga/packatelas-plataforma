@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { audit, createApiKey, disableWebhook, prisma, retryWebhook, revokeApiKey, rotateWebhookSecret, saveWebhook } from "@packatelas/db";
+import { randomBytes } from "node:crypto";
+import { audit, createApiKey, encryptSecret, disableWebhook, prisma, retryWebhook, revokeApiKey, rotateWebhookSecret, saveWebhook } from "@packatelas/db";
 import type { ActionState } from "@/components/action-form";
 import { requireClient } from "@/lib/client-scope";
 
@@ -52,5 +53,35 @@ export async function rotateSecretAction() {
 export async function retryDeliveryAction(id: string) {
   const { clientId } = await requireClient();
   await retryWebhook(prisma, clientId, id);
+  revalidatePath("/cliente/api");
+}
+
+export async function connectStoreAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const { user, clientId } = await requireClient();
+  const platform = fd.get("platform") === "SHOPIFY" ? "SHOPIFY" : "WOOCOMMERCE";
+  const name = String(fd.get("name") ?? "").trim().slice(0, 60) || (platform === "SHOPIFY" ? "Shopify" : "WooCommerce");
+  const pasted = String(fd.get("secret") ?? "").trim();
+  if (platform === "SHOPIFY" && (pasted.length < 16 || pasted.length > 200)) return { error: "Pega la clave con la que Shopify firma los webhooks" };
+  if ((await prisma.storeConnector.count({ where: { clientId } })) >= 10) return { error: "Máximo 10 tiendas conectadas" };
+  const branchId = String(fd.get("branchId") ?? "") || null;
+  if (branchId && !(await prisma.branch.findFirst({ where: { id: branchId, clientId, active: true } }))) return { error: "Sucursal inválida" };
+  const secret = platform === "SHOPIFY" ? pasted : `wc_${randomBytes(24).toString("base64url")}`;
+  const c = await prisma.storeConnector.create({ data: { clientId, platform, name, branchId, secret: encryptSecret(secret) } });
+  await audit(prisma, { actorUserId: user.id, action: "store.connected", entity: "StoreConnector", entityId: c.id, summary: `Tienda conectada: ${name} (${platform})` });
+  revalidatePath("/cliente/api");
+  return { ok: "Tienda agregada: sigue los pasos de abajo" };
+}
+
+export async function toggleStoreAction(id: string) {
+  const { clientId } = await requireClient();
+  const c = await prisma.storeConnector.findFirst({ where: { id, clientId } });
+  if (c) await prisma.storeConnector.update({ where: { id }, data: { active: !c.active } });
+  revalidatePath("/cliente/api");
+}
+
+export async function removeStoreAction(id: string) {
+  const { user, clientId } = await requireClient();
+  const r = await prisma.storeConnector.deleteMany({ where: { id, clientId } });
+  if (r.count) await audit(prisma, { actorUserId: user.id, action: "store.removed", entity: "StoreConnector", entityId: id, summary: "Tienda desconectada" });
   revalidatePath("/cliente/api");
 }

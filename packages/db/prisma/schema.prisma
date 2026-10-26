@@ -112,6 +112,7 @@ model Client {
   invoices   Invoice[]
   apiKeys    ApiKey[]
   webhook    WebhookEndpoint?
+  stores     StoreConnector[]
 }
 
 model Branch {
@@ -1113,4 +1114,28 @@ model WebhookDelivery {
 
   @@index([status, nextAttemptAt])
   @@index([endpointId, createdAt])
+}
+
+// Tiendas en línea del cliente [I06]: sus pedidos pagados entran como envíos por webhook.
+enum StorePlatform {
+  WOOCOMMERCE
+  SHOPIFY
+}
+
+model StoreConnector {
+  id          String        @id @default(cuid())
+  clientId    String
+  client      Client        @relation(fields: [clientId], references: [id])
+  platform    StorePlatform
+  name        String
+  secret      String // cifrado; Woo: lo generamos; Shopify: lo pega el cliente
+  branchId    String?
+  active      Boolean       @default(true)
+  received    Int           @default(0)
+  created     Int           @default(0)
+  lastAt      DateTime?
+  lastResult  String?
+  createdAt   DateTime      @default(now())
+
+  @@index([clientId])
 }

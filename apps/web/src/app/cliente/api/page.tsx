@@ -6,6 +6,7 @@ import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Button, Card, Field, PageHeader, Table, Td } from "@/components/ui";
 import { KeyForm, Secret } from "./key-form";
+import { Stores } from "./stores";
 import { disableWebhookAction, retryDeliveryAction, revokeKeyAction, rotateSecretAction, saveWebhookAction } from "./actions";
 
 export const metadata: Metadata = { title: "API e integraciones" };
@@ -28,6 +29,8 @@ export default async function ApiPage() {
       <PageHeader eyebrow="Cuenta" title="API e integraciones">
         Conecta tu tienda o sistema para crear envíos y recibir sus cambios de estado en automático. <Link href="/cliente/cuenta" className="text-brand hover:underline">← Mi cuenta</Link>
       </PageHeader>
+
+      <Stores clientId={clientId} base={base} />
 
       <Card title="Llaves de API">
         <KeyForm />
