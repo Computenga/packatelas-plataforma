@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { audit, hashPassword, nextPublicId, prisma, Prisma } from "@packatelas/db";
+import { audit, hashPassword, nextPublicId, prisma, Prisma, setMlRoutes } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ID_PREFIXES } from "@packatelas/db/public-id";
 import { opt } from "@/lib/format";
@@ -210,4 +210,15 @@ export async function createPortalUser(clientId: string, _: ActionState, fd: For
   }
   revalidatePath(`/admin/clientes/${clientId}`);
   return { ok: `Usuario ${d.username} creado` };
+}
+
+/** Sucursales a las que llega una cuenta ML (del cliente o de sus subcuentas) [A02]. */
+export async function setRoutesAction(clientId: string, mlAccountId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const acc = await prisma.mlAccount.findFirst({ where: { id: mlAccountId, clientId } });
+  if (!acc) return { error: "Cuenta no encontrada" };
+  const r = await setMlRoutes(prisma, mlAccountId, { branchIds: fd.getAll("branchIds").map(String), defaultBranchId: String(fd.get("defaultBranchId") ?? "") }, user.id);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(`/admin/clientes/${clientId}`);
+  return { ok: "Sucursales guardadas" };
 }

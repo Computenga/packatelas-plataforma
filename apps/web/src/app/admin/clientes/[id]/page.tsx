@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { getClientBalance, isPickupBlocked, prisma } from "@packatelas/db";
+import { getClientBalance, isPickupBlocked, prisma, routeOptions } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
-import { addBranch, createPortalUser, linkMlAccount, updateClient, updateTariff } from "../actions";
+import { addBranch, createPortalUser, linkMlAccount, setRoutesAction, updateClient, updateTariff } from "../actions";
 
 export const metadata: Metadata = { title: "Cliente" };
 
@@ -26,7 +26,12 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
   });
   if (!client) notFound();
 
-  const [balance, blocked] = await Promise.all([getClientBalance(prisma, id), isPickupBlocked(prisma, id)]);
+  const [balance, blocked, choices] = await Promise.all([
+    getClientBalance(prisma, id),
+    isPickupBlocked(prisma, id),
+    Promise.all(client.mlAccounts.map(async (a) => [a.id, await routeOptions(prisma, a.id)] as const)),
+  ]);
+  const routeChoices = new Map(choices);
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -152,7 +157,32 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
                   <p className="font-mono text-xs text-slate-500">{a.mlUserId.toString()}</p>
                   <p className="text-xs text-slate-500">→ {a.routes.map((r) => r.branch.name).join(", ") || "Sin sucursal"}</p>
                 </div>
-                {a.status === "ACTIVE" ? <Badge tone="green">Conectada</Badge> : <Badge tone="amber">Falta autorizar</Badge>}
+                <div className="flex flex-col items-end gap-1">
+                  {a.status === "ACTIVE" ? <Badge tone="green">Conectada</Badge> : <Badge tone="amber">Falta autorizar</Badge>}
+                  <details className="text-right">
+                    <summary className="cursor-pointer text-xs text-brand">Sucursales</summary>
+                    <div className="mt-2 w-72 text-left">
+                      <ActionForm action={setRoutesAction.bind(null, id, a.id)} submitLabel="Guardar">
+                        <p className="text-xs text-slate-500">Marca a dónde llegan sus paquetes y cuál se usa si en bodega no se indica.</p>
+                        <table className="w-full text-xs">
+                          <thead><tr className="text-slate-500"><th className="text-left font-normal">Llega</th><th className="font-normal">Predet.</th><th /></tr></thead>
+                          <tbody>
+                            {(routeChoices.get(a.id) ?? []).map((b) => {
+                              const r = a.routes.find((x) => x.branchId === b.id);
+                              return (
+                                <tr key={b.id}>
+                                  <td><input type="checkbox" name="branchIds" value={b.id} defaultChecked={!!r} className="accent-brand" /></td>
+                                  <td className="text-center"><input type="radio" name="defaultBranchId" value={b.id} defaultChecked={!!r?.isDefault} className="accent-brand" /></td>
+                                  <td className="py-0.5">{b.client.publicId} · {b.name}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </ActionForm>
+                    </div>
+                  </details>
+                </div>
               </li>
             ))}
           </ul>

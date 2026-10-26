@@ -29,8 +29,9 @@ const tone: Record<ScanOutcome["status"], string> = {
   invalid: "border-red-200 bg-red-50",
 };
 
-export function ScanStation() {
+export function ScanStation({ branches = [] }: { branches?: { id: string; label: string }[] }) {
   const [rows, setRows] = useState<Row[]>([]);
+  const [branchHint, setBranchHint] = useState("");
   const [pending, startTransition] = useTransition();
   const created = rows.filter((r) => r.result.status === "created").length;
 
@@ -38,18 +39,28 @@ export function ScanStation() {
     startTransition(async () => {
       let result: ScanOutcome;
       try {
-        result = await scanAction(raw);
+        result = await scanAction(raw, branchHint || undefined);
       } catch {
         result = { status: "invalid", message: "Sin conexión con el servidor; vuelve a escanear" };
       }
       feedback(result.status === "created" || result.status === "existing");
       setRows((prev) => [{ id: Date.now(), at: new Date(), raw, result }, ...prev].slice(0, 200));
     });
-  }, []);
+  }, [branchHint]);
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,420px)_1fr]">
       <div>
+        {branches.length > 0 && (
+          <label className="mb-3 block text-sm">
+            <span className="font-medium text-slate-700">Recibiendo de</span>
+            <select value={branchHint} onChange={(e) => setBranchHint(e.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+              <option value="">Sucursal predeterminada de cada cuenta</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+            </select>
+            <span className="mt-1 block text-xs text-slate-500">Solo aplica a cuentas de MercadoLibre que llegan a varias sucursales.</span>
+          </label>
+        )}
         <Scanner onScan={onScan} busy={pending} />
         <p className="mt-3 text-sm text-slate-600">
           Esta sesión: <strong>{created}</strong> nuevo(s) · {rows.length} lectura(s)

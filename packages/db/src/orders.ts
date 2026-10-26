@@ -2,6 +2,7 @@
 import { Prisma, type PrismaClient, type OrderStatus, type EventSource } from "../generated/prisma/client.ts";
 import { chargeOrder } from "./ledger.ts";
 import { parseScan } from "./scan.ts";
+import { pickRoute } from "./ml-routes.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -73,7 +74,7 @@ export type ScanOutcome =
  */
 export async function registerScan(
   prisma: PrismaClient,
-  input: { raw: string; actorUserId?: string; source?: EventSource },
+  input: { raw: string; actorUserId?: string; source?: EventSource; /** sucursal que se está recibiendo [A02] */ branchHint?: string | null },
 ): Promise<ScanOutcome> {
   const parsed = parseScan(input.raw);
   const source = input.source ?? "SCAN";
@@ -99,7 +100,7 @@ export async function registerScan(
   const account = parsed.senderId
     ? await prisma.mlAccount.findUnique({
         where: { mlUserId: parsed.senderId },
-        include: { client: true, routes: { orderBy: { isDefault: "desc" } } },
+        include: { client: true, routes: { include: { branch: { select: { clientId: true, client: { select: { name: true } } } } } } },
       })
     : null;
   if (!account) {
@@ -114,14 +115,18 @@ export async function registerScan(
   }
 
   const code = `ML-${parsed.shipmentId}`;
+  const route = pickRoute(account.routes, input.branchHint);
+  // Si la sucursal es de una subcuenta, el pedido y su cargo son de esa subcuenta.
+  const clientId = route?.branch.clientId ?? account.clientId;
+  const clientName = route?.branch.client.name ?? account.client.name;
   try {
     const result = await prisma.$transaction(async (tx) => {
       const order = await tx.order.create({
         data: {
           code,
           source: "ML_FLEX",
-          clientId: account.clientId,
-          branchId: account.routes[0]?.branchId,
+          clientId,
+          branchId: route?.branchId,
           mlAccountId: account.id,
           mlShipmentId: parsed.shipmentId,
           addressLine: "Pendiente de sincronizar con MercadoLibre",
@@ -138,7 +143,7 @@ export async function registerScan(
       const charge = await chargeOrder(tx, order.id, input.actorUserId);
       return { order, charged: !!charge };
     });
-    return { status: "created", orderId: result.order.id, code, clientName: account.client.name, charged: result.charged };
+    return { status: "created", orderId: result.order.id, code, clientName, charged: result.charged };
   } catch (e) {
     if (!isUniqueViolation(e)) throw e;
     // Otro equipo lo creó en el mismo instante.
