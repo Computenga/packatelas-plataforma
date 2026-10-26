@@ -46,7 +46,7 @@ En el administrador de DNS de packatelas.mx crear registros **A** hacia la IP de
    |---|---|
    | `POSTGRES_PASSWORD` | Contraseña larga y aleatoria |
    | `ENCRYPTION_KEY` | Resultado de `openssl rand -base64 32` |
-   | `GOOGLE_MAPS_API_KEY` | Llave de Places API (New), cuando exista |
+   | `GOOGLE_MAPS_API_KEY` | Llave de Google Maps con **Places API (New)** (buscador de direcciones) y **Geocoding API** (carga masiva; 10,000 gratis al mes) activadas, cuando exista |
    | `OSRM_URL` | Vacío por ahora (se agrega al montar OSRM) |
 
 3. En el servicio **web**: dominio `https://nuevo.packatelas.mx`, puerto 3000.
