@@ -34,7 +34,7 @@ const ALIASES: Record<ImportField, string[]> = {
   lng: ["lng", "lon", "long", "longitud", "longitude"],
 };
 
-const norm = (s: string) =>
+export const norm = (s: string) =>
   s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
 function detectDelimiter(firstLine: string): string {

@@ -26,6 +26,7 @@
   },
   "main": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./public-id": "./src/public-id.ts"
   }
 }
