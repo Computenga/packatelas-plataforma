@@ -3,6 +3,7 @@ import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ActionForm } from "@/components/action-form";
 import { Card, Field, PageHeader, Select, TextArea } from "@/components/ui";
+import { AddressPicker } from "@/components/address-picker";
 import { createOrder } from "../actions";
 
 export const metadata: Metadata = { title: "Nuevo pedido" };
@@ -42,17 +43,7 @@ export default async function NuevoPedidoPage() {
             <Field label="Destinatario" name="recipientName" required />
             <Field label="Teléfono" name="recipientPhone" inputMode="tel" />
           </div>
-          <Field label="Calle y número" name="addressLine" required />
-          <div className="grid gap-4 sm:grid-cols-4">
-            <Field label="Colonia" name="neighborhood" className="sm:col-span-2" />
-            <Field label="Alcaldía / municipio" name="city" />
-            <Field label="C.P." name="zip" inputMode="numeric" maxLength={5} />
-          </div>
-          <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Estado" name="state" defaultValue="CDMX" />
-            <Field label="Latitud" name="lat" inputMode="decimal" hint="Opcional; pronto con buscador de direcciones" />
-            <Field label="Longitud" name="lng" inputMode="decimal" />
-          </div>
+          <AddressPicker />
           <TextArea label="Instrucciones de entrega" name="instructions" rows={2} />
           <Field label="Contenido" name="itemsSummary" />
         </ActionForm>

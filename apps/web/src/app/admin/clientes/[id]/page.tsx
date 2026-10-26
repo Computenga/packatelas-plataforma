@@ -4,6 +4,7 @@ import { getClientBalance, isPickupBlocked, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
+import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
 import { addBranch, createPortalUser, linkMlAccount, updateClient, updateTariff } from "../actions";
 
@@ -126,13 +127,11 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
             ))}
           </ul>
           <ActionForm action={addBranch.bind(null, id)} submitLabel="Agregar sucursal" resetOnSuccess>
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Nombre" name="name" required />
-              <Field label="Dirección" name="address" required className="sm:col-span-2" />
               <Field label="Teléfono" name="phone" />
-              <Field label="Latitud" name="lat" inputMode="decimal" placeholder="19.43" />
-              <Field label="Longitud" name="lng" inputMode="decimal" placeholder="-99.13" />
             </div>
+            <AddressPicker variant="branch" />
             <fieldset>
               <legend className="text-sm font-medium text-slate-700">Recolección automática</legend>
               <div className="mt-1 flex flex-wrap gap-3">
