@@ -32,10 +32,18 @@ describe("matchClient", () => {
     { id: "b", publicId: "cmx00127-granjas", paymentReference: "PKT00127" },
     { id: "c", publicId: "cmx00127-patzcuaro", paymentReference: "PKT00128" },
     { id: "d", publicId: "cmx00141", paymentReference: "PKT00141" },
+    { id: "e", publicId: "emx00126", paymentReference: "EMX00126" },
+    { id: "f", publicId: "cmx00126", paymentReference: "CMX00126" },
   ];
   it("exacto por ID público en cualquier mayúscula", () => {
     expect(matchClient("Packatelas CMX00114", clients)).toEqual({ kind: "exact", clientId: "a", via: "cmx00114" });
     expect(matchClient("pago cmx114", clients)).toMatchObject({ kind: "exact", clientId: "a" });
+  });
+  it("distingue cmx (CDMX) de emx (Edomex) con el mismo número", () => {
+    expect(matchClient("Packatelas EMX00126", clients)).toMatchObject({ kind: "exact", clientId: "e" });
+    expect(matchClient("packatelas emx 126", clients)).toMatchObject({ kind: "exact", clientId: "e" });
+    expect(matchClient("cmx126", clients)).toMatchObject({ kind: "exact", clientId: "f" });
+    expect(matchClient("mx 126", clients)).toMatchObject({ kind: "suggestion" });
   });
   it("exacto por subcuenta o por referencia de pago", () => {
     expect(matchClient("packatelas cmx00127-granjas", clients)).toMatchObject({ kind: "exact", clientId: "b" });
@@ -43,7 +51,8 @@ describe("matchClient", () => {
   });
   it("número de varias subcuentas o prefijo con error: solo sugerencia", () => {
     expect(matchClient("packatelas cmx00127", clients).kind).toBe("suggestion");
-    expect(matchClient("emx00141", clients)).toMatchObject({ kind: "suggestion" });
+    expect(matchClient("xmx00141", clients)).toMatchObject({ kind: "suggestion" });
+    expect(matchClient("pago emx141", clients)).toMatchObject({ kind: "suggestion" }); // solo existe cmx00141
   });
   it("sin referencia: no se aplica", () => {
     expect(matchClient("fondeo kenia", clients).kind).toBe("none");

@@ -18,13 +18,18 @@ const ALIASES: Record<Field, string[]> = {
   tariffAmount: ["tarifa", "precio", "costo por envio", "tarifa por envio"],
   pickupAddress: ["direccion", "direccion recoleccion", "direccion de recoleccion", "domicilio", "recoleccion"],
   active: ["activo", "estatus", "estado"],
-  openingBalance: ["saldo", "saldo actual", "adeudo", "saldo inicial", "balance"],
+  openingBalance: ["saldo", "saldo actual", "adeudo", "saldo inicial", "balance", "saldo neto"],
+  flexDynamic: ["flex dinamica", "tarifa flex dinamica", "modo tarifa", "modo de tarifa", "tipo de tarifa"],
+  chargingEnabled: ["cobro activo", "cobro", "cobro habilitado", "facturar"],
+  pickupExemptUntil: ["exento hasta", "exencion hasta", "exenta hasta"],
+  pickupExemptNote: ["motivo exencion", "motivo de exencion", "motivo"],
 };
 
 export const CLIENT_FIELD_LABEL: Record<Field, string> = {
   publicId: "ID (cmx…)", name: "Nombre", contactName: "Contacto", phone: "Teléfono", email: "Correo", rfc: "RFC",
   legalName: "Razón social", taxRegime: "Régimen", taxZip: "CP fiscal", cfdiUse: "Uso CFDI", tariffAmount: "Tarifa",
   pickupAddress: "Dirección de recolección", active: "Activo", openingBalance: "Saldo",
+  flexDynamic: "Flex dinámica", chargingEnabled: "Cobro activo", pickupExemptUntil: "Exento hasta", pickupExemptNote: "Motivo exención",
 };
 
 /** "$1,234.50", "-1,234.50", "(1,234.50)" → número; null si no es monto. */
@@ -65,7 +70,7 @@ export function readClientRows(
     if (f && map[f] === undefined) map[f] = i;
     else if (n) unknown.push(h);
   });
-  if (map.publicId === undefined) return { rows: [], unknown, fields: [], error: 'Falta la columna "ID" (cmx…)' };
+  if (map.publicId === undefined) return { rows: [], unknown, fields: [], error: 'Falta la columna "ID" (cmx… o emx…)' };
   if (map.name === undefined) return { rows: [], unknown, fields: [], error: 'Falta la columna "Nombre"' };
 
   const seen = new Map<string, number>();
@@ -82,7 +87,7 @@ export function readClientRows(
     }
     data.name = get("name").slice(0, 200);
     if (data.name.length < 2) errors.push("Falta nombre");
-    for (const f of ["contactName", "phone", "email", "rfc", "legalName", "taxRegime", "taxZip", "cfdiUse", "pickupAddress"] as const) {
+    for (const f of ["contactName", "phone", "email", "rfc", "legalName", "taxRegime", "taxZip", "cfdiUse", "pickupAddress", "pickupExemptNote"] as const) {
       const v = get(f);
       if (v) data[f] = v.slice(0, 300);
     }
@@ -100,6 +105,16 @@ export function readClientRows(
     }
     const act = parseActive(get("active"));
     if (act !== undefined) data.active = act;
+    const charging = parseActive(get("chargingEnabled"));
+    if (charging !== undefined) data.chargingEnabled = charging;
+    const mode = norm(get("flexDynamic"));
+    if (mode) data.flexDynamic = /flex|dinamic|ml_flex/.test(mode) || parseActive(mode) === true;
+    const ex = get("pickupExemptUntil");
+    if (ex) {
+      const m = ex.match(/^(\d{4})-(\d{2})-(\d{2})$/) ?? ex.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (!m) errors.push("Fecha de exención inválida (AAAA-MM-DD o DD/MM/AAAA)");
+      else data.pickupExemptUntil = m[1].length === 4 ? `${m[1]}-${m[2]}-${m[3]}` : `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    }
     return { line: idx + 2, data, errors };
   });
   return { rows, unknown, fields: (Object.keys(map) as Field[]) };

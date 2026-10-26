@@ -94,7 +94,7 @@ export function ClientImport() {
             <input type="file" accept=".csv,.tsv,.txt" className="sr-only" onChange={async (e) => { const f = e.target.files?.[0]; if (f) { setRaw(await f.text()); setRows(null); } }} />
           </label>
           <Link href="/admin/clientes/importar/plantilla" prefetch={false} className="text-brand hover:underline">Descargar plantilla</Link>
-          <span className="text-slate-500">Obligatorias: ID (cmx…) y Nombre. El saldo es lo que el cliente debe hoy.</span>
+          <span className="text-slate-500">Obligatorias: ID (cmx… o emx…) y Nombre. El saldo es lo que el cliente debe hoy.</span>
         </div>
         <label className="mt-3 flex items-center gap-2 text-sm text-slate-700">
           <input type="checkbox" checked={negativeIsDebt} onChange={(e) => { setNegativeIsDebt(e.target.checked); setRows(null); }} className="accent-brand" />

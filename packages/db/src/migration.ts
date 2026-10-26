@@ -3,7 +3,7 @@
 // inicial solo se registra una vez por cliente.
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
-import { PUBLIC_ID } from "./public-id.ts";
+import { PUBLIC_ID, referenceFromPublicId } from "./public-id.ts";
 
 export { normalizePublicId } from "./public-id.ts";
 
@@ -26,6 +26,11 @@ export type ClientImportRow = {
   active?: boolean;
   /** Positivo = el cliente debe; negativo = saldo a favor. */
   openingBalance?: number;
+  /** Tarifa Flex dinámica + externos con tarifa fija. */
+  flexDynamic?: boolean;
+  chargingEnabled?: boolean;
+  pickupExemptUntil?: string; // AAAA-MM-DD
+  pickupExemptNote?: string;
 };
 
 export type ClientImportSummary = {
@@ -36,12 +41,11 @@ export type ClientImportSummary = {
   balanceSkipped: string[]; // ya tenían saldo inicial
 };
 
-/** Referencia de pago única: PKT + número (+ sufijo de subcuenta). */
+/** Referencia de pago única: el ID en mayúsculas (CMX00127GRANJAS); si ya existe, se numera. */
 function referenceFor(publicId: string, taken: Set<string>): string {
-  const m = publicId.match(/^cmx(\d+)(.*)$/)!;
-  const base = `PKT${m[1]}${m[2] ? m[2].replace(/-/g, "").slice(0, 6).toUpperCase() : ""}`;
+  const base = referenceFromPublicId(publicId);
   let ref = base;
-  for (let i = 2; taken.has(ref); i++) ref = `${base}${i}`;
+  for (let i = 2; taken.has(ref); i++) ref = `${base}-${i}`;
   taken.add(ref);
   return ref;
 }
@@ -87,6 +91,11 @@ export async function importClients(
           cfdiUse: clean(r.cfdiUse),
           ...(r.tariffAmount != null ? { tariffAmount: new Prisma.Decimal(r.tariffAmount) } : {}),
           ...(r.active != null ? { active: r.active } : {}),
+          ...(r.flexDynamic != null ? { tariffMode: r.flexDynamic ? ("FLEX_DYNAMIC_PLUS_FIXED" as const) : ("FIXED" as const) } : {}),
+          ...(r.chargingEnabled != null ? { chargingEnabled: r.chargingEnabled } : {}),
+          ...(r.pickupExemptUntil && /^\d{4}-\d{2}-\d{2}$/.test(r.pickupExemptUntil)
+            ? { pickupExemptUntil: new Date(`${r.pickupExemptUntil}T23:59:59-06:00`), pickupExemptNote: clean(r.pickupExemptNote) ?? "Exención migrada" }
+            : {}),
         };
         let clientId = existing.get(r.publicId);
         if (clientId) {

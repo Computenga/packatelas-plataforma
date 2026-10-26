@@ -25,6 +25,10 @@ const rowSchema = z.object({
   tariffAmount: z.number().min(0).max(100000).optional(),
   openingBalance: z.number().min(-10_000_000).max(10_000_000).optional(),
   active: z.boolean().optional(),
+  flexDynamic: z.boolean().optional(),
+  chargingEnabled: z.boolean().optional(),
+  pickupExemptUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  pickupExemptNote: opt(300),
 });
 
 export async function importClientsAction(input: unknown): Promise<{ error?: string; summary?: ClientImportSummary }> {

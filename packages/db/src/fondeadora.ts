@@ -29,8 +29,8 @@ export type MatchResult =
   | { kind: "none" };
 
 /**
- * Identifica al cliente por el concepto. Exacto: ID público (cmx00114, cmx00127-granjas) o
- * referencia de pago (PKT00114). Si hay error de dedo en el prefijo (emx00141) o el número
+ * Identifica al cliente por el concepto. Exacto: ID público (cmx00114, emx00126, cmx00127-granjas) o
+ * referencia de pago. Si hay error de dedo en el prefijo (xmx00141) o el número
  * corresponde a varias subcuentas, NO se aplica solo: queda como sugerencia para revisión.
  */
 export function matchClient(concept: string, clients: ClientRef[]): MatchResult {
@@ -43,17 +43,21 @@ export function matchClient(concept: string, clients: ClientRef[]): MatchResult 
     const hit = byRef.get(tok) ?? byPublic.get(tok);
     if (hit) return { kind: "exact", clientId: hit.id, via: tok };
   }
-  // 2) cmx + número sin sufijo: exacto solo si existe ese ID sin subcuentas
+  // 2) cmx/emx + número sin sufijo: exacto solo si existe ese ID sin subcuentas.
+  //    Prefijo con error (xmx00141, "mx 141"): solo sugerencia con lo que exista en cmx y emx.
   const nums = [...c.matchAll(/(?:^|[^a-z0-9])([a-z]{0,2})mx[\s-]?0*(\d{1,6})(?![0-9])/g)];
   for (const [, prefix, n] of nums) {
-    const base = `cmx${n.padStart(5, "0")}`;
-    const family = clients.filter((x) => x.publicId.toLowerCase() === base || x.publicId.toLowerCase().startsWith(`${base}-`));
-    if (prefix === "c" && family.length === 1 && family[0].publicId.toLowerCase() === base) {
-      return { kind: "exact", clientId: family[0].id, via: base };
+    const pad = n.padStart(5, "0");
+    const familyOf = (base: string) =>
+      clients.filter((x) => x.publicId.toLowerCase() === base || x.publicId.toLowerCase().startsWith(`${base}-`));
+    if (prefix === "c" || prefix === "e") {
+      const base = `${prefix}mx${pad}`;
+      const family = familyOf(base);
+      if (family.length === 1 && family[0].publicId.toLowerCase() === base) return { kind: "exact", clientId: family[0].id, via: base };
+      if (family.length) return { kind: "suggestion", note: `Posible ${family.map((f) => f.publicId).join(" o ")} (concepto: "${concept}")` };
     }
-    if (family.length) {
-      return { kind: "suggestion", note: `Posible ${family.map((f) => f.publicId).join(" o ")} (concepto: "${concept}")` };
-    }
+    const family = [...familyOf(`cmx${pad}`), ...familyOf(`emx${pad}`)];
+    if (family.length) return { kind: "suggestion", note: `Posible ${family.map((f) => f.publicId).join(" o ")} (concepto: "${concept}")` };
   }
   return { kind: "none" };
 }

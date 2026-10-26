@@ -42,7 +42,7 @@ export default async function ClientesPage({ searchParams }: PageProps<"/admin/c
         <input
           name="q"
           defaultValue={q}
-          placeholder="Buscar por nombre, ID (cmx…) o cuenta ML"
+          placeholder="Buscar por nombre, ID (cmx/emx…) o cuenta ML"
           className="w-full max-w-md rounded-lg border border-slate-300 px-3 py-2 text-sm"
         />
       </form>

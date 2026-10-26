@@ -20,7 +20,8 @@ describe("normalizePublicId", () => {
     expect(normalizePublicId("CMX114")).toBe("cmx00114");
     expect(normalizePublicId(" cmx 00127-Granjas ")).toBe("cmx00127-granjas");
     expect(normalizePublicId("cmx-5")).toBe("cmx00005");
-    expect(normalizePublicId("emx00141")).toBeNull();
+    expect(normalizePublicId("EMX 141")).toBe("emx00141");
+    expect(normalizePublicId("xmx00141")).toBeNull();
     expect(normalizePublicId("cliente 3")).toBeNull();
   });
 });
@@ -39,12 +40,12 @@ describe("importClients", () => {
     expect(a.created).toEqual([id(), id("-norte")]);
 
     const c = await prisma.client.findUniqueOrThrow({ where: { publicId: id() }, include: { branches: true } });
-    expect(c.paymentReference).toBe(`PKT${n}`);
+    expect(c.paymentReference).toBe(`CMX${n}`);
     expect(c.tariffAmount.toString()).toBe("75");
     expect(c.branches[0]?.address).toBe("Calle Uno 1");
     expect((await getClientBalance(prisma, c.id)).toString()).toBe("1500");
     const sub = await prisma.client.findUniqueOrThrow({ where: { publicId: id("-norte") } });
-    expect(sub.paymentReference).toBe(`PKT${n}NORTE`);
+    expect(sub.paymentReference).toBe(`CMX${n}NORTE`);
     expect((await getClientBalance(prisma, sub.id)).toString()).toBe("-200");
 
     // Segunda carga (otro lote): actualiza el teléfono, conserva la tarifa y no repite saldo
