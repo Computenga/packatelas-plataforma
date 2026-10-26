@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { connectMlAccount, mapMlShipment, prisma, processMlJobs, readMlState, registerScan, signMlState, ML_PENDING_ADDRESS } from "./index.ts";
+import { connectMlAccount, mapMlShipment, prisma, readMlState, syncMlShipment, registerScan, signMlState, ML_PENDING_ADDRESS } from "./index.ts";
 
 process.env.ML_CLIENT_ID = "123";
 process.env.ML_CLIENT_SECRET = "s";
@@ -62,8 +62,8 @@ describe("MercadoLibre", () => {
     const scan = await registerScan(prisma, { raw: JSON.stringify({ id: String(sid), sender_id: seller }) });
     expect(scan.status).toBe("created");
     expect((await prisma.order.findUniqueOrThrow({ where: { mlShipmentId: sid } })).addressLine).toBe(ML_PENDING_ADDRESS);
-    const done = await processMlJobs(prisma, 50, fakeFetch);
-    expect(done.done).toBeGreaterThanOrEqual(1);
+    expect(await prisma.mlJob.findUnique({ where: { key: `shipment:${sid}` } })).toMatchObject({ status: "PENDING" });
+    expect(await syncMlShipment(prisma, sid, fakeFetch)).toEqual({ status: "synced" });
     const o = await prisma.order.findUniqueOrThrow({ where: { mlShipmentId: sid } });
     expect(o).toMatchObject({ addressLine: "Lago Zurich 245", recipientName: "Ana López", lat: 19.44, itemsSummary: "2× Taza", instructions: "Casa azul", mlStatus: "ready_to_ship" });
   });

@@ -21,3 +21,12 @@ export async function retryAction(id: string) {
   await prisma.notification.updateMany({ where: { id, status: { in: ["FAILED", "SKIPPED"] } }, data: { status: "PENDING", attempts: 0, error: null, createdAt: new Date() } });
   revalidatePath("/admin/avisos");
 }
+
+export async function registerTemplatesAction(): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const { registerTemplates } = await import("@/lib/wa-templates");
+  const r = await registerTemplates();
+  revalidatePath("/admin/avisos");
+  if (r.errors.length) return { error: r.errors.join(" · ") };
+  return { ok: r.created.length ? `Enviadas a revisión de Meta: ${r.created.join(", ")}` : "Todas las plantillas ya estaban registradas" };
+}

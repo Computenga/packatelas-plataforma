@@ -9,14 +9,21 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_bloqueada" | "recordatorio_pago";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
-export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string }> = {
-  en_camino: { label: "Envío en camino", audience: "Comprador", template: "pk_en_camino", text: "Hola {{1}}, tu pedido de {{2}} ({{3}}) ya va en camino. Síguelo aquí: {{4}}" },
-  entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias!" },
-  no_entregado: { label: "No se pudo entregar", audience: "Comprador", template: "pk_no_entregado", text: "Hola {{1}}, no pudimos entregar tu pedido de {{2}}: {{3}}. Detalles: {{4}}" },
-  regresa_bodega: { label: "Paquete regresa a la tienda", audience: "Tienda", template: "pk_regresa_bodega", text: "{{1}}: el envío {{2}} no se entregó ({{3}}) y regresará a tu tienda." },
-  recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "{{1}}: tu recolección está en pausa por un saldo de {{2}}. Paga con la referencia {{3}} para reactivarla." },
-  recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "{{1}}: tu saldo con Packatelas es {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para no pausar tus recolecciones." },
+export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[] }> = {
+  // Reglas de Meta: el texto no puede empezar ni terminar con una variable.
+  en_camino: { label: "Envío en camino", audience: "Comprador", template: "pk_en_camino", text: "Hola {{1}}, tu pedido de {{2}} ({{3}}) ya va en camino. Puedes seguirlo aquí: {{4}} ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826", "https://nuevo.packatelas.mx/s/abc"] },
+  entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826"] },
+  no_entregado: { label: "No se pudo entregar", audience: "Comprador", template: "pk_no_entregado", text: "Hola {{1}}, no pudimos entregar tu pedido de {{2}}. Motivo: {{3}}. Detalles en {{4}} y te contactaremos para reprogramar.", example: ["Ana", "Tienda Ejemplo", "No había nadie en el domicilio", "https://nuevo.packatelas.mx/s/abc"] },
+  regresa_bodega: { label: "Paquete regresa a la tienda", audience: "Tienda", template: "pk_regresa_bodega", text: "Hola {{1}}, el envío {{2}} no se pudo entregar ({{3}}) y regresará a tu tienda.", example: ["Tienda Ejemplo", "ML-48341193826", "dirección incorrecta"] },
+  recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
+  recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
+
+/** Cuerpo para registrar la plantilla en Meta (POST /{waba}/message_templates). */
+export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") {
+  const e = NOTIFY_EVENTS[event];
+  return { name: e.template, language, category: "UTILITY", components: [{ type: "BODY", text: e.text, example: { body_text: [e.example] } }] };
+}
 
 export type NotifySettings = { enabled: Record<NotifyEvent, boolean>; reminderWeekday: number; reminderHour: number };
 const KEY = "notify.settings";

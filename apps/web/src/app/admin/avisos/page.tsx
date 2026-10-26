@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { retryAction, saveNotifyAction } from "./actions";
+import { registerTemplatesAction, retryAction, saveNotifyAction } from "./actions";
+import { templateStatuses } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
 
@@ -29,6 +30,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
     prisma.notification.groupBy({ by: ["status"], where: { createdAt: { gte: daysAgo(7) } }, _count: { _all: true } }),
     readHealth(prisma),
   ]);
+  const templates = await templateStatuses();
   // Las credenciales viven en el proceso en segundo plano; él reporta si las tiene.
   const configured = !!health.whatsapp && !health.whatsapp.detail?.startsWith("Sin credenciales");
   const c = (s: string) => counts.find((x) => x.status === s)?._count._all ?? 0;
@@ -44,6 +46,29 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
           credenciales de la API de WhatsApp de Meta en el servidor y aprobar las plantillas de abajo.
         </div>
       )}
+
+      <Card title="Plantillas en Meta">
+        {!templates ? (
+          <p className="text-sm text-slate-500">Para consultar y registrar las plantillas agrega <span className="font-mono">WHATSAPP_TOKEN</span> y <span className="font-mono">WHATSAPP_WABA_ID</span> en Coolify.</p>
+        ) : (
+          <div className="space-y-3">
+            <ul className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-3">
+              {templates.map((t) => (
+                <li key={t.template} className="rounded-lg border border-slate-200 px-3 py-2">
+                  <p className="font-mono text-xs">{t.template}</p>
+                  <p className="text-xs text-slate-500">{t.label}</p>
+                  <p className={`text-xs font-medium ${t.status === "APPROVED" ? "text-emerald-700" : t.status === "REJECTED" ? "text-red-700" : "text-amber-700"}`}>
+                    {t.status === "APPROVED" ? "Aprobada" : t.status === "PENDING" ? "En revisión" : t.status === "REJECTED" ? `Rechazada${t.reason ? `: ${t.reason}` : ""}` : t.status}
+                  </p>
+                </li>
+              ))}
+            </ul>
+            <ActionForm action={registerTemplatesAction} submitLabel="Registrar las que falten">
+              <p className="text-xs text-slate-500">Se mandan a revisión de Meta como categoría Utilidad en Español (MEX). Suelen aprobarse en minutos.</p>
+            </ActionForm>
+          </div>
+        )}
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-[420px_1fr]">
         <Card title="Qué avisos mandar">

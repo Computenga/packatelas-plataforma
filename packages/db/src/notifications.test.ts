@@ -79,7 +79,22 @@ describe("cola de avisos", () => {
     expect(await sendWeeklyReminders(prisma, saturdayEarly)).toBe(0);
     await sendWeeklyReminders(prisma, saturday);
     const r = await prisma.notification.findFirst({ where: { clientId, event: "recordatorio_pago" } });
-    expect(r?.preview).toMatch(/^Rosa: tu saldo con Packatelas es \$/);
+    expect(r?.preview).toMatch(/^Hola Rosa, tu saldo con Packatelas es de \$/);
     expect(r?.to).toBe("525512345678");
+  });
+});
+
+describe("plantillas de WhatsApp", () => {
+  it("cumplen las reglas de Meta: sin variable al inicio ni al final y con ejemplo por variable", async () => {
+    const { NOTIFY_EVENTS, whatsappTemplatePayload } = await import("./notifications.ts");
+    for (const ev of Object.keys(NOTIFY_EVENTS) as (keyof typeof NOTIFY_EVENTS)[]) {
+      const p = whatsappTemplatePayload(ev);
+      const text = p.components[0].text;
+      const vars = text.match(/\{\{\d\}\}/g) ?? [];
+      expect(text.trim().startsWith("{{"), ev).toBe(false);
+      expect(text.trim().endsWith("}}"), ev).toBe(false);
+      expect(p.components[0].example.body_text[0]).toHaveLength(vars.length);
+      expect(p.name).toMatch(/^[a-z0-9_]+$/);
+    }
   });
 });

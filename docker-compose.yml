@@ -44,6 +44,8 @@ services:
       OSRM_URL: ${OSRM_URL:-}
       ML_CLIENT_ID: ${ML_CLIENT_ID:-}
       ML_CLIENT_SECRET: ${ML_CLIENT_SECRET:-}
+      WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
+      WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
     volumes:
       - uploads:/data/uploads
     depends_on:

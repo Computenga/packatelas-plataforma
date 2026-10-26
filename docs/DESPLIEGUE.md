@@ -115,7 +115,9 @@ recordatorio de pago) se registran siempre en **Admin → Avisos**. Para que se 
 3. En Configuración del negocio → Usuarios del sistema, crea uno con permiso sobre la cuenta de
    WhatsApp y genera un **token permanente** con `whatsapp_business_messaging`.
 4. En Coolify agrega `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID` (el "Phone number ID" de la API) y
-   `PUBLIC_URL=https://admin.packatelas.mx`; vuelve a desplegar.
+   `WHATSAPP_WABA_ID` (cuenta de WhatsApp de Computenga "Packatelas": 1127202190105915); vuelve a desplegar.
+5. En Admin → Avisos → "Plantillas en Meta" da **Registrar las que falten**: se mandan las 6 plantillas
+   a revisión (ya no hace falta crearlas a mano en WhatsApp Manager).
 
 **Admin → Salud operativa** muestra si las credenciales funcionan y cuántos avisos fallan.
 
