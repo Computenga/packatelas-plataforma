@@ -74,7 +74,7 @@ services:
   # Rutas con tiempos reales [A08, A26]: OSRM con el mapa de CDMX y Edomex (OpenStreetMap).
   # La primera vez descarga y procesa el mapa (~20-30 min); después solo arranca.
   osrm-map:
-    image: alpine:3.20
+    image: debian:bookworm-slim
     volumes:
       - osrm:/data
     entrypoint: ["sh", "-c"]
@@ -82,7 +82,8 @@ services:
       - |
         set -e
         if [ -f /data/zmvm.osm.pbf ]; then echo "Mapa descargado"; exit 0; fi
-        apk add --no-cache osmium-tool >/dev/null
+        apt-get update -qq && apt-get install -y -qq --no-install-recommends osmium-tool wget ca-certificates >/dev/null
+        echo "Descargando mapa de México…"
         wget -q -O /data/mexico.osm.pbf https://download.geofabrik.de/north-america/mexico-latest.osm.pbf
         osmium extract -b -99.75,18.85,-98.55,20.05 /data/mexico.osm.pbf -o /data/zmvm.tmp.pbf --overwrite
         rm /data/mexico.osm.pbf
