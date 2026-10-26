@@ -23,7 +23,7 @@ export async function driverReport(db: Db, r: Range): Promise<DriverReport[]> {
   >`
     WITH ev AS (
       SELECT e."orderId", e.type, e."occurredAt", d.id AS "driverId", u.name,
-             (e."occurredAt" AT TIME ZONE 'America/Mexico_City') AS local
+             ((e."occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City') AS local
       FROM "OrderEvent" e
       JOIN "User" u ON u.id = e."actorUserId"
       JOIN "Driver" d ON d."userId" = u.id
@@ -105,7 +105,7 @@ export async function zoneReport(db: Db, r: Range, by: "city" | "zip" = "city"):
 /** Entregas por hora del día (hora CDMX). */
 export async function deliveriesByHour(db: Db, r: Range): Promise<number[]> {
   const rows = await db.$queryRaw<{ h: number; n: bigint }[]>`
-    SELECT EXTRACT(HOUR FROM "occurredAt" AT TIME ZONE 'America/Mexico_City')::int AS h, COUNT(*) AS n
+    SELECT EXTRACT(HOUR FROM ("occurredAt" AT TIME ZONE 'UTC') AT TIME ZONE 'America/Mexico_City')::int AS h, COUNT(*) AS n
     FROM "OrderEvent" WHERE type = 'delivered' AND "occurredAt" >= ${r.from} AND "occurredAt" < ${r.to}
     GROUP BY 1`;
   const out = new Array(24).fill(0);

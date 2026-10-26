@@ -1,4 +1,4 @@
-import { burnedReport, clientReport, driverReport, prisma, zoneReport } from "@packatelas/db";
+import { burnedReport, clientReport, driverReport, prisma, routeAnalysis, zoneReport } from "@packatelas/db";
 import { getSessionUser } from "@/lib/session";
 import { fecha } from "@/lib/format";
 import { readRange } from "@/lib/report-range";
@@ -26,6 +26,14 @@ export async function GET(request: Request) {
   } else if (sp.tab === "carga-quemada") {
     rows = [["Tipo", "Envío", "Cliente", "ID", "Registrado", "Compromiso", "Entregado", "Estado"],
       ...(await burnedReport(prisma, range)).map((b) => [KIND[b.kind], b.code, b.client, b.publicId, fecha(b.createdAt), fecha(b.promisedAt), fecha(b.deliveredAt), b.status])];
+  } else if (sp.tab === "tiempos-ruta" || sp.tab === "tiempos-ruta-dias") {
+    const a = await routeAnalysis(prisma, range, { serviceMinutes: Math.min(60, Math.max(0, Number(sp.servicio) || 10)) });
+    const hora = (d: Date) => new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+    rows = sp.tab === "tiempos-ruta"
+      ? [["Repartidor", "Días", "Entregas", "Min. esperados", "Min. reales", "Real ÷ esperado", "Entregas por hora", "Min. de más"],
+        ...a.drivers.map((d) => [d.driver, d.days, d.stops, d.expectedMinutes, d.actualMinutes, d.ratio ?? "", d.perHour ?? "", d.extraMinutes])]
+      : [["Día", "Repartidor", "Entregas", "Salida", "Primera entrega", "Última entrega", "Min. manejo esperado", "Min. esperados", "Min. reales", "Sin ubicación", "Cálculo"],
+        ...a.days.map((d) => [d.day, d.driver, d.stops, hora(d.start), hora(d.firstDelivery), hora(d.lastDelivery), d.driveMinutes, d.expectedMinutes, d.actualMinutes, d.skippedNoLocation, d.method === "osrm" ? "OSRM" : "Línea recta"])];
   } else {
     rows = [["Repartidor", "Entregas", "No entregados", "Efectividad %", "Días", "Promedio/día", "Horario extra", "23 h o después", "Min. carga→entrega"],
       ...(await driverReport(prisma, range)).map((d) => [d.name, d.delivered, d.failed, d.effectiveness, d.days, d.perDay, d.overtime, d.afterHours, d.avgMinutes])];

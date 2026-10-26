@@ -53,3 +53,4 @@ export * from "./notifications.ts";
 export * from "./attendance.ts";
 export * from "./fleet.ts";
 export * from "./onboarding.ts";
+export * from "./route-analysis.ts";

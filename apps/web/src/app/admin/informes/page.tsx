@@ -46,7 +46,8 @@ export default async function InformesPage({ searchParams }: PageProps<"/admin/i
         title="Informes"
         actions={tab !== "mapa" && <ButtonLink href={`/admin/informes/exportar?${qs({ tab, ...(tab === "zonas" ? { por: sp.por === "cp" ? "cp" : "" } : {}) })}`} variant="secondary" prefetch={false}>Exportar CSV</ButtonLink>}
       >
-        Desempeño por repartidor, cliente y zona. <Link href={`/admin/informes/carga-quemada?${qs({})}`} className="text-brand hover:underline">Ver carga quemada →</Link>
+        Desempeño por repartidor, cliente y zona. <Link href={`/admin/informes/carga-quemada?${qs({})}`} className="text-brand hover:underline">Ver carga quemada →</Link>{" "}
+        <Link href="/admin/informes/tiempos-ruta" className="text-brand hover:underline">Tiempos de ruta →</Link>
       </PageHeader>
       <RangeForm base="/admin/informes" fromYmd={fromYmd} toYmd={toYmd} extra={{ tab }} />
       <nav className="flex gap-1 border-b border-slate-200 text-sm" aria-label="Informes">
