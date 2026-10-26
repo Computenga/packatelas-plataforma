@@ -63,6 +63,19 @@ El seed de desarrollo no se usa en producción. Para el primer acceso:
 2. Entrar con ese usuario y **borrar `BOOTSTRAP_ADMIN_PASSWORD`** de las variables.
 3. Los demás usuarios se dan de alta desde Administración → Usuarios.
 
+### Verificación en dos pasos
+
+Cada administrador la activa en **Seguridad** (menú del admin) con Google Authenticator,
+Microsoft Authenticator o 1Password. Si alguien pierde el teléfono, otro administrador se la
+quita en **Usuarios → Dos pasos → Quitar**. Si el único administrador pierde el acceso, desde la
+terminal de Coolify del servicio `migrate`:
+
+```
+npx tsx src/reset-2fa.ts <usuario>
+```
+
+`ENCRYPTION_KEY` cifra estas claves: no la cambies después de que alguien active la verificación.
+
 ## 6. Abonos automáticos desde Gmail (Fondeadora)
 
 El servicio `worker` revisa cada 2 minutos los correos "Depósito" de

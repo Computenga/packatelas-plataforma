@@ -66,3 +66,13 @@ export async function toggleActive(userId: string) {
   });
   revalidatePath("/admin/usuarios");
 }
+
+/** Quita la verificación en dos pasos (teléfono perdido); el usuario la vuelve a activar [P09]. */
+export async function resetTwoFactor(userId: string) {
+  const admin = await requireUser(["ADMIN"]);
+  if (userId === admin.id) return;
+  const user = await prisma.user.update({ where: { id: userId }, data: { totpSecret: null, totpLastStep: null } });
+  await prisma.session.deleteMany({ where: { userId } });
+  await audit(prisma, { actorUserId: admin.id, action: "user.2fa_reset", entity: "User", entityId: userId, summary: `Verificación en dos pasos de ${user.username} restablecida` });
+  revalidatePath("/admin/usuarios");
+}

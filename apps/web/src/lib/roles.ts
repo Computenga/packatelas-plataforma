@@ -40,6 +40,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
   { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },
   { href: "/admin/auditoria", label: "Auditoría", roles: ["ADMIN"] },
+  { href: "/admin/seguridad", label: "Seguridad", roles: STAFF_ROLES },
 ];
 
 export function adminNavFor(role: Role): NavItem[] {

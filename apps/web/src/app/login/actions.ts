@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { prisma, verifyPassword } from "@packatelas/db";
 import { createSession, destroySession } from "@/lib/session";
+import { setPendingLogin } from "@/lib/two-factor";
 import { homeFor } from "@/lib/roles";
 
 export type LoginState = { error?: string; username?: string };
@@ -34,6 +35,11 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
 
   failures.delete(key);
+  if (user.totpSecret) {
+    // Falta el código de la app autenticadora [P09].
+    await setPendingLogin(user.id);
+    redirect("/login/verificar");
+  }
   await createSession(user.id);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
   redirect(homeFor(user.role));

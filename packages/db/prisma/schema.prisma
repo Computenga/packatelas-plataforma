@@ -30,6 +30,7 @@ model User {
   role         Role
   active       Boolean   @default(true)
   totpSecret   String? // 2FA para administradores [P09], cifrado
+  totpLastStep Int? // último intervalo usado: el mismo código no sirve dos veces
   clientId     String? // solo para rol CLIENTE
   client       Client?   @relation(fields: [clientId], references: [id])
   driver       Driver?

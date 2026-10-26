@@ -5,7 +5,7 @@ import { ROLE_LABEL } from "@/lib/roles";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Button, Card, Field, PageHeader, Select, Table, Td } from "@/components/ui";
-import { createUser, resetPassword, toggleActive } from "./actions";
+import { createUser, resetPassword, resetTwoFactor, toggleActive } from "./actions";
 
 export const metadata: Metadata = { title: "Usuarios" };
 
@@ -40,7 +40,7 @@ export default async function UsuariosPage() {
         </ActionForm>
       </Card>
 
-      <Table head={["Usuario", "Nombre", "Rol", "Último acceso", "Estado", "Contraseña", ""]}>
+      <Table head={["Usuario", "Nombre", "Rol", "Último acceso", "Estado", "Dos pasos", "Contraseña", ""]}>
         {users.map((u) => (
           <tr key={u.id} className={u.active ? "" : "bg-slate-50 text-slate-400"}>
             <Td className="font-mono text-xs">{u.username}</Td>
@@ -48,6 +48,16 @@ export default async function UsuariosPage() {
             <Td>{ROLE_LABEL[u.role]}</Td>
             <Td>{fecha(u.lastLoginAt)}</Td>
             <Td>{u.active ? <Badge tone="green">Activo</Badge> : <Badge>Inactivo</Badge>}</Td>
+            <Td>
+              {u.totpSecret ? (
+                u.id !== me.id ? (
+                  <form action={resetTwoFactor.bind(null, u.id)} className="flex items-center gap-2">
+                    <Badge tone="green">Sí</Badge>
+                    <button className="text-xs text-red-600 hover:underline">Quitar</button>
+                  </form>
+                ) : <Badge tone="green">Sí</Badge>
+              ) : <span className="text-xs text-slate-400">No</span>}
+            </Td>
             <Td>
               <details>
                 <summary className="cursor-pointer text-sm text-brand">Cambiar</summary>
