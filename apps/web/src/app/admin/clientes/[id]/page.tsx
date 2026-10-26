@@ -6,7 +6,8 @@ import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
-import { addBranch, createPortalUser, linkMlAccount, setRoutesAction, updateClient, updateTariff } from "../actions";
+import { addBranch, createPortalUser, linkMlAccount, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
+import { BranchControls } from "./branch-controls";
 
 export const metadata: Metadata = { title: "Cliente" };
 
@@ -124,14 +125,37 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
           <ul className="mb-5 divide-y divide-slate-100 text-sm">
             {client.branches.map((b) => (
               <li key={b.id} className="py-2">
-                <p className="font-medium">
-                  {b.name} {!b.active && <Badge>Inactiva</Badge>}
-                </p>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <p className="font-medium">
+                    {b.name} {!b.active && <Badge>Inactiva</Badge>}
+                  </p>
+                  <BranchControls clientId={id} branchId={b.id} active={b.active} />
+                </div>
                 <p className="text-slate-600">{b.address}</p>
                 <p className="text-xs text-slate-500">
                   {b.autoPickup ? `Recolección automática: ${b.autoPickupDays.map((d) => DAYS[d - 1]).join(", ")}` : "Recolección manual"}
                   {b.lat != null && ` · ${b.lat.toFixed(5)}, ${b.lng?.toFixed(5)}`}
                 </p>
+                <details className="mt-1">
+                  <summary className="cursor-pointer text-xs text-brand">Editar</summary>
+                  <div className="mt-2 rounded-lg border border-slate-200 p-3">
+                    <ActionForm action={updateBranch.bind(null, id, b.id)} submitLabel="Guardar sucursal">
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <Field label="Nombre" name="name" required defaultValue={b.name} />
+                        <Field label="Teléfono" name="phone" defaultValue={b.phone ?? ""} />
+                      </div>
+                      <AddressPicker variant="branch" defaults={{ addressLine: b.address, lat: b.lat ?? undefined, lng: b.lng ?? undefined }} />
+                      <fieldset disabled={!b.active}>
+                        <legend className="text-sm font-medium text-slate-700">Recolección automática</legend>
+                        <div className="mt-1 flex flex-wrap gap-3">
+                          {DAYS.map((d, i) => (
+                            <Checkbox key={d} label={d} name="autoPickupDays" value={String(i + 1)} defaultChecked={b.autoPickupDays.includes(i + 1)} />
+                          ))}
+                        </div>
+                      </fieldset>
+                    </ActionForm>
+                  </div>
+                </details>
               </li>
             ))}
           </ul>
@@ -197,8 +221,8 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="ID de vendedor ML" name="mlUserId" inputMode="numeric" required />
               <Field label="Nombre de la cuenta" name="nickname" required />
-              <Select label="Llega a sucursal" name="branchId" required defaultValue={client.branches[0]?.id}>
-                {client.branches.map((b) => (
+              <Select label="Llega a sucursal" name="branchId" required defaultValue={client.branches.find((b) => b.active)?.id}>
+                {client.branches.filter((b) => b.active).map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name}
                   </option>

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { audit, hashPassword, nextPublicId, prisma, Prisma, refreshBlockedPickups, setMlRoutes } from "@packatelas/db";
+import { audit, hashPassword, nextPublicId, prisma, Prisma, reactivateBranch, refreshBlockedPickups, removeBranch, setMlRoutes } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ID_PREFIXES } from "@packatelas/db/public-id";
 import { opt } from "@/lib/format";
@@ -153,6 +153,46 @@ export async function addBranch(clientId: string, _: ActionState, fd: FormData):
   await audit(prisma, { actorUserId: user.id, action: "branch.created", entity: "Branch", entityId: branch.id, summary: `Sucursal ${d.name} agregada` });
   revalidatePath(`/admin/clientes/${clientId}`);
   return { ok: `Sucursal ${d.name} agregada` };
+}
+
+export async function updateBranch(clientId: string, branchId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const parsed = branchSchema.safeParse(Object.fromEntries(fd));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const d = parsed.data;
+  const days = fd.getAll("autoPickupDays").map(Number).filter((n) => n >= 1 && n <= 7);
+  const b = await prisma.branch.findFirst({ where: { id: branchId, clientId } });
+  if (!b) return { error: "Sucursal no encontrada" };
+  await prisma.branch.update({
+    where: { id: branchId },
+    data: {
+      name: d.name, address: d.address, phone: opt(d.phone ?? null),
+      lat: d.lat === "" ? null : d.lat, lng: d.lng === "" ? null : d.lng,
+      autoPickup: b.active && days.length > 0, autoPickupDays: days,
+    },
+  });
+  await audit(prisma, { actorUserId: user.id, action: "branch.updated", entity: "Branch", entityId: branchId, summary: `Sucursal ${d.name} editada` });
+  revalidatePath(`/admin/clientes/${clientId}`);
+  return { ok: "Sucursal guardada" };
+}
+
+export async function removeBranchAction(clientId: string, branchId: string): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const b = await prisma.branch.findFirst({ where: { id: branchId, clientId }, select: { id: true } });
+  if (!b) return { error: "Sucursal no encontrada" };
+  const r = await removeBranch(prisma, branchId, user.id);
+  if (!r.ok) return { error: r.error };
+  revalidatePath(`/admin/clientes/${clientId}`);
+  return { ok: r.mode === "deleted" ? "Sucursal borrada" : "Tiene pedidos o recolecciones en su historial: quedó desactivada" };
+}
+
+export async function reactivateBranchAction(clientId: string, branchId: string): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const b = await prisma.branch.findFirst({ where: { id: branchId, clientId }, select: { id: true } });
+  if (!b) return { error: "Sucursal no encontrada" };
+  await reactivateBranch(prisma, branchId, user.id);
+  revalidatePath(`/admin/clientes/${clientId}`);
+  return { ok: "Sucursal reactivada" };
 }
 
 const mlSchema = z.object({
