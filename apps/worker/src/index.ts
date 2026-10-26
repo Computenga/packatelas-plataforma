@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { deliverPending, getCreditRules, ingestFondeadoraEmail, prisma, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
 
@@ -75,8 +75,33 @@ function startNotifier() {
   setInterval(beat, 60_000);
 }
 
+/** Cada 15 s: trae de MercadoLibre los envíos escaneados o notificados [A01, A12]. */
+function startMlSync() {
+  let busy = false;
+  const tick = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      if (!mlConfig()) {
+        await reportHealth(prisma, "mercadolibre", false, "Sin configurar (ML_CLIENT_ID, ML_CLIENT_SECRET, PUBLIC_URL)");
+        return;
+      }
+      const r = await processMlJobs(prisma);
+      if (r.seen) console.log(`[worker] MercadoLibre: ${r.done} sincronizados, ${r.failed} con error`);
+      await reportHealth(prisma, "mercadolibre", r.failed === 0, `Última vuelta: ${r.done} sincronizados, ${r.failed} con error`);
+    } catch (e) {
+      await reportHealth(prisma, "mercadolibre", false, e instanceof Error ? e.message : String(e)).catch(() => {});
+    } finally {
+      busy = false;
+    }
+  };
+  void tick();
+  setInterval(tick, 15_000);
+}
+
 async function main() {
   startHourlyJobs();
+  startMlSync();
   startNotifier();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {

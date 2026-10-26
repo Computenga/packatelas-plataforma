@@ -4,6 +4,7 @@ import { accountState, getClientBalance, getCreditRules, prisma } from "@packate
 import { requireClient } from "@/lib/client-scope";
 import { fecha, mxn } from "@/lib/format";
 import { Card } from "@/components/ui";
+import { MlConnect } from "@/components/ml-connect";
 
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
@@ -23,6 +24,9 @@ export default async function CuentaPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Estado de cuenta</h1>
+      <Card title="Mis cuentas de MercadoLibre">
+        <MlConnect clientId={clientId} self />
+      </Card>
       <div className={`rounded-xl p-5 ${balance.gt(0) ? "bg-red-50" : "bg-emerald-50"}`}>
         <p className="text-sm text-slate-600">{balance.gt(0) ? "Saldo por pagar" : "Saldo a favor"}</p>
         <p className={`text-3xl font-bold ${balance.gt(0) ? "text-red-700" : "text-emerald-700"}`}>{mxn(balance.abs())}</p>

@@ -970,3 +970,27 @@ model OnboardingApp {
   order       Int     @default(100)
   active      Boolean @default(true)
 }
+
+// Trabajos de sincronización con MercadoLibre [I01, A12]: notificaciones y envíos escaneados.
+// Una fila por recurso (clave única); una notificación nueva la vuelve a poner pendiente.
+enum MlJobStatus {
+  PENDING
+  DONE
+  FAILED
+}
+
+model MlJob {
+  id        String      @id @default(cuid())
+  key       String      @unique // "shipment:48341193826"
+  topic     String // shipments | orders
+  resource  String // /shipments/48341193826
+  mlUserId  BigInt?
+  status    MlJobStatus @default(PENDING)
+  attempts  Int         @default(0)
+  lastError String?
+  runAfter  DateTime    @default(now())
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  @@index([status, runAfter])
+}

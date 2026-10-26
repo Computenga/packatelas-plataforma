@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient, type OrderStatus, type EventSource } from ".
 import { chargeOrder } from "./ledger.ts";
 import { parseScan } from "./scan.ts";
 import { pickRoute } from "./ml-routes.ts";
+import { enqueueMlJob } from "./ml-api.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -143,6 +144,8 @@ export async function registerScan(
       const charge = await chargeOrder(tx, order.id, input.actorUserId);
       return { order, charged: !!charge };
     });
+    // Trae destinatario y dirección desde MercadoLibre en segundo plano [A01].
+    await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${parsed.shipmentId}`, mlUserId: account.mlUserId }).catch(() => {});
     return { status: "created", orderId: result.order.id, code, clientName, charged: result.charged };
   } catch (e) {
     if (!isUniqueViolation(e)) throw e;

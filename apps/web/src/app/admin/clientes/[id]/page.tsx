@@ -8,6 +8,7 @@ import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
 import { addBranch, createPortalUser, linkMlAccount, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
 import { BranchControls } from "./branch-controls";
+import { MlConnect } from "@/components/ml-connect";
 
 export const metadata: Metadata = { title: "Cliente" };
 
@@ -174,6 +175,10 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
               </div>
             </fieldset>
           </ActionForm>
+        </Card>
+
+        <Card title="Conectar MercadoLibre (API)">
+          <MlConnect clientId={id} />
         </Card>
 
         <Card title={`Cuentas MercadoLibre (${client.mlAccounts.length})`}>

@@ -119,6 +119,17 @@ recordatorio de pago) se registran siempre en **Admin → Avisos**. Para que se 
 
 **Admin → Salud operativa** muestra si las credenciales funcionan y cuántos avisos fallan.
 
+## 7b. MercadoLibre (API)
+
+1. En developers.mercadolibre.com.mx crea la app con URI de redirect
+   `https://nuevo.packatelas.mx/api/ml/callback` (o el dominio final) y notificaciones en
+   `https://nuevo.packatelas.mx/api/ml/notificaciones` (temas *shipments* y *orders*).
+2. En Coolify agrega `ML_CLIENT_ID` (App ID) y `ML_CLIENT_SECRET` (Secret key) y vuelve a desplegar.
+3. Cada cliente autoriza su cuenta: Admin → Clientes → (cliente) → "Conectar MercadoLibre" → copiar
+   enlace y mandárselo, o desde su portal en *Estado de cuenta*. Al escanear, el worker trae
+   destinatario, dirección, pin y estado del envío.
+4. Al cambiar de dominio (admin.packatelas.mx), actualiza `PUBLIC_URL` y las URLs de la app ML.
+
 ## 8. Respaldos
 
 - Coolify → servicio `db` → Backups → diario, guardando en un almacenamiento S3 externo
