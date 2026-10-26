@@ -48,6 +48,11 @@ type Sender = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }
 /** Envía a todos los dispositivos de los usuarios. Nunca lanza: un aviso fallido no rompe la operación. */
 export async function sendPush(prisma: PrismaClient, userIds: string[], msg: PushMessage, send: Sender = webpush.sendNotification) {
   if (!userIds.length) return { sent: 0, removed: 0 };
+  // Copia para la app Android (la consulta cada minuto); se borran las de más de 7 días.
+  await prisma.appNotice
+    .createMany({ data: [...new Set(userIds)].map((userId) => ({ userId, title: msg.title.slice(0, 120), body: msg.body.slice(0, 500), url: msg.url ?? null })) })
+    .then(() => prisma.appNotice.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86400_000) } } }))
+    .catch((e) => console.error("[push] avisos de la app:", e instanceof Error ? e.message : e));
   try {
     const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
     if (!subs.length) return { sent: 0, removed: 0 };

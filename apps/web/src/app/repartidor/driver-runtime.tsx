@@ -16,6 +16,10 @@ function subscribeOnline(cb: () => void) {
   };
 }
 const MIN_MOVE_MS = 10_000;
+const noopSubscribe = () => () => {};
+
+/** Puente que expone la app Android (window.PackatelasNative). */
+type NativeBridge = { setOnDuty: (on: boolean) => void; hasLocation: () => boolean };
 
 export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   const [queue, setQueue] = useState<QueuedEvent[]>([]);
@@ -47,9 +51,17 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     };
   }, []);
 
+  // App Android: el GPS lo lleva la app nativa en segundo plano, aun con la pantalla apagada [P03].
+  const native = typeof window !== "undefined" ? (window as Window & { PackatelasNative?: NativeBridge }).PackatelasNative : undefined;
+  useEffect(() => {
+    if (!native) return;
+    native.setOnDuty(onDuty);
+    if (onDuty) setTimeout(() => setGps(native.hasLocation() ? "ok" : "denied"), 0);
+  }, [onDuty, native]);
+
   // Ubicación en vivo durante el turno
   useEffect(() => {
-    if (!onDuty || !("geolocation" in navigator)) return;
+    if (native || !onDuty || !("geolocation" in navigator)) return;
     let last = 0;
     const watch = navigator.geolocation.watchPosition(
       (p) => {
@@ -88,11 +100,11 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
       clearInterval(id);
       void send();
     };
-  }, [onDuty]);
+  }, [onDuty, native]);
 
   // Si la app estuvo en segundo plano durante el turno, no se mandó ubicación: avisarle [P04].
   useEffect(() => {
-    if (!onDuty) return;
+    if (!onDuty || native) return;
     let hiddenAt = 0;
     const onChange = () => {
       if (document.visibilityState === "hidden") hiddenAt = Date.now();
@@ -104,7 +116,7 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     };
     document.addEventListener("visibilitychange", onChange);
     return () => document.removeEventListener("visibilitychange", onChange);
-  }, [onDuty]);
+  }, [onDuty, native]);
 
   // Pantalla encendida (plan B de ubicación en iPhone): se reactiva al volver a la app.
   useEffect(() => {
@@ -126,11 +138,21 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     };
   }, [wake]);
 
+  const isAndroidBrowser = useSyncExternalStore(
+    noopSubscribe,
+    () => /Android/i.test(navigator.userAgent) && !(window as Window & { PackatelasNative?: unknown }).PackatelasNative,
+    () => false,
+  );
   const pending = queue.filter((q) => !q.error);
   const failed = queue.filter((q) => q.error);
 
   return (
     <div className="mb-4 space-y-2">
+      {isAndroidBrowser && onDuty && (
+        <a href="/app/packatelas.apk" className="block rounded-lg bg-brand/10 px-3 py-2 text-xs text-brand">
+          Instala la app Packatelas para Android: manda tu ubicación aunque apagues la pantalla y te avisa cuando te asignan ruta. <b>Descargar</b>
+        </a>
+      )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full px-2 py-1 ${online ? "bg-emerald-50 text-emerald-700" : "bg-amber-100 text-amber-800"}`}>
           {online ? "Con señal" : "Sin señal: se guardará y enviará después"}

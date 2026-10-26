@@ -1,0 +1,44 @@
+plugins { id "com.android.application" }
+
+// Firma de producción: keystore.properties (no se sube al repositorio) con
+// storeFile, storePassword, keyAlias, keyPassword. Sin él se firma con la llave de depuración.
+def ksFile = rootProject.file("keystore.properties")
+def ks = new Properties()
+if (ksFile.exists()) ks.load(new FileInputStream(ksFile))
+
+// Dirección de la plataforma. Para el cambio de dominio: ./gradlew assembleRelease -PbaseUrl=https://admin.packatelas.mx
+def baseUrl = project.findProperty("baseUrl") ?: "https://nuevo.packatelas.mx"
+
+android {
+    namespace "mx.packatelas.app"
+    compileSdk 35
+    defaultConfig {
+        applicationId "mx.packatelas.app"
+        minSdk 26
+        targetSdk 35
+        versionCode 1
+        versionName "1.0"
+        buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
+    }
+    buildFeatures { buildConfig true }
+    signingConfigs {
+        if (ksFile.exists()) {
+            release {
+                storeFile rootProject.file(ks["storeFile"])
+                storePassword ks["storePassword"]
+                keyAlias ks["keyAlias"]
+                keyPassword ks["keyPassword"]
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ksFile.exists() ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

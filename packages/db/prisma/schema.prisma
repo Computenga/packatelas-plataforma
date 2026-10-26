@@ -1139,3 +1139,16 @@ model StoreConnector {
 
   @@index([clientId])
 }
+
+// Avisos para la app Android [P03, P05]: la app los consulta y muestra como notificación nativa
+// (las notificaciones web no funcionan dentro de un WebView). Se guardan 7 días.
+model AppNotice {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  body      String
+  url       String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+}
