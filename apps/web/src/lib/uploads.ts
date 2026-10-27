@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 // Fotos de evidencia en disco (volumen del servidor). Cambiar a Object Storage solo toca este archivo.
@@ -39,3 +39,14 @@ export function sniffDoc(buf: Buffer): "jpg" | "png" | "webp" | "pdf" | null {
   return sniffImage(buf);
 }
 export const MIME = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", pdf: "application/pdf" } as const;
+
+/** Borra un archivo de evidencia (solo llaves válidas; si no existe, no pasa nada). */
+export async function deleteEvidence(key: string): Promise<boolean> {
+  if (!KEY.test(key)) return false;
+  try {
+    await unlink(path.join(root(), key));
+    return true;
+  } catch {
+    return false;
+  }
+}
