@@ -4,6 +4,7 @@ const TABS = [
   { key: "saldos", label: "Saldos y pagos", href: "/admin/cobros" },
   { key: "reglas", label: "Crédito", href: "/admin/cobros/reglas" },
   { key: "antiguedad", label: "Antigüedad de saldos", href: "/admin/cobros/antiguedad" },
+  { key: "mercadopago", label: "Mercado Pago", href: "/admin/cobros/mercadopago" },
 ] as const;
 
 export function CobrosTabs({ active }: { active: (typeof TABS)[number]["key"] }) {

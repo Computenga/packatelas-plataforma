@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -159,6 +159,19 @@ function startCleanup() {
   setInterval(run, 30 * 60_000);
 }
 
+/** Conciliación de pagos con tarjeta por si un aviso de Mercado Pago no llegó [I09]. */
+function startMp() {
+  const run = async () => {
+    try {
+      const r = await reconcileMp(prisma);
+      if (r.applied) console.log(`[worker] Mercado Pago: ${r.applied} pago(s) aplicados por conciliación`);
+    } catch (e) {
+      console.error("[worker] Mercado Pago:", e instanceof Error ? e.message : e);
+    }
+  };
+  setInterval(run, 10 * 60_000);
+}
+
 async function main() {
   startHourlyJobs();
   startMlSync();
@@ -167,6 +180,7 @@ async function main() {
   startWebhooks();
   startAlerts();
   startCleanup();
+  startMp();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

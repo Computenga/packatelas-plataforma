@@ -113,6 +113,7 @@ model Client {
   apiKeys    ApiKey[]
   webhook    WebhookEndpoint?
   stores     StoreConnector[]
+  mpCheckouts MpCheckout[]
 }
 
 model Branch {
@@ -1158,4 +1159,33 @@ model AppNotice {
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+// Pagos con tarjeta por Mercado Pago (Checkout Pro) [I09]: el cliente abona a su saldo.
+enum MpCheckoutStatus {
+  PENDING // se abrió el pago, aún no se confirma
+  APPROVED // abonado al saldo
+  REJECTED
+  EXPIRED
+  REFUNDED // devuelto o contracargo: se revirtió el abono
+}
+
+model MpCheckout {
+  id           String           @id @default(cuid())
+  clientId     String
+  client       Client           @relation(fields: [clientId], references: [id])
+  amount       Decimal          @db.Decimal(12, 2) // lo que se abona al saldo
+  fee          Decimal          @db.Decimal(12, 2) // comisión que paga el cliente
+  total        Decimal          @db.Decimal(12, 2) // lo que se cobra en Mercado Pago
+  preferenceId String?          @unique
+  mpPaymentId  String?          @unique
+  status       MpCheckoutStatus @default(PENDING)
+  detail       String?
+  paymentId    String?          @unique // Payment creado al aprobarse
+  createdById  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([clientId, createdAt])
 }

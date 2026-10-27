@@ -1,29 +1,40 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { accountState, getClientBalance, getCreditRules, prisma } from "@packatelas/db";
+import { accountState, getClientBalance, getCreditRules, getMpSettings, mpConfigured, prisma } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { fecha, mxn } from "@/lib/format";
 import { Card } from "@/components/ui";
 import { MlConnect } from "@/components/ml-connect";
+import { PayCard } from "./pay-card";
 
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
 const DAYS = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const TYPE_LABEL = { CHARGE: "Envío", PAYMENT: "Pago recibido", FEE: "Comisión", ADJUSTMENT: "Ajuste" } as const;
 
-export default async function CuentaPage() {
+export default async function CuentaPage({ searchParams }: PageProps<"/cliente/cuenta">) {
   const { clientId } = await requireClient();
-  const [client, balance, state, rules, entries] = await Promise.all([
+  const pago = (await searchParams).pago;
+  const [client, balance, state, rules, entries, mp] = await Promise.all([
     prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true, creditLimit: true, creditMode: true } }),
     getClientBalance(prisma, clientId),
     accountState(prisma, clientId),
     getCreditRules(prisma),
     prisma.ledgerEntry.findMany({ where: { clientId }, orderBy: { createdAt: "desc" }, take: 200, include: { order: { select: { id: true, code: true } } } }),
+    getMpSettings(prisma),
   ]);
+  const cardOn = mp.enabled && mpConfigured();
+  const PAGO_MSG: Record<string, [string, string]> = {
+    ok: ["bg-emerald-50 text-emerald-800", "Pago con tarjeta aprobado. Se abona a tu saldo en unos segundos."],
+    pendiente: ["bg-amber-50 text-amber-800", "Tu pago quedó pendiente en Mercado Pago. Se abonará cuando lo aprueben."],
+    error: ["bg-red-50 text-red-800", "El pago no se completó. No se hizo ningún cargo a tu saldo."],
+  };
+  const msg = typeof pago === "string" ? PAGO_MSG[pago] : undefined;
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Estado de cuenta</h1>
+      {msg && <p className={`rounded-lg px-4 py-3 text-sm ${msg[0]}`}>{msg[1]}</p>}
       <Card title="Mis cuentas de MercadoLibre">
         <MlConnect clientId={clientId} self />
       </Card>
@@ -49,6 +60,12 @@ export default async function CuentaPage() {
         <p className="my-3 rounded-lg bg-slate-100 py-3 text-center font-mono text-2xl font-bold tracking-wider">{client.paymentReference}</p>
         <p className="text-xs text-slate-500">Los datos bancarios te los comparte Packatelas. Los pagos se reflejan aquí al confirmarse.</p>
       </Card>
+
+      {cardOn && (
+        <Card title="Pagar con tarjeta">
+          <PayCard suggested={balance.gt(0) ? Number(balance) : mp.minAmount} min={mp.minAmount} feeMode={mp.feeMode} feeValue={mp.feeValue} />
+        </Card>
+      )}
 
       <Card title="Tiendas en línea y API">
         <p className="text-sm text-slate-600">Si vendes en WooCommerce o Shopify, o tienes un sistema propio, tus pedidos pueden entrar solos como envíos.</p>
