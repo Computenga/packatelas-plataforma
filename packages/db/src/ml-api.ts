@@ -5,6 +5,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { decryptSecret, encryptSecret } from "./crypto.ts";
+import { adminUserIds, sendPush } from "./push.ts";
 import { audit } from "./orders.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -83,10 +84,11 @@ export async function connectMlAccount(prisma: PrismaClient, input: { code: stri
   const t = await tokenRequest({ grant_type: "authorization_code", client_id: cfg.clientId, client_secret: cfg.clientSecret, code: input.code, redirect_uri: cfg.redirectUri }, fetchImpl);
   const me = (await (await fetchImpl(`${API}/users/me`, { headers: { Authorization: `Bearer ${t.access_token}` }, signal: AbortSignal.timeout(15_000) })).json().catch(() => ({}))) as { nickname?: string };
   const mlUserId = BigInt(t.user_id);
-  const existing = await prisma.mlAccount.findUnique({ where: { mlUserId } });
-  if (existing && existing.clientId !== client.id) {
-    return { ok: false as const, error: "Esta cuenta de MercadoLibre ya está ligada a otro cliente. Avisa a Packatelas." };
-  }
+  const existing = await prisma.mlAccount.findUnique({ where: { mlUserId }, include: { client: { select: { id: true, publicId: true, name: true } } } });
+  // La cuenta ya estaba registrada con otro cliente (p. ej. migrada del sistema anterior): quien
+  // inició sesión en MercadoLibre es su dueño, así que se guarda la autorización donde está y se
+  // avisa a administración por si hay que moverla. Nunca se mueve sola de cliente.
+  const elsewhere = existing && existing.clientId !== client.id ? existing.client : null;
   const tokens = {
     accessTokenEnc: encryptSecret(t.access_token),
     refreshTokenEnc: t.refresh_token ? encryptSecret(t.refresh_token) : null,
@@ -100,11 +102,23 @@ export async function connectMlAccount(prisma: PrismaClient, input: { code: stri
     : await prisma.mlAccount.create({
         data: { mlUserId, nickname, clientId: client.id, ...tokens, routes: client.branches[0] ? { create: { branchId: client.branches[0].id, isDefault: true } } : undefined },
       });
-  await audit(prisma, { action: "ml_account.authorized", entity: "MlAccount", entityId: acc.id, summary: `Cuenta ML ${nickname} autorizada por ${client.name}` });
+  await audit(prisma, {
+    action: "ml_account.authorized",
+    entity: "MlAccount",
+    entityId: acc.id,
+    summary: elsewhere ? `Cuenta ML ${nickname} autorizada desde ${client.name}; sigue ligada a ${elsewhere.name} (${elsewhere.publicId})` : `Cuenta ML ${nickname} autorizada por ${client.name}`,
+  });
+  if (elsewhere) {
+    void sendPush(prisma, await adminUserIds(prisma), {
+      title: "Cuenta ML en otro cliente",
+      body: `${nickname} se autorizó desde ${client.name}, pero está ligada a ${elsewhere.name} (${elsewhere.publicId}). Muévela si corresponde.`,
+      url: `/admin/clientes/${elsewhere.id}`,
+    });
+  }
   // Los envíos de esta cuenta que esperaban datos se vuelven a intentar.
   const waiting = await prisma.order.findMany({ where: { mlAccountId: acc.id, addressLine: ML_PENDING_ADDRESS, mlShipmentId: { not: null } }, select: { mlShipmentId: true }, take: 500 });
   for (const o of waiting) await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${o.mlShipmentId}`, mlUserId });
-  return { ok: true as const, nickname, clientName: client.name };
+  return { ok: true as const, nickname, clientName: elsewhere?.name ?? client.name, elsewhere: elsewhere ? { publicId: elsewhere.publicId, name: elsewhere.name } : null };
 }
 
 /** Token vigente de la cuenta; lo renueva si vence en menos de 5 minutos. */

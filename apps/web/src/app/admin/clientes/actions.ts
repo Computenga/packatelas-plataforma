@@ -268,3 +268,23 @@ export async function setRoutesAction(clientId: string, mlAccountId: string, _: 
   revalidatePath(`/admin/clientes/${clientId}`);
   return { ok: "Sucursales guardadas" };
 }
+
+/** Mover una cuenta de MercadoLibre a otro cliente (p. ej. quedó con el cliente equivocado). */
+export async function moveMlAccountAction(fromClientId: string, mlAccountId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const target = String(fd.get("targetPublicId") ?? "").trim().toLowerCase();
+  const acc = await prisma.mlAccount.findFirst({ where: { id: mlAccountId, clientId: fromClientId } });
+  if (!acc) return { error: "Cuenta no encontrada" };
+  const to = await prisma.client.findFirst({ where: { publicId: target }, include: { branches: { where: { active: true }, orderBy: { createdAt: "asc" }, take: 1 } } });
+  if (!to) return { error: "No existe un cliente con ese ID" };
+  if (to.id === fromClientId) return { error: "Ya está con ese cliente" };
+  if (!to.branches[0]) return { error: "Ese cliente no tiene sucursal activa" };
+  await prisma.$transaction([
+    prisma.mlAccountRoute.deleteMany({ where: { mlAccountId } }),
+    prisma.mlAccount.update({ where: { id: mlAccountId }, data: { clientId: to.id, routes: { create: { branchId: to.branches[0].id, isDefault: true } } } }),
+  ]);
+  await audit(prisma, { actorUserId: user.id, action: "ml_account.moved", entity: "MlAccount", entityId: mlAccountId, summary: `Cuenta ML ${acc.nickname} movida a ${to.name} (${to.publicId})` });
+  revalidatePath(`/admin/clientes/${fromClientId}`);
+  revalidatePath(`/admin/clientes/${to.id}`);
+  return { ok: `Movida a ${to.name}. Los envíos anteriores se quedan con el cliente original.` };
+}

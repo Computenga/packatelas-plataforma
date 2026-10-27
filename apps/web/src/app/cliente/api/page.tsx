@@ -9,7 +9,7 @@ import { KeyForm, Secret } from "./key-form";
 import { Stores } from "./stores";
 import { disableWebhookAction, retryDeliveryAction, revokeKeyAction, rotateSecretAction, saveWebhookAction } from "./actions";
 
-export const metadata: Metadata = { title: "API e integraciones" };
+export const metadata: Metadata = { title: "Tiendas en línea y API" };
 
 const TONE = { PENDING: "amber", SENT: "green", FAILED: "red" } as const;
 const LABEL = { PENDING: "Pendiente", SENT: "Enviado", FAILED: "Falló" } as const;
@@ -26,10 +26,13 @@ export default async function ApiPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">
-      <PageHeader eyebrow="Cuenta" title="API e integraciones">
+      <PageHeader eyebrow="Cuenta" title="Tiendas en línea y API">
         Conecta tu tienda o sistema para crear envíos y recibir sus cambios de estado en automático. <Link href="/cliente/cuenta" className="text-brand hover:underline">← Mi cuenta</Link>
       </PageHeader>
 
+      <p className="rounded-lg bg-yellow-50 px-4 py-3 text-sm text-slate-700">
+        ¿Quieres conectar tu cuenta de MercadoLibre? Eso es en <Link href="/cliente/mercadolibre" className="font-medium text-brand hover:underline">Cuentas ML</Link>. Esta página es para tiendas propias y sistemas.
+      </p>
       <Stores clientId={clientId} base={base} />
 
       <Card title="Llaves de API">

@@ -10,7 +10,8 @@ export async function GET(request: Request) {
   if (!code || !state) return back({ error: url.searchParams.get("error_description") ?? "MercadoLibre no envió la autorización" });
   try {
     const r = await connectMlAccount(prisma, { code, state });
-    return r.ok ? back({ cuenta: r.nickname, cliente: r.clientName }) : back({ error: r.error });
+    if (!r.ok) return back({ error: r.error });
+    return back({ cuenta: r.nickname, cliente: r.clientName, ...(r.elsewhere ? { registrada: r.elsewhere.publicId } : {}) });
   } catch (e) {
     console.error("[ml] callback", e);
     return back({ error: "No se pudo completar la conexión con MercadoLibre. Intenta de nuevo." });

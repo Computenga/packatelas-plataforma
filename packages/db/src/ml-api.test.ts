@@ -68,10 +68,14 @@ describe("MercadoLibre", () => {
     expect(o).toMatchObject({ addressLine: "Lago Zurich 245", recipientName: "Ana López", lat: 19.44, itemsSummary: "2× Taza", instructions: "Casa azul", mlStatus: "ready_to_ship" });
   });
 
-  it("no liga una cuenta que ya es de otro cliente", async () => {
+  it("si la cuenta ya es de otro cliente, la autoriza donde está y no la mueve", async () => {
     const other = await prisma.client.create({ data: { publicId: `emx${n}`, name: "Otro", paymentReference: `EMX${n}`, tariffAmount: 0 } });
+    const before = await prisma.mlAccount.findFirstOrThrow({ where: { mlUserId: BigInt(seller) } });
     const r = await connectMlAccount(prisma, { code: "C", state: signMlState(other.id) }, fakeFetch);
-    expect(r).toMatchObject({ ok: false, error: expect.stringMatching(/otro cliente/) });
+    expect(r).toMatchObject({ ok: true, elsewhere: { publicId: expect.any(String) } });
+    const after = await prisma.mlAccount.findFirstOrThrow({ where: { mlUserId: BigInt(seller) } });
+    expect(after.clientId).toBe(before.clientId);
+    expect(after.status).toBe("ACTIVE");
     await prisma.client.delete({ where: { id: other.id } });
   });
 });

@@ -6,7 +6,7 @@ import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
-import { addBranch, createPortalUser, linkMlAccount, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
+import { addBranch, createPortalUser, linkMlAccount, moveMlAccountAction, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
 import { BranchControls } from "./branch-controls";
 import { MlConnect } from "@/components/ml-connect";
 
@@ -212,6 +212,15 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
                             })}
                           </tbody>
                         </table>
+                      </ActionForm>
+                    </div>
+                  </details>
+                  <details className="text-right">
+                    <summary className="cursor-pointer text-xs text-brand">Mover a otro cliente</summary>
+                    <div className="mt-2 w-64 text-left">
+                      <ActionForm action={moveMlAccountAction.bind(null, id, a.id)} submitLabel="Mover">
+                        <Field label="ID del cliente destino" name="targetPublicId" placeholder="cmx00123" required />
+                        <p className="text-xs text-slate-500">Llega a la sucursal principal del destino; los envíos anteriores no cambian.</p>
                       </ActionForm>
                     </div>
                   </details>

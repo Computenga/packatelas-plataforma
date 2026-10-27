@@ -22,6 +22,13 @@ export default async function MlConectado({ searchParams }: PageProps<"/ml/conec
               La cuenta <strong>{str(sp.cuenta)}</strong> de MercadoLibre quedó ligada a <strong>{str(sp.cliente)}</strong> en Packatelas.
               Ya puedes cerrar esta ventana.
             </p>
+            {str(sp.registrada) && (
+              <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Esta cuenta ya estaba registrada en Packatelas con el cliente <strong>{str(sp.registrada)}</strong>, así que quedó autorizada ahí.
+                Si debe ir con otra de tus cuentas de cliente, Packatelas ya recibió el aviso para moverla.
+              </p>
+            )}
+            <a href="/cliente/mercadolibre" className="mt-4 inline-block text-sm text-brand hover:underline">Volver a mi portal</a>
           </>
         )}
       </div>

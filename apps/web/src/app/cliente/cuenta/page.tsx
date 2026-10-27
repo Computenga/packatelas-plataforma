@@ -24,10 +24,6 @@ export default async function CuentaPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Estado de cuenta</h1>
-      <Card title="API e integraciones">
-        <p className="text-sm text-slate-600">Conecta tu tienda o sistema para crear envíos y recibir cambios de estado en automático.</p>
-        <Link href="/cliente/api" className="mt-2 inline-block text-sm text-brand hover:underline">Configurar →</Link>
-      </Card>
       <Card title="Mis cuentas de MercadoLibre">
         <MlConnect clientId={clientId} self />
       </Card>
@@ -52,6 +48,11 @@ export default async function CuentaPage() {
         <p className="text-sm text-slate-700">Haz tu transferencia y escribe esta referencia en el concepto para que se aplique a tu cuenta:</p>
         <p className="my-3 rounded-lg bg-slate-100 py-3 text-center font-mono text-2xl font-bold tracking-wider">{client.paymentReference}</p>
         <p className="text-xs text-slate-500">Los datos bancarios te los comparte Packatelas. Los pagos se reflejan aquí al confirmarse.</p>
+      </Card>
+
+      <Card title="Tiendas en línea y API">
+        <p className="text-sm text-slate-600">Si vendes en WooCommerce o Shopify, o tienes un sistema propio, tus pedidos pueden entrar solos como envíos.</p>
+        <Link href="/cliente/api" className="mt-2 inline-block text-sm text-brand hover:underline">Configurar →</Link>
       </Card>
 
       <Card title="Movimientos">
