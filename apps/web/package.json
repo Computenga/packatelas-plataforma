@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "e2e": "tsx e2e/dia-completo.ts"
   },
   "dependencies": {
     "@packatelas/db": "workspace:*",
