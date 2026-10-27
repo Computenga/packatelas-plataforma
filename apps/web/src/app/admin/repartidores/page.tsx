@@ -5,6 +5,7 @@ import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, ButtonLink, Card, Checkbox, Field, PageHeader } from "@/components/ui";
 import { linkFlex, unlinkFlex, updateDriver } from "./actions";
+import { DriverFile } from "./driver-file";
 
 export const metadata: Metadata = { title: "Repartidores" };
 
@@ -12,7 +13,7 @@ export default async function RepartidoresPage() {
   const me = await requireUser(["ADMIN", "DESPACHADOR"]);
   const drivers = await prisma.driver.findMany({
     include: {
-      user: { select: { name: true, username: true, active: true } },
+      user: { select: { id: true, name: true, username: true, active: true } },
       flexIdentities: { orderBy: { createdAt: "asc" } },
       _count: { select: { orders: { where: { status: { in: ["ASSIGNED", "OUT_FOR_DELIVERY"] } } } } },
     },
@@ -48,6 +49,8 @@ export default async function RepartidoresPage() {
                 <Field label="Placa" name="plate" defaultValue={d.plate ?? ""} />
               </div>
             </ActionForm>
+
+            {me.role === "ADMIN" && <DriverFile driverId={d.id} userId={d.user.id} />}
 
             <div className="mt-5 border-t border-slate-100 pt-4">
               <p className="text-sm font-medium">Identidades Flex</p>

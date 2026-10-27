@@ -62,3 +62,18 @@ export async function unlinkFlex(flexId: string) {
   }
   revalidatePath("/admin/repartidores");
 }
+
+/** Liga al repartidor con su expediente de Personal (mismo usuario) [A14]. */
+export async function linkDriverEmployeeAction(driverId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const admin = await requireUser(["ADMIN"]);
+  const driver = await prisma.driver.findUniqueOrThrow({ where: { id: driverId }, include: { user: { select: { name: true } } } });
+  const employeeId = String(fd.get("employeeId") ?? "");
+  const emp = await prisma.employee.findUnique({ where: { id: employeeId } });
+  if (!emp) return { error: "Elige el empleado" };
+  if (emp.userId && emp.userId !== driver.userId) return { error: "Ese empleado ya está ligado a otro usuario" };
+  if (await prisma.employee.findFirst({ where: { userId: driver.userId, id: { not: emp.id } } })) return { error: "Este repartidor ya tiene expediente" };
+  await prisma.employee.update({ where: { id: emp.id }, data: { userId: driver.userId } });
+  await audit(prisma, { actorUserId: admin.id, action: "driver.employee_linked", entity: "Employee", entityId: emp.id, summary: `${driver.user.name} ligado al expediente #${emp.employeeNo}` });
+  revalidatePath("/admin/repartidores");
+  return { ok: "Expediente ligado" };
+}
