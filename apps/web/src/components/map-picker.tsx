@@ -29,7 +29,7 @@ export function MapPicker({ lat, lng, onChange, className = "" }: {
       const has = lat != null && lng != null;
       const map = new Map({ container: el.current, style: STYLE, center: has ? [lng!, lat!] : CDMX, zoom: has ? 16 : 10 });
       map.addControl(new NavigationControl({ showCompass: false }), "top-right");
-      const marker = new Marker({ draggable: true, color: "#1f4fa3" });
+      const marker = new Marker({ draggable: true, color: "#0f1e4a" });
       let placed = false;
       const setPin = (x: number, y: number) => {
         marker.setLngLat([x, y]);

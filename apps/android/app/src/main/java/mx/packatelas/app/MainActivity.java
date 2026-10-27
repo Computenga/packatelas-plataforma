@@ -173,7 +173,7 @@ public class MainActivity extends Activity {
             String html = "<html><head><meta name=viewport content='width=device-width,initial-scale=1'></head>"
                     + "<body style='font-family:sans-serif;padding:32px;text-align:center;color:#334155'>"
                     + "<h2 style='color:#173d80'>Sin conexión</h2><p>No se pudo abrir Packatelas. Revisa tu señal o datos.</p>"
-                    + "<p><a href='" + Api.base() + "/' style='display:inline-block;background:#1f4fa3;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none'>Reintentar</a></p></body></html>";
+                    + "<p><a href='" + Api.base() + "/' style='display:inline-block;background:#0f1e4a;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none'>Reintentar</a></p></body></html>";
             view.loadDataWithBaseURL(Api.base() + "/", html, "text/html", "UTF-8", req.getUrl().toString());
         }
     }

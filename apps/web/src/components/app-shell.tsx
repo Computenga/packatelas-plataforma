@@ -4,6 +4,7 @@ import { logout } from "@/app/login/actions";
 import type { NavItem } from "@/lib/roles";
 import { NavLinks } from "./nav-links";
 import { PushPrompt } from "./push-prompt";
+import { Isotipo, Logo } from "@/components/brand";
 
 type Props = {
   title: string;
@@ -23,12 +24,9 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="hidden w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
-        <div className="flex items-center gap-2 px-5 py-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-bold text-white">P</div>
-          <div>
-            <p className="font-semibold leading-tight">Packatelas</p>
-            <p className="text-xs text-slate-500">{title}</p>
-          </div>
+        <div className="px-5 py-5">
+          <Logo className="h-7 w-auto" />
+          <p className="mt-1.5 text-xs font-medium tracking-wide text-slate-500 uppercase">{title}</p>
         </div>
         <nav className="flex-1 px-3">
           <NavLinks nav={nav} ready={ready} variant="side" />
@@ -38,7 +36,7 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
 
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-sm font-bold text-white">P</div>
+          <Isotipo className="h-7 w-auto" />
           <span className="font-semibold">{title}</span>
         </div>
         <form action={logout}>

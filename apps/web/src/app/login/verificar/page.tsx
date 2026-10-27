@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { readPendingLogin } from "@/lib/two-factor";
 import { VerifyForm } from "./verify-form";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Verificación" };
 
@@ -12,7 +13,7 @@ export default async function VerificarPage() {
     <main className="flex min-h-dvh items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-xl font-bold text-white">P</div>
+          <Isotipo className="mx-auto mb-3 h-12 w-auto" />
           <h1 className="text-xl font-bold text-slate-900">Verificación en dos pasos</h1>
           <p className="text-sm text-slate-500">Escribe el código de 6 dígitos de tu app autenticadora.</p>
         </div>

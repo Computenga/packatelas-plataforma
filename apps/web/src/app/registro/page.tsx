@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SignupForm } from "./signup-form";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Registro de tienda" };
 
@@ -9,7 +10,7 @@ export default function RegistroPage() {
     <main className="min-h-dvh bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-2xl">
         <div className="mb-8 text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-xl font-bold text-white">P</div>
+          <Isotipo className="mx-auto mb-3 h-12 w-auto" />
           <h1 className="text-2xl font-bold text-slate-900">Registra tu tienda en Packatelas</h1>
           <p className="mt-1 text-sm text-slate-600">
             Recolectamos en tu negocio y entregamos el mismo día en CDMX y Estado de México. Revisamos tu solicitud y te

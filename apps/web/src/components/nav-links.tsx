@@ -8,7 +8,7 @@ const styles = {
   side: {
     list: "space-y-1",
     item: "flex items-center justify-between rounded-lg px-3 py-2 text-sm",
-    active: "bg-brand/10 font-medium text-brand",
+    active: "bg-brand/[0.06] font-semibold text-brand shadow-[inset_3px_0_0_var(--color-accent)]",
     idle: "text-slate-600 hover:bg-slate-100",
   },
   top: {

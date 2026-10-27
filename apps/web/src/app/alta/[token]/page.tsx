@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { appsFor, docTypesFor, findApplication, HIRE_ROLES, latestByType, prisma } from "@packatelas/db";
 import { DocUploader } from "@/components/doc-uploader";
 import { DataForm, SubmitButton } from "./forms";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Mi alta", robots: { index: false } };
 
@@ -22,7 +23,7 @@ export default async function AltaPage({ params, searchParams }: PageProps<"/alt
     <main className="min-h-dvh bg-slate-50 px-4 py-6">
       <div className="mx-auto max-w-2xl space-y-5">
         <header className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-bold text-white">P</div>
+          <Isotipo className="h-9 w-auto" />
           <div>
             <p className="font-bold leading-tight">Alta de personal</p>
             <p className="text-xs text-slate-500">Puesto: {HIRE_ROLES[app.role] ?? app.role} · guarda este enlace para continuar después</p>

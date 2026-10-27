@@ -5,6 +5,7 @@ import { orderIdFromToken } from "@/lib/tracking";
 import { fecha, hace } from "@/lib/format";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { TrackMap } from "./track-map";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Seguimiento de tu envío", robots: { index: false, follow: false } };
 
@@ -63,7 +64,7 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
       {order.status === "OUT_FOR_DELIVERY" && <AutoRefresh seconds={60} />}
       <div className="mx-auto max-w-md space-y-4">
         <header className="flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand font-bold text-white">P</div>
+          <Isotipo className="h-9 w-auto" />
           <div>
             <p className="font-bold leading-tight">Packatelas</p>
             <p className="text-xs text-slate-500">Envío de {order.client.name}</p>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "MercadoLibre", robots: { index: false } };
 
@@ -9,7 +10,7 @@ export default async function MlConectado({ searchParams }: PageProps<"/ml/conec
   return (
     <main className="flex min-h-dvh items-center justify-center bg-slate-50 px-4">
       <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-xl font-bold text-white">P</div>
+        <Isotipo className="mx-auto mb-3 h-12 w-auto" />
         {error ? (
           <>
             <h1 className="text-lg font-bold text-red-700">No se pudo conectar</h1>

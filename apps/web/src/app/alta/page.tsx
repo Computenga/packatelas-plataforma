@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { HIRE_ROLES } from "@packatelas/db";
 import { startApplication } from "./actions";
+import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Alta de personal", robots: { index: false } };
 
@@ -11,7 +12,7 @@ export default async function AltaInicio({ searchParams }: PageProps<"/alta">) {
     <main className="min-h-dvh bg-slate-50 px-4 py-10">
       <div className="mx-auto max-w-md space-y-6">
         <div className="text-center">
-          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-brand text-xl font-bold text-white">P</div>
+          <Isotipo className="mx-auto mb-3 h-12 w-auto" />
           <h1 className="text-2xl font-bold">Bienvenido a Packatelas</h1>
           <p className="mt-1 text-sm text-slate-600">Vamos a registrar tus datos y documentos. Ten a la mano tu INE, CURP, comprobante de domicilio, constancia del SAT, NSS y estado de cuenta.</p>
         </div>
