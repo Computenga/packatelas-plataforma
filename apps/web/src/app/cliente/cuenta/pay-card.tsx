@@ -8,11 +8,17 @@ import { payWithCardAction } from "./mp-actions";
 const money = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
 /** Abono con tarjeta por Mercado Pago: el cliente ve la comisión y el total antes de pagar. */
-export function PayCard({ suggested, min, feeMode, feeValue }: { suggested: number; min: number; feeMode: "fijo" | "porcentaje"; feeValue: number }) {
+type Tier = { upTo: number | null; percent: number; fixed: number };
+const feeFor = (tiers: Tier[], amount: number) => {
+  const t = tiers.find((x) => x.upTo == null || amount <= x.upTo) ?? tiers[tiers.length - 1];
+  return t ? Math.round(((amount * t.percent) / 100 + t.fixed) * 100) / 100 : 0;
+};
+
+export function PayCard({ suggested, min, tiers }: { suggested: number; min: number; tiers: Tier[] }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(payWithCardAction, {});
   const [amount, setAmount] = useState(suggested >= min ? suggested.toFixed(2) : String(min));
   const n = Number(amount) || 0;
-  const fee = Math.round((feeMode === "fijo" ? feeValue : (n * feeValue) / 100) * 100) / 100;
+  const fee = feeFor(tiers, Math.round(n * 100) / 100);
   return (
     <form action={action} className="space-y-3">
       <label className="block text-sm">
@@ -21,10 +27,17 @@ export function PayCard({ suggested, min, feeMode, feeValue }: { suggested: numb
       </label>
       {n > 0 && (
         <p className="text-sm text-slate-600">
-          {fee > 0 ? <>Comisión por pago con tarjeta: {money.format(fee)} · </> : null}
+          {fee > 0 ? <>Comisión por pago con tarjeta: {money.format(fee)} · </> : <>Sin comisión · </>}
           Total a pagar: <strong>{money.format(n + fee)}</strong>
           <br />
           <span className="text-xs">A tu saldo se abonan {money.format(n)}. Mínimo {money.format(min)}.</span>
+          <br />
+          <span className="text-xs">Comisión: {tiers.map((t, i) => {
+            const f = [t.percent ? `${t.percent}%` : "", t.fixed ? money.format(t.fixed) : ""].filter(Boolean).join(" + ") || "sin comisión";
+            const prev = i > 0 ? tiers[i - 1].upTo : null;
+            const edge = (v: number) => (Math.round(v * 100) % 100 === 99 ? `menos de ${money.format(Math.ceil(v))}` : `hasta ${money.format(v)}`);
+            return `${t.upTo == null ? (prev != null ? `más de ${money.format(prev)}` : "todos") : edge(t.upTo)}: ${f}`;
+          }).join(" · ")}.</span>
         </p>
       )}
       <FormMessage state={state} />

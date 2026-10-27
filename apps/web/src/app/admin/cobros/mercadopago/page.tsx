@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getMpSettings, mpConfigured, prisma } from "@packatelas/db";
+import { describeTiers, getMpSettings, mpConfigured, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -43,23 +43,31 @@ export default async function MercadoPagoPage() {
           <label className="flex items-center gap-2 text-sm">
             <input type="checkbox" name="enabled" defaultChecked={s.enabled} /> Mostrar «Pagar con tarjeta» en el portal del cliente
           </label>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="text-sm">
-              Comisión
-              <select name="feeMode" defaultValue={s.feeMode} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-                <option value="porcentaje">Porcentaje del abono</option>
-                <option value="fijo">Monto fijo por pago</option>
-              </select>
-            </label>
-            <label className="text-sm">
-              Valor (% o $)
-              <input name="feeValue" type="number" step="0.01" min="0" defaultValue={s.feeValue} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-            </label>
-            <label className="text-sm">
-              Abono mínimo ($)
-              <input name="minAmount" type="number" step="1" min="10" defaultValue={s.minAmount} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
-            </label>
+          <div>
+            <p className="text-sm font-medium">Comisión por tramos del abono</p>
+            <table className="mt-2 w-full text-sm">
+              <thead className="text-left text-xs text-slate-500">
+                <tr><th className="pb-1 font-normal">Abonos hasta ($, incluido)</th><th className="pb-1 font-normal">Porcentaje (%)</th><th className="pb-1 font-normal">Fijo ($)</th></tr>
+              </thead>
+              <tbody>
+                {[0, 1, 2, 3, 4].map((i) => {
+                  const t = s.tiers[i];
+                  return (
+                    <tr key={i}>
+                      <td className="pr-2 pb-2"><input name={`upTo${i}`} type="number" step="0.01" min="0" defaultValue={t?.upTo ?? ""} placeholder={t && t.upTo == null ? "en adelante" : i < s.tiers.length ? "" : "—"} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></td>
+                      <td className="pr-2 pb-2"><input name={`percent${i}`} type="number" step="0.01" min="0" defaultValue={t?.percent ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></td>
+                      <td className="pb-2"><input name={`fixed${i}`} type="number" step="0.01" min="0" defaultValue={t?.fixed ?? ""} className="w-full rounded-lg border border-slate-300 px-3 py-2" /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            <p className="text-xs text-slate-500">Deja el límite vacío en el último tramo para «en adelante». Filas vacías se ignoran. Ahora: {describeTiers(s.tiers)}.</p>
           </div>
+          <label className="block text-sm sm:w-1/3">
+            Abono mínimo ($)
+            <input name="minAmount" type="number" step="1" min="10" defaultValue={s.minAmount} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+          </label>
           <p className="text-xs text-slate-500">La comisión se suma al total que paga el cliente; a su saldo se abona solo el monto que eligió. Pon 0 para absorberla.</p>
         </ActionForm>
       </Card>

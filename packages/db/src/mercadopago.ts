@@ -11,8 +11,10 @@ type Fetch = typeof fetch;
 const API = "https://api.mercadopago.com";
 const KEY = "mp.settings";
 
-export type MpSettings = { enabled: boolean; feeMode: "fijo" | "porcentaje"; feeValue: number; minAmount: number };
-const DEFAULTS: MpSettings = { enabled: false, feeMode: "porcentaje", feeValue: 0, minAmount: 100 };
+/** Tramo de comisión: aplica a abonos hasta `upTo` (incluido); `null` = en adelante. */
+export type MpFeeTier = { upTo: number | null; percent: number; fixed: number };
+export type MpSettings = { enabled: boolean; tiers: MpFeeTier[]; minAmount: number };
+const DEFAULTS: MpSettings = { enabled: false, tiers: [{ upTo: null, percent: 0, fixed: 0 }], minAmount: 100 };
 
 export function mpConfigured() {
   return !!process.env.MP_ACCESS_TOKEN?.trim();
@@ -20,22 +22,55 @@ export function mpConfigured() {
 
 export async function getMpSettings(db: Db): Promise<MpSettings> {
   const row = await db.setting.findUnique({ where: { key: KEY } });
-  return { ...DEFAULTS, ...((row?.value as Partial<MpSettings> | undefined) ?? {}) };
+  const v = (row?.value as Partial<MpSettings> | undefined) ?? {};
+  return { ...DEFAULTS, ...v, tiers: Array.isArray(v.tiers) && v.tiers.length ? v.tiers : DEFAULTS.tiers };
+}
+
+/** Ordena los tramos y deja el último abierto ("en adelante"). */
+export function normalizeTiers(tiers: MpFeeTier[]): MpFeeTier[] {
+  const t = tiers
+    .filter((x) => Number.isFinite(x.percent) && Number.isFinite(x.fixed))
+    .map((x) => ({ upTo: x.upTo == null || !Number.isFinite(x.upTo) ? null : x.upTo, percent: x.percent, fixed: x.fixed }));
+  const bounded = t.filter((x) => x.upTo != null).sort((a, b) => a.upTo! - b.upTo!);
+  const open = t.find((x) => x.upTo == null) ?? { upTo: null, percent: 0, fixed: 0 };
+  return [...bounded, open];
 }
 
 export async function saveMpSettings(db: Db, s: MpSettings, actorUserId: string) {
-  if (!(s.feeValue >= 0) || (s.feeMode === "porcentaje" && s.feeValue > 20) || (s.feeMode === "fijo" && s.feeValue > 1000)) throw new Error("Comisión fuera de rango");
+  const tiers = normalizeTiers(s.tiers);
+  for (const t of tiers) {
+    if (!(t.percent >= 0 && t.percent <= 20) || !(t.fixed >= 0 && t.fixed <= 1000)) throw new Error("Comisión fuera de rango (0–20 % y $0–$1,000)");
+    if (t.upTo != null && !(t.upTo > 0)) throw new Error("Los límites de los tramos deben ser mayores a 0");
+  }
+  if (new Set(tiers.map((t) => t.upTo)).size !== tiers.length) throw new Error("Hay dos tramos con el mismo límite");
   if (!(s.minAmount >= 10 && s.minAmount <= 100000)) throw new Error("Monto mínimo fuera de rango");
-  await db.setting.upsert({ where: { key: KEY }, update: { value: s }, create: { key: KEY, value: s } });
-  await audit(db, { actorUserId, action: "mp.settings", entity: "Setting", entityId: KEY, summary: `Mercado Pago ${s.enabled ? "activo" : "apagado"}; comisión ${s.feeMode === "fijo" ? `$${s.feeValue}` : `${s.feeValue}%`}; mínimo $${s.minAmount}` });
+  const value = { enabled: s.enabled, tiers, minAmount: s.minAmount };
+  await db.setting.upsert({ where: { key: KEY }, update: { value }, create: { key: KEY, value } });
+  await audit(db, { actorUserId, action: "mp.settings", entity: "Setting", entityId: KEY, summary: `Mercado Pago ${s.enabled ? "activo" : "apagado"}; comisión: ${describeTiers(tiers)}; mínimo $${s.minAmount}` });
+}
+
+export function describeTiers(tiers: MpFeeTier[]) {
+  return tiers
+    .map((t) => {
+      const fee = [t.percent ? `${t.percent}%` : "", t.fixed ? `$${t.fixed}` : ""].filter(Boolean).join(" + ") || "sin comisión";
+      return `${t.upTo == null ? "resto" : `hasta $${t.upTo}`}: ${fee}`;
+    })
+    .join("; ");
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
+/** Comisión de un abono según el tramo que le toca. */
+export function feeFor(tiers: MpFeeTier[], amount: number) {
+  const t = tiers.find((x) => x.upTo == null || amount <= x.upTo) ?? tiers[tiers.length - 1];
+  return t ? r2((amount * t.percent) / 100 + t.fixed) : 0;
+}
+
 /** Comisión y total a cobrar por un abono. */
-export function quote(s: MpSettings, amount: number) {
-  const fee = r2(s.feeMode === "fijo" ? s.feeValue : (amount * s.feeValue) / 100);
-  return { amount: r2(amount), fee, total: r2(amount + fee) };
+export function quote(s: Pick<MpSettings, "tiers">, amount: number) {
+  const a = r2(amount);
+  const fee = feeFor(s.tiers, a);
+  return { amount: a, fee, total: r2(a + fee) };
 }
 
 async function mp<T>(path: string, init: RequestInit = {}, fetchImpl: Fetch = fetch): Promise<T> {
