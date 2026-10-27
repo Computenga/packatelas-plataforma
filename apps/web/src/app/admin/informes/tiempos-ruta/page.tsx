@@ -10,7 +10,8 @@ import { RangeForm } from "../range-form";
 export const metadata: Metadata = { title: "Tiempos de ruta" };
 
 const hm = (min: number) => `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")} min`;
-const hora = (d: Date) => new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+const HORA = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false });
+const hora = (d: Date) => HORA.format(d);
 const tone = (r: number | null) => (r == null ? "gray" : r > 1.3 ? "red" : r > 1.1 ? "amber" : "green");
 const pct = (r: number | null) => (r == null ? "—" : `${Math.round(r * 100)} %`);
 

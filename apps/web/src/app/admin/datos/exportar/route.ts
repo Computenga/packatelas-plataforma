@@ -3,8 +3,8 @@ import { getSessionUser } from "@/lib/session";
 import { csvResponse } from "@/lib/csv";
 import { readRange } from "@/lib/report-range";
 
-const fmt = (d: Date | null | undefined) =>
-  d ? new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Mexico_City", dateStyle: "short", timeStyle: "short" }).format(d) : "";
+const FMT = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Mexico_City", dateStyle: "short", timeStyle: "short" });
+const fmt = (d: Date | null | undefined) => (d ? FMT.format(d) : "");
 const day = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : "");
 const money = (v: unknown) => (v == null ? "" : Number(v).toFixed(2));
 const yn = (b: boolean) => (b ? "Sí" : "No");

@@ -131,7 +131,8 @@ export type BurnedRow = {
   status: string; kind: "llego_quemada" | "entrega_tarde" | "vencida";
 };
 
-const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const ymdMx = (d: Date) => YMD_MX.format(d);
 
 /**
  * Clasifica pedidos con fecha compromiso:

@@ -41,12 +41,16 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
   }
   if (f.q) {
     const digits = f.q.replace(/\D/g, "");
+    // Un código completo (PK-000123, ML-48323149259) se busca directo, sin recorrer textos.
+    if (/^(PK|ML|PF)-\d+$/i.test(f.q.trim())) {
+      where.code = f.q.trim().toUpperCase();
+      return where;
+    }
     where.OR = [
       { code: { contains: f.q, mode: "insensitive" } },
       { recipientName: { contains: f.q, mode: "insensitive" } },
       { addressLine: { contains: f.q, mode: "insensitive" } },
       { neighborhood: { contains: f.q, mode: "insensitive" } },
-      { city: { contains: f.q, mode: "insensitive" } },
       { zip: { startsWith: f.q } },
       ...(digits.length >= 10 && digits.length <= 15 ? [{ mlShipmentId: BigInt(digits) }, { mlOrderId: BigInt(digits) }] : []),
     ];

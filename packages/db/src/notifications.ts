@@ -109,7 +109,8 @@ export async function notifyOrderStatus(db: Db, orderId: string, opts: { trackin
   }
 }
 
-const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const ymdMx = (d: Date) => YMD_MX.format(d);
 
 /** Aviso a la tienda cuando su recolección queda en pausa (uno por día). */
 export async function notifyPickupBlocked(db: Db, clientId: string, now = new Date()) {

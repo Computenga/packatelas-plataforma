@@ -11,8 +11,10 @@ export { normalizePunchKind, parseClock, parseWorkdays } from "./attendance-rule
 type Db = PrismaClient | Prisma.TransactionClient;
 
 const TZ = "-06:00";
-export const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
-const hmMx = (d: Date) => new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const HM_MX = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false });
+export const ymdMx = (d: Date) => YMD_MX.format(d);
+const hmMx = (d: Date) => HM_MX.format(d);
 const weekday = (ymd: string) => ((new Date(`${ymd}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
 
 /** Quincena que contiene la fecha: 1–15 o 16–fin de mes. */

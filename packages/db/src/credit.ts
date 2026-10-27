@@ -149,18 +149,45 @@ export function agingFromEntries(entries: { amount: number; createdAt: Date }[],
   return { total: Math.round(total * 100) / 100, buckets, oldest };
 }
 
+type OpenRow = { clientId: string; createdAt: Date; open: number; covered: boolean };
+
+/** Cargos abiertos (PEPS) por cliente; `since` limita a movimientos recientes para ir rápido. */
+async function openCharges(db: Db, since: Date | null, clientIds: string[] | null): Promise<OpenRow[]> {
+  return db.$queryRaw<OpenRow[]>`
+    WITH bal AS (
+      SELECT "clientId", SUM(amount) AS b FROM "LedgerEntry"
+      WHERE (${clientIds}::text[] IS NULL OR "clientId" = ANY(${clientIds}::text[]))
+      GROUP BY "clientId" HAVING SUM(amount) > 0
+    ), pos AS (
+      SELECT e."clientId", e.amount, e."createdAt",
+             SUM(e.amount) OVER (PARTITION BY e."clientId" ORDER BY e."createdAt" DESC, e.id DESC) AS run
+      FROM "LedgerEntry" e JOIN bal ON bal."clientId" = e."clientId"
+      WHERE e.amount > 0 AND (${since}::timestamp IS NULL OR e."createdAt" >= ${since}::timestamp)
+    ), cov AS (
+      SELECT "clientId", MAX(run) AS total FROM pos GROUP BY "clientId"
+    )
+    SELECT p."clientId", p."createdAt", LEAST(p.amount, bal.b - (p.run - p.amount))::float AS open, (cov.total >= bal.b) AS covered
+    FROM pos p JOIN bal ON bal."clientId" = p."clientId" JOIN cov ON cov."clientId" = p."clientId"
+    WHERE p.run - p.amount < bal.b`;
+}
+
 export async function agingReport(db: Db, now = new Date()): Promise<AgingRow[]> {
-  const owing = await db.ledgerEntry.groupBy({ by: ["clientId"], _sum: { amount: true }, having: { amount: { _sum: { gt: 0 } } } });
-  if (!owing.length) return [];
-  const entries = await db.ledgerEntry.findMany({
-    where: { clientId: { in: owing.map((o) => o.clientId) } },
-    select: { clientId: true, amount: true, createdAt: true },
-  });
+  // Con pagos aplicados a lo más viejo (PEPS), lo que se debe son los cargos más recientes que
+  // suman el saldo. Primero se buscan en los últimos 45 días; solo los clientes con deuda más
+  // vieja se revisan con todo su historial.
+  const recent = await openCharges(db, new Date(now.getTime() - 45 * 86400_000), null);
+  const uncovered = [...new Set(recent.filter((r) => !r.covered).map((r) => r.clientId))];
+  const owingIds = (await db.ledgerEntry.groupBy({ by: ["clientId"], _sum: { amount: true }, having: { amount: { _sum: { gt: 0 } } } })).map((g) => g.clientId);
+  const seen = new Set(recent.map((r) => r.clientId));
+  const missing = owingIds.filter((id) => !seen.has(id)); // sin cargos recientes: toda su deuda es vieja
+  const full = uncovered.length || missing.length ? await openCharges(db, null, [...uncovered, ...missing]) : [];
+  const fullIds = new Set(full.map((r) => r.clientId));
+  const rows = [...recent.filter((r) => !fullIds.has(r.clientId) && r.covered), ...full];
   const byClient = new Map<string, { amount: number; createdAt: Date }[]>();
-  for (const e of entries) {
-    const list = byClient.get(e.clientId) ?? [];
-    list.push({ amount: Number(e.amount), createdAt: e.createdAt });
-    byClient.set(e.clientId, list);
+  for (const r of rows) {
+    const list = byClient.get(r.clientId) ?? [];
+    list.push({ amount: Number(r.open), createdAt: r.createdAt });
+    byClient.set(r.clientId, list);
   }
   return [...byClient.entries()]
     .map(([clientId, list]) => ({ clientId, ...agingFromEntries(list, now) }))

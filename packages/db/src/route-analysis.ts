@@ -54,7 +54,8 @@ export type RouteDriverSummary = {
 const STREET_FACTOR = 1.35;
 const SPEED_MPS = 22 / 3.6;
 
-const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const ymdMx = (d: Date) => YMD_MX.format(d);
 const atMx = (ymd: string, hour: number) => new Date(`${ymd}T${String(hour).padStart(2, "0")}:00:00-06:00`);
 
 /** Costo del recorrido en el orden dado (segundos si la matriz es de tiempos). */

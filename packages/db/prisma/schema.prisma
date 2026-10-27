@@ -305,6 +305,12 @@ model Order {
   @@index([clientId, createdAt])
   @@index([driverId, status])
   @@index([status, createdAt])
+  // Búsqueda libre en Pedidos (contiene…): índices de trigramas.
+  @@index([code(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_code_trgm_idx")
+  @@index([recipientName(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_recipientName_trgm_idx")
+  @@index([addressLine(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_addressLine_trgm_idx")
+  @@index([neighborhood(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_neighborhood_trgm_idx")
+  @@index([zip(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_zip_trgm_idx")
 }
 
 enum EventSource {
@@ -340,6 +346,7 @@ model OrderEvent {
   evidence Evidence[]
 
   @@index([orderId, occurredAt])
+  @@index([type, occurredAt])
 }
 
 enum EvidenceKind {

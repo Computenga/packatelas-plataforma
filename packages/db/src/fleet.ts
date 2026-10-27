@@ -13,7 +13,8 @@ import { sendPush } from "./push.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 const TZ = "-06:00";
-const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const ymdMx = (d: Date) => YMD_MX.format(d);
 const dayStart = (ymd: string) => new Date(`${ymd}T00:00:00${TZ}`);
 
 export const DOC_TYPES: Record<string, string> = {

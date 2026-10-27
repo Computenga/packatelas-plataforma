@@ -28,7 +28,8 @@ export async function GET(request: Request) {
       ...(await burnedReport(prisma, range)).map((b) => [KIND[b.kind], b.code, b.client, b.publicId, fecha(b.createdAt), fecha(b.promisedAt), fecha(b.deliveredAt), b.status])];
   } else if (sp.tab === "tiempos-ruta" || sp.tab === "tiempos-ruta-dias") {
     const a = await routeAnalysis(prisma, range, { serviceMinutes: Math.min(60, Math.max(0, Number(sp.servicio) || 10)) });
-    const hora = (d: Date) => new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false }).format(d);
+    const HORA = new Intl.DateTimeFormat("es-MX", { timeZone: "America/Mexico_City", hour: "2-digit", minute: "2-digit", hour12: false });
+    const hora = (d: Date) => HORA.format(d);
     rows = sp.tab === "tiempos-ruta"
       ? [["Repartidor", "Días", "Entregas", "Min. esperados", "Min. reales", "Real ÷ esperado", "Entregas por hora", "Min. de más"],
         ...a.drivers.map((d) => [d.driver, d.days, d.stops, d.expectedMinutes, d.actualMinutes, d.ratio ?? "", d.perHour ?? "", d.extraMinutes])]

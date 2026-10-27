@@ -2,14 +2,16 @@ import type { OrderStatus, PickupStatus } from "@packatelas/db";
 
 const TZ = "America/Mexico_City";
 
-export const mxn = (n: number | string | { toString(): string }) =>
-  new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(Number(n.toString()));
+// Los formateadores se crean una sola vez: construirlos es caro y se usan por renglón.
+const MXN = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
+const FECHA = new Intl.DateTimeFormat("es-MX", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" });
+const SOLO_FECHA = new Intl.DateTimeFormat("es-MX", { timeZone: TZ, dateStyle: "medium" });
 
-export const fecha = (d: Date | null | undefined) =>
-  d ? new Intl.DateTimeFormat("es-MX", { timeZone: TZ, dateStyle: "medium", timeStyle: "short" }).format(d) : "—";
+export const mxn = (n: number | string | { toString(): string }) => MXN.format(Number(n.toString()));
 
-export const soloFecha = (d: Date | null | undefined) =>
-  d ? new Intl.DateTimeFormat("es-MX", { timeZone: TZ, dateStyle: "medium" }).format(d) : "—";
+export const fecha = (d: Date | null | undefined) => (d ? FECHA.format(d) : "—");
+
+export const soloFecha = (d: Date | null | undefined) => (d ? SOLO_FECHA.format(d) : "—");
 
 /** Inicio del día de hoy en la Ciudad de México. */
 export function startOfTodayMx(): Date {
