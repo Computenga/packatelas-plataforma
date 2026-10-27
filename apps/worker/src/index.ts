@@ -1,8 +1,9 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
+import { shrinkOldPhotos } from "./photos.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
 
 const QUERY = process.env.GMAIL_QUERY ?? 'from:info@negocios.fondeadora.com subject:"Depósito" newer_than:3d';
@@ -139,6 +140,25 @@ function startAlerts() {
   setInterval(run, 5 * 60_000);
 }
 
+/** Limpieza diaria a las 04:00 CDMX (y al arrancar si ya pasó un día). */
+function startCleanup() {
+  let lastDay = "";
+  const run = async () => {
+    const day = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+    const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hour12: false }).format(new Date()));
+    if (day === lastDay || hour < 4) return;
+    lastDay = day;
+    try {
+      const db = await dailyCleanup(prisma);
+      const photos = await shrinkOldPhotos();
+      console.log(`[worker] Limpieza: ${JSON.stringify(db)} · fotos: ${JSON.stringify(photos)}`);
+    } catch (e) {
+      console.error("[worker] Limpieza:", e instanceof Error ? e.message : e);
+    }
+  };
+  setInterval(run, 30 * 60_000);
+}
+
 async function main() {
   startHourlyJobs();
   startMlSync();
@@ -146,6 +166,7 @@ async function main() {
   startBackups();
   startWebhooks();
   startAlerts();
+  startCleanup();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();
