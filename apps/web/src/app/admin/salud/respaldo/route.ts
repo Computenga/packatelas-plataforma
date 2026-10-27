@@ -12,12 +12,12 @@ const NAME = /^packatelas-\d{4}-\d{2}-\d{2}\.dump$/;
 export async function GET() {
   const user = await getSessionUser();
   if (user?.role !== "ADMIN") return new Response("No autorizado", { status: 401 });
-  const name = (await readdir(DIR).catch(() => [] as string[])).filter((n) => NAME.test(n)).sort().at(-1);
+  const name = (await readdir(/* turbopackIgnore: true */ DIR).catch(() => [] as string[])).filter((n) => NAME.test(n)).sort().at(-1);
   if (!name) return new Response("Aún no hay respaldos", { status: 404 });
-  const file = path.join(DIR, name);
-  const { size } = await stat(file);
+  const file = path.join(/* turbopackIgnore: true */ DIR, name);
+  const { size } = await stat(/* turbopackIgnore: true */ file);
   await audit(prisma, { actorUserId: user.id, action: "backup.downloaded", entity: "Backup", summary: `Descargó ${name}` }).catch(() => {});
-  return new Response(Readable.toWeb(createReadStream(file)) as ReadableStream, {
+  return new Response(Readable.toWeb(createReadStream(/* turbopackIgnore: true */ file)) as ReadableStream, {
     headers: { "Content-Type": "application/octet-stream", "Content-Length": String(size), "Content-Disposition": `attachment; filename="${name}"`, "Cache-Control": "no-store" },
   });
 }

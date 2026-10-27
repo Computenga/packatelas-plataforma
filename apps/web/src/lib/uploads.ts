@@ -4,7 +4,7 @@ import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 // Fotos de evidencia en disco (volumen del servidor). Cambiar a Object Storage solo toca este archivo.
-const root = () => path.resolve(process.env.UPLOAD_DIR || "./uploads");
+const root = () => path.resolve(/* turbopackIgnore: true */ process.env.UPLOAD_DIR || "./uploads");
 const KEY = /^(evidence|fleet|docs)\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$/;
 
 export async function saveEvidence(data: Buffer, ext: "jpg" | "png" | "webp" | "pdf", prefix: "evidence" | "fleet" | "docs" = "evidence"): Promise<string> {
@@ -19,7 +19,7 @@ export async function saveEvidence(data: Buffer, ext: "jpg" | "png" | "webp" | "
 export async function readEvidence(key: string): Promise<Buffer | null> {
   if (!KEY.test(key)) return null;
   try {
-    return await readFile(path.join(root(), key));
+    return await readFile(/* turbopackIgnore: true */ path.join(root(), key));
   } catch {
     return null;
   }
@@ -44,7 +44,7 @@ export const MIME = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", p
 export async function deleteEvidence(key: string): Promise<boolean> {
   if (!KEY.test(key)) return false;
   try {
-    await unlink(path.join(root(), key));
+    await unlink(/* turbopackIgnore: true */ path.join(root(), key));
     return true;
   } catch {
     return false;

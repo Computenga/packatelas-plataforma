@@ -1,5 +1,6 @@
-import { createManualOrder, decryptSecret, Prisma, prisma } from "@packatelas/db";
+import { createManualOrder, decryptSecret, Prisma, prisma, windowCount } from "@packatelas/db";
 import { geocodeAddress } from "@/lib/geocode-providers";
+import { readCapped } from "@/lib/iclock";
 import { mapShopify, mapWoo, validSignature, type MapResult } from "@/lib/store-orders";
 
 const MAX_BODY = 512 * 1024;
@@ -9,8 +10,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tiendas/[id
   const { id } = await ctx.params;
   const c = await prisma.storeConnector.findUnique({ where: { id }, include: { client: { select: { active: true } } } });
   if (!c) return new Response("No encontrado", { status: 404 });
-  const raw = await request.text();
-  if (raw.length > MAX_BODY) return new Response("Demasiado grande", { status: 413 });
+  const raw = await readCapped(request, MAX_BODY);
+  if (raw === null) return new Response("Demasiado grande", { status: 413 });
 
   const woo = c.platform === "WOOCOMMERCE";
   // WooCommerce manda un "ping" sin firma al guardar el webhook.
@@ -44,7 +45,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/tiendas/[id
     return new Response("ok");
   }
   let { lat, lng } = o;
-  if (lat == null || lng == null) {
+  if ((lat == null || lng == null) && (await windowCount(prisma, `geocode:${c.clientId}`, 1440)) <= 1500) {
     const hit = await geocodeAddress([o.addressLine, o.neighborhood, o.city, o.state, o.zip].filter(Boolean).join(", ")).catch(() => null);
     if (hit) ({ lat, lng } = hit);
   }

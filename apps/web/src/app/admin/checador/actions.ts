@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { addJustification, audit, prisma, setAdmsConfig } from "@packatelas/db";
+import { addJustification, audit, forgetAdmsDevice, prisma, setAdmsConfig } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -33,9 +33,17 @@ export async function admsConfigAction(_: ActionState, fd: FormData): Promise<Ac
   const user = await requireUser(["ADMIN"]);
   const enabled = fd.get("enabled") === "on";
   const serials = String(fd.get("serials") ?? "").split(/[\s,;]+/);
-  const c = await setAdmsConfig(prisma, enabled, serials);
-  if (enabled && c.serials.length === 0) return { error: "Agrega el número de serie del reloj para activarlo" };
-  await audit(prisma, { actorUserId: user.id, action: "checador.adms_config", entity: "Setting", summary: `Recepción ZKTeco ${enabled ? "activada" : "apagada"} (${c.serials.join(", ") || "sin relojes"})` });
+  const ips = String(fd.get("ips") ?? "").split(/[\s,;]+/);
+  if (enabled && !serials.some((s) => s.trim())) return { error: "Agrega el número de serie del reloj para activarlo" };
+  if (enabled && !ips.some((s) => s.trim())) return { error: "Agrega la IP pública de la oficina (aparece junto al reloj en la lista)" };
+  const c = await setAdmsConfig(prisma, enabled, serials, ips);
+  await audit(prisma, { actorUserId: user.id, action: "checador.adms_config", entity: "Setting", summary: `Recepción ZKTeco ${enabled ? "activada" : "apagada"} (${c.serials.join(", ") || "sin relojes"}; IP ${c.ips.join(", ") || "—"})` });
   revalidatePath("/admin/checador");
   return { ok: enabled ? "Recepción activada" : "Guardado (apagada)" };
+}
+
+export async function forgetDeviceAction(sn: string) {
+  await requireUser(["ADMIN"]);
+  await forgetAdmsDevice(prisma, sn);
+  revalidatePath("/admin/checador");
 }

@@ -1,7 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { IMPORT_MAX_ROWS, importOrders, prisma } from "@packatelas/db";
+import { IMPORT_MAX_ROWS, importOrders, prisma, windowCount } from "@packatelas/db";
+
+const GEOCODE_PER_DAY = 1500;
 import { requireUser } from "@/lib/auth";
 import { geocodeAddress } from "@/lib/geocode-providers";
 
@@ -9,8 +11,12 @@ export type GeoAnswer = { lat: number; lng: number; precise: boolean; label: str
 
 /** Busca coordenadas de varias direcciones (máx. 500), de 4 en 4 para no saturar al proveedor. */
 export async function geocodeBatch(queries: string[]): Promise<GeoAnswer[]> {
-  await requireUser(["ADMIN", "OPERADOR", "CLIENTE"]);
+  const user = await requireUser(["ADMIN", "OPERADOR", "CLIENTE"]);
   const list = z.array(z.string().max(400)).max(IMPORT_MAX_ROWS).parse(queries);
+  // Google cobra cada búsqueda: un cliente puede ubicar hasta 1,500 direcciones al día.
+  if (user.role === "CLIENTE" && (await windowCount(prisma, `geocode:${user.clientId}`, 1440, list.length)) > GEOCODE_PER_DAY) {
+    return list.map(() => null);
+  }
   const out: GeoAnswer[] = new Array(list.length).fill(null);
   let next = 0;
   const worker = async () => {

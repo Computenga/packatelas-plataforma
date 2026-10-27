@@ -24,7 +24,7 @@ export async function pollOnce(cfg: GmailConfig) {
   let unidentified = 0;
   for (const id of ids.filter((i) => !done.has(i))) {
     const msg = await getMessage(cfg, id);
-    const r = await ingestFondeadoraEmail(prisma, { externalId: msg.id, receivedAt: msg.receivedAt, text: msg.text });
+    const r = await ingestFondeadoraEmail(prisma, { externalId: msg.id, receivedAt: msg.receivedAt, text: msg.text, authentic: msg.authentic });
     if (r.status === "applied") applied++;
     if (r.status === "unidentified") unidentified++;
   }

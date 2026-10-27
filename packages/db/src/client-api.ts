@@ -3,6 +3,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { request as httpsRequest } from "node:https";
 import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { decryptSecret, encryptSecret } from "./crypto.ts";
 
@@ -53,15 +54,42 @@ export async function authenticateApiKey(prisma: PrismaClient, raw: string | nul
 
 // ——— Webhooks ———
 
-const PRIVATE_V4 = [/^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^0\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./];
-function isPrivateIp(ip: string) {
-  if (isIP(ip) === 4) return PRIVATE_V4.some((r) => r.test(ip));
-  const v = ip.toLowerCase();
-  if (v.startsWith("::ffff:")) return isPrivateIp(v.slice(7));
-  return v === "::1" || v === "::" || v.startsWith("fc") || v.startsWith("fd") || v.startsWith("fe80");
+const PRIVATE_V4 = [/^10\./, /^127\./, /^169\.254\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^0\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, /^(22[4-9]|2[3-5]\d)\./];
+
+/** IPv6 → grupos de 16 bits (expande "::" y una IPv4 al final). */
+function v6Groups(ip: string): number[] | null {
+  let s = ip.toLowerCase().split("%")[0];
+  const v4 = /(\d+\.\d+\.\d+\.\d+)$/.exec(s);
+  if (v4) {
+    const p = v4[1].split(".").map(Number);
+    s = s.slice(0, -v4[1].length) + `${((p[0] << 8) | p[1]).toString(16)}:${((p[2] << 8) | p[3]).toString(16)}`;
+  }
+  const [head, tail] = s.split("::");
+  const a = head ? head.split(":") : [];
+  const b = tail !== undefined ? (tail ? tail.split(":") : []) : null;
+  const groups = b === null ? a : [...a, ...Array(8 - a.length - b.length).fill("0"), ...b];
+  if (groups.length !== 8) return null;
+  const n = groups.map((g) => parseInt(g || "0", 16));
+  return n.some((x) => Number.isNaN(x) || x > 0xffff) ? null : n;
 }
 
-/** Solo HTTPS a un servidor público (evita que la plataforma llame a servicios internos). */
+export function isPrivateIp(ip: string): boolean {
+  if (isIP(ip) === 4) return PRIVATE_V4.some((r) => r.test(ip));
+  const g = v6Groups(ip);
+  if (!g) return true;
+  const embedded = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  // IPv4 dentro de IPv6: ::ffff:a.b.c.d, ::a.b.c.d y 64:ff9b::a.b.c.d (NAT64)
+  if (g.slice(0, 5).every((x) => x === 0) && (g[5] === 0xffff || g[5] === 0)) return g[6] === 0 && g[7] <= 1 ? true : isPrivateIp(embedded(g[6], g[7]));
+  if (g[0] === 0x64 && g[1] === 0xff9b) return isPrivateIp(embedded(g[6], g[7]));
+  if (g.every((x) => x === 0)) return true; // ::
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10
+  if ((g[0] & 0xff00) === 0xff00) return true; // multicast
+  if (g[0] === 0x2002) return isPrivateIp(embedded(g[1], g[2])); // 6to4
+  return false;
+}
+
+/** Solo HTTPS a un servidor público (evita que la plataforma llame a servicios internos). Devuelve las IPs revisadas. */
 export async function assertPublicUrl(raw: string, resolve = lookup) {
   let u: URL;
   try {
@@ -72,13 +100,38 @@ export async function assertPublicUrl(raw: string, resolve = lookup) {
   if (u.protocol !== "https:") throw new Error("La URL debe empezar con https://");
   if (u.username || u.password) throw new Error("La URL no puede llevar usuario ni contraseña");
   const host = u.hostname.replace(/^\[|\]$/g, "");
-  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || !host.includes(".") && !isIP(host)) {
+  if (host === "localhost" || host.endsWith(".local") || host.endsWith(".internal") || (!host.includes(".") && !isIP(host))) {
     throw new Error("La URL debe ser un servidor público");
   }
-  const addrs = isIP(host) ? [{ address: host }] : await resolve(host, { all: true }).catch(() => []);
+  const addrs = isIP(host) ? [{ address: host, family: isIP(host) }] : await resolve(host, { all: true }).catch(() => []);
   if (!addrs.length) throw new Error("No se encontró el servidor de la URL");
   if (addrs.some((a) => isPrivateIp(a.address))) throw new Error("La URL debe ser un servidor público");
-  return u;
+  return Object.assign(u, { addresses: addrs as { address: string; family: number }[] });
+}
+
+/** POST a la IP ya revisada (sin volver a resolver el nombre: evita el "DNS rebinding"). */
+function postPinned(u: URL & { addresses: { address: string; family: number }[] }, headers: Record<string, string>, body: string): Promise<number> {
+  const pin = u.addresses[0];
+  return new Promise((resolve, reject) => {
+    const req = httpsRequest(
+      {
+        method: "POST",
+        hostname: u.hostname.replace(/^\[|\]$/g, ""),
+        port: u.port || 443,
+        path: u.pathname + u.search,
+        headers: { ...headers, "Content-Length": Buffer.byteLength(body) },
+        lookup: (_h: string, _o: unknown, cb: (e: null, a: string, f: number) => void) => cb(null, pin.address, pin.family),
+        timeout: 10_000,
+      } as never,
+      (res) => {
+        res.resume();
+        resolve(res.statusCode ?? 0);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("Tiempo de espera agotado")));
+    req.on("error", reject);
+    req.end(body);
+  });
 }
 
 export async function saveWebhook(prisma: PrismaClient, clientId: string, url: string, resolve = lookup) {
@@ -126,7 +179,6 @@ const MAX_ATTEMPTS = 8;
 
 /** Envía webhooks pendientes; reintenta con espera creciente (1, 2, 4… min, máx. 6 h). */
 export async function processWebhooks(prisma: PrismaClient, opts: { fetchImpl?: typeof fetch; resolve?: typeof lookup; limit?: number } = {}) {
-  const doFetch = opts.fetchImpl ?? fetch;
   const due = await prisma.webhookDelivery.findMany({
     where: { status: "PENDING", nextAttemptAt: { lte: new Date() } },
     include: { endpoint: true },
@@ -141,23 +193,19 @@ export async function processWebhooks(prisma: PrismaClient, opts: { fetchImpl?: 
     let error: string | null = null;
     try {
       if (!d.endpoint.active) throw new Error("Webhook desactivado");
-      await assertPublicUrl(d.endpoint.url, opts.resolve);
-      const res = await doFetch(d.endpoint.url, {
-        method: "POST",
-        redirect: "manual",
-        headers: {
+      const target = await assertPublicUrl(d.endpoint.url, opts.resolve);
+      const headers = {
           "Content-Type": "application/json",
           "User-Agent": "Packatelas-Webhooks/1",
           "X-Packatelas-Event": d.event,
           "X-Packatelas-Delivery": d.id,
           "X-Packatelas-Timestamp": String(ts),
           "X-Packatelas-Signature": `sha256=${signWebhook(webhookSecret(d.endpoint.secret), ts, body)}`,
-        },
-        body,
-        signal: AbortSignal.timeout(10_000),
-      });
-      code = res.status;
-      if (res.status < 200 || res.status >= 300) error = `Respuesta ${res.status}`;
+      };
+      code = opts.fetchImpl
+        ? (await opts.fetchImpl(d.endpoint.url, { method: "POST", redirect: "manual", headers, body, signal: AbortSignal.timeout(10_000) })).status
+        : await postPinned(target, headers, body);
+      if (code < 200 || code >= 300) error = `Respuesta ${code}`;
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     }

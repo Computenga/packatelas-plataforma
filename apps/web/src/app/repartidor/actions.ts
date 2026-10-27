@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addOrderEvent, createManualOrder, parseScan, prisma, registerScan, setShift } from "@packatelas/db";
+import { addOrderEvent, createManualOrder, parseScan, prisma, registerScan, setShift, windowCount } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -43,6 +43,10 @@ export async function driverScan(raw: string): Promise<DriverScanResult> {
     else if (r.status === "unknown_account") return { status: "error", message: `${r.message}. Entrégalo en bodega o avisa al despachador.` };
   }
   if (!order) return { status: "error", message: "No se encontró el pedido" };
+  // Freno contra buscar pedidos ajenos tecleando códigos (consecutivos): máximo 80 por hora.
+  if (order.driverId !== driver.id && (await windowCount(prisma, `driver-lookup:${driver.id}`, 60)) > 80) {
+    return { status: "error", message: "Demasiadas búsquedas de pedidos ajenos; avisa al despachador" };
+  }
 
   return {
     status: "found",
@@ -76,6 +80,8 @@ export async function createExternal(_: ActionState, fd: FormData): Promise<Acti
   const d = parsed.data;
   const client = await prisma.client.findUnique({ where: { id: d.clientId } });
   if (!client?.active) return { error: "Cliente no encontrado" };
+  // Cada alta genera un cargo al cliente: máximo 40 al día por repartidor (queda en el historial de cada envío).
+  if ((await windowCount(prisma, `driver-external:${driver.id}`, 1440)) > 40) return { error: "Llegaste al máximo de paquetes externos del día; avisa al despachador" };
 
   const order = await createManualOrder(
     prisma,

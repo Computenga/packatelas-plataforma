@@ -46,6 +46,10 @@ describe("webhooks", () => {
     const privateDns = (async () => [{ address: "192.168.1.10", family: 4 }]) as never;
     await expect(assertPublicUrl("https://interno.ejemplo.com/x", privateDns)).rejects.toThrow(/público/);
     expect((await assertPublicUrl("https://api.ejemplo.com/hook", publicDns)).hostname).toBe("api.ejemplo.com");
+    for (const bad of ["https://[::ffff:127.0.0.1]/", "https://[::ffff:7f00:1]/", "https://[::ffff:a9fe:a9fe]/", "https://[64:ff9b::10.0.0.5]/", "https://[::1]/", "https://[fd00::1]/", "https://[2002:c0a8:0101::1]/"]) {
+      await expect(assertPublicUrl(bad, publicDns), bad).rejects.toThrow(/público/);
+    }
+    expect((await assertPublicUrl("https://[2606:4700::1111]/", publicDns)).hostname).toBe("[2606:4700::1111]");
   });
 
   it("encola al cambiar de estado, firma y reintenta si el servidor falla", async () => {

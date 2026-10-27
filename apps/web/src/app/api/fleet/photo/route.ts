@@ -8,6 +8,7 @@ const ROLES = ["ADMIN", "MECANICO", "REPARTIDOR"];
 export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user || !ROLES.includes(user.role)) return Response.json({ error: "No autorizado" }, { status: 401 });
+  if (Number(request.headers.get("content-length") ?? 0) > MAX_BYTES + 64 * 1024) return Response.json({ error: "La foto pesa más de 8 MB" }, { status: 413 });
   const form = await request.formData().catch(() => null);
   const file = form?.get("photo");
   if (!(file instanceof Blob)) return Response.json({ error: "Falta la foto" }, { status: 400 });

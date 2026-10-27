@@ -3,7 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { prisma, savePushSubscription, sendPush, vapidKeys } from "./index.ts";
 
 process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 9).toString("base64");
-const ep = `https://push.example.com/${Date.now()}`;
+const ep = `https://fcm.googleapis.com/fcm/send/test-${Date.now()}`;
 let userId: string;
 
 afterAll(async () => {
@@ -33,5 +33,18 @@ describe("push", () => {
     expect(JSON.parse(seen[0])).toMatchObject({ title: "Hola" });
     expect(await prisma.pushSubscription.count({ where: { endpoint: `${ep}/b` } })).toBe(0);
     await expect(savePushSubscription(prisma, userId, { endpoint: "http://inseguro", keys: { p256dh: "x", auth: "y" } })).rejects.toThrow();
+  });
+});
+
+describe("destinos de notificaciones", () => {
+  it("solo servicios push de los navegadores", async () => {
+    const { isPushEndpoint } = await import("./index.ts");
+    expect(isPushEndpoint("https://fcm.googleapis.com/fcm/send/abc")).toBe(true);
+    expect(isPushEndpoint("https://updates.push.services.mozilla.com/wpush/v2/x")).toBe(true);
+    expect(isPushEndpoint("https://web.push.apple.com/QG")).toBe(true);
+    expect(isPushEndpoint("https://evil.example/fcm.googleapis.com")).toBe(false);
+    expect(isPushEndpoint("https://fcm.googleapis.com.evil.example/x")).toBe(false);
+    expect(isPushEndpoint("https://10.0.0.5/x")).toBe(false);
+    expect(isPushEndpoint("http://fcm.googleapis.com/x")).toBe(false);
   });
 });

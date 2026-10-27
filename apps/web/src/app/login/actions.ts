@@ -2,39 +2,44 @@
 
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { prisma, verifyPassword } from "@packatelas/db";
+import { hashPassword, prisma, verifyPassword, windowCount } from "@packatelas/db";
+import { ipFrom } from "@/lib/request-ip";
 import { createSession, destroySession } from "@/lib/session";
 import { setPendingLogin } from "@/lib/two-factor";
 import { homeFor } from "@/lib/roles";
 
 export type LoginState = { error?: string; username?: string };
 
-// Límite simple de intentos fallidos por usuario+IP (en memoria; suficiente para un solo servidor).
-const failures = new Map<string, { count: number; until: number }>();
-const MAX_FAILURES = 5;
-const LOCK_MS = 15 * 60_000;
+// Intentos fallidos en ventanas de 15 min, guardados en la base (sobreviven reinicios):
+// por usuario (cualquier IP) y por IP (cualquier usuario).
+const WINDOW_MIN = 15;
+const MAX_PER_USER = 8;
+const MAX_PER_IP = 40;
+// Para usuarios que no existen se verifica contra un hash cualquiera: así tarda lo mismo
+// y no se puede averiguar qué usuarios existen por el tiempo de respuesta.
+let dummy: Promise<string> | null = null;
+const dummyHash = () => (dummy ??= hashPassword("contraseña-que-no-existe-" + Math.random()));
 
 export async function login(_prev: LoginState, formData: FormData): Promise<LoginState> {
   const username = String(formData.get("username") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   if (!username || !password) return { error: "Escribe tu usuario y contraseña.", username };
 
-  const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim() ?? "local";
-  const key = `${username}|${ip}`;
-  const f = failures.get(key);
-  if (f && f.count >= MAX_FAILURES && f.until > Date.now()) {
+  const ip = ipFrom(await headers());
+  const userKey = `login-user:${username.slice(0, 60)}`;
+  const ipKey = `login-ip:${ip}`;
+  const [byUser, byIp] = await Promise.all([windowCount(prisma, userKey, WINDOW_MIN, 0), windowCount(prisma, ipKey, WINDOW_MIN, 0)]);
+  if (byUser >= MAX_PER_USER || byIp >= MAX_PER_IP) {
     return { error: "Demasiados intentos. Espera 15 minutos e inténtalo de nuevo.", username };
   }
 
   const user = await prisma.user.findUnique({ where: { username } });
-  const ok = user?.active && (await verifyPassword(password, user.passwordHash));
-  if (!user || !ok) {
-    const count = (f && f.until > Date.now() ? f.count : 0) + 1;
-    failures.set(key, { count, until: Date.now() + LOCK_MS });
+  const ok = await verifyPassword(password, user?.passwordHash ?? (await dummyHash()));
+  if (!user || !user.active || !ok) {
+    await Promise.all([windowCount(prisma, userKey, WINDOW_MIN), windowCount(prisma, ipKey, WINDOW_MIN)]);
     return { error: "Usuario o contraseña incorrectos.", username };
   }
 
-  failures.delete(key);
   if (user.totpSecret) {
     // Falta el código de la app autenticadora [P09].
     await setPendingLogin(user.id);

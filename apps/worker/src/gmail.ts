@@ -36,7 +36,21 @@ export async function listMessageIds(cfg: GmailConfig, q: string, max = 100): Pr
   return (j.messages ?? []).map((m) => m.id);
 }
 
-type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[] };
+type Part = { mimeType?: string; body?: { data?: string }; parts?: Part[]; headers?: { name: string; value: string }[] };
+
+/**
+ * ¿El correo viene de verdad de Fondeadora? Gmail (mx.google.com) deja en Authentication-Results
+ * si la firma DKIM es válida. Fondeadora publica DMARC p=none, así que un remitente falso llegaría
+ * a la bandeja; sin DKIM válido de fondeadora.com el depósito no se aplica solo.
+ */
+export function isAuthenticFondeadora(headers: { name: string; value: string }[] = []): boolean {
+  const h = (n: string) => headers.filter((x) => x.name.toLowerCase() === n);
+  const from = h("from").map((x) => x.value).join(" ");
+  if (!/@([\w-]+\.)*fondeadora\.com(?![\w.-])/i.test(from)) return false;
+  return h("authentication-results").some(
+    (x) => /^\s*mx\.google\.com\b/i.test(x.value) && /dkim=pass[^;]*header\.(i|d)=@?([\w-]+\.)*fondeadora\.com(?![\w.-])/i.test(x.value),
+  );
+}
 
 const b64url = (s: string) => Buffer.from(s.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
 
@@ -62,7 +76,7 @@ export function extractText(payload: Part): string {
     .replace(/\n{3,}/g, "\n\n");
 }
 
-export async function getMessage(cfg: GmailConfig, id: string): Promise<{ id: string; receivedAt: Date; text: string }> {
+export async function getMessage(cfg: GmailConfig, id: string): Promise<{ id: string; receivedAt: Date; text: string; authentic: boolean }> {
   const m = await api<{ id: string; internalDate: string; payload: Part }>(cfg, `messages/${id}?format=full`);
-  return { id: m.id, receivedAt: new Date(Number(m.internalDate)), text: extractText(m.payload) };
+  return { id: m.id, receivedAt: new Date(Number(m.internalDate)), text: extractText(m.payload), authentic: isAuthenticFondeadora(m.payload.headers) };
 }

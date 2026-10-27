@@ -80,9 +80,14 @@ public class MainActivity extends Activity {
         askNotificationsOnce();
     }
 
+    /** Solo rutas de la propia plataforma: otra app no puede abrir sitios ajenos dentro de esta. */
     private String startUrl(Intent i) {
         String u = i != null ? i.getStringExtra("url") : null;
-        if (u != null && !u.isEmpty()) return u.startsWith("http") ? u : Api.base() + (u.startsWith("/") ? u : "/" + u);
+        if (u != null && !u.isEmpty()) {
+            if (u.startsWith("/") && !u.startsWith("//")) return Api.base() + u;
+            Uri parsed = Uri.parse(u);
+            if ("https".equals(parsed.getScheme()) && Api.isInternal(parsed)) return u;
+        }
         return Api.base() + "/";
     }
 
@@ -150,6 +155,9 @@ public class MainActivity extends Activity {
             // Teléfono, WhatsApp, Maps, Waze y cualquier sitio externo se abren en su app.
             try {
                 Intent i = scheme.equals("intent") ? Intent.parseUri(u.toString(), Intent.URI_INTENT_SCHEME) : new Intent(Intent.ACTION_VIEW, u);
+                // Un enlace web nunca puede abrir componentes internos de otra app.
+                i.setComponent(null);
+                i.setSelector(null);
                 i.addCategory(Intent.CATEGORY_BROWSABLE);
                 startActivity(i);
             } catch (Exception e) {

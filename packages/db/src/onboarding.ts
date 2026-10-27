@@ -44,12 +44,13 @@ export async function addDocument(
   if (!d.applicationId && !d.employeeId) throw new Error("Falta a quién pertenece");
   if (!(await prisma.docType.findUnique({ where: { key: d.docType } }))) throw new Error("Tipo de documento inválido");
   // Un documento nuevo del mismo tipo reemplaza al pendiente o rechazado (el aprobado se queda en historial).
-  await prisma.employeeDocument.deleteMany({
-    where: { docType: d.docType, status: { not: "APROBADO" }, ...(d.applicationId ? { applicationId: d.applicationId } : { employeeId: d.employeeId }) },
-  });
+  // Se devuelven los archivos reemplazados para borrarlos del disco.
+  const where = { docType: d.docType, status: { not: "APROBADO" as const }, ...(d.applicationId ? { applicationId: d.applicationId } : { employeeId: d.employeeId }) };
+  const replaced = (await prisma.employeeDocument.findMany({ where, select: { fileKey: true } })).map((r) => r.fileKey);
+  await prisma.employeeDocument.deleteMany({ where });
   const doc = await prisma.employeeDocument.create({ data: { ...d, fileName: d.fileName?.slice(0, 120) } });
   if (actorUserId) await audit(prisma, { actorUserId, action: "employee.document_uploaded", entity: "EmployeeDocument", entityId: doc.id, summary: `Documento ${d.docType} subido` });
-  return doc;
+  return Object.assign(doc, { replacedKeys: replaced.filter((k) => k !== d.fileKey) });
 }
 
 export async function reviewDocument(prisma: PrismaClient, docId: string, status: Exclude<DocStatus, "PENDIENTE">, comment: string | null, actorUserId: string) {
@@ -129,4 +130,31 @@ export async function employeeFile(db: Db, employeeId: string) {
   const extra = [...latest.keys()].filter((k) => !types.some((t) => t.key === k));
   const allTypes = [...types, ...(await db.docType.findMany({ where: { key: { in: extra } } }))];
   return allTypes.map((t) => ({ type: t, doc: latest.get(t.key) ?? null }));
+}
+
+
+/** Tipo de documento válido (antes de guardar el archivo). */
+export async function isDocType(db: Db, key: string) {
+  return !!(await db.docType.findUnique({ where: { key }, select: { key: true } }));
+}
+
+/**
+ * Cupo acumulado (p. ej. bytes subidos por día desde el formulario público). Suma de forma atómica
+ * y devuelve el total; quien llama decide si se pasó del límite.
+ */
+export async function addToQuota(db: Db, key: string, amount: number): Promise<number> {
+  const [r] = await db.$queryRaw<{ total: number }[]>`
+    INSERT INTO "Setting" (key, value, "updatedAt") VALUES (${`quota:${key}`}, to_jsonb(${amount}::numeric), now())
+    ON CONFLICT (key) DO UPDATE SET value = to_jsonb(("Setting".value #>> '{}')::numeric + ${amount}::numeric), "updatedAt" = now()
+    RETURNING (value #>> '{}')::float AS total`;
+  return Number(r.total);
+}
+
+/**
+ * Contador por ventana de tiempo (p. ej. intentos de inicio de sesión por IP en 15 min).
+ * Con amount = 0 solo consulta. Las llaves viejas las borra la limpieza diaria.
+ */
+export async function windowCount(db: Db, key: string, windowMin: number, amount = 1): Promise<number> {
+  const bucket = Math.floor(Date.now() / (windowMin * 60_000));
+  return addToQuota(db, `win:${key}:${bucket}`, amount);
 }

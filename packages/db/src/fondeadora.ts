@@ -70,9 +70,11 @@ export type IngestResult = { status: "applied" | "unidentified" | "duplicate" | 
  */
 export async function ingestFondeadoraEmail(
   prisma: PrismaClient,
-  email: { externalId: string; receivedAt: Date; text: string },
+  email: { externalId: string; receivedAt: Date; text: string; authentic?: boolean },
 ): Promise<IngestResult> {
   const dep = parseFondeadoraDeposit(email.text);
+  // Sin firma DKIM válida de Fondeadora no se aplica solo: queda para revisión manual.
+  const trusted = email.authentic !== false;
   if (!dep) return { status: "ignored" };
 
   const dup = await prisma.payment.findFirst({
@@ -82,7 +84,11 @@ export async function ingestFondeadoraEmail(
   if (dup) return { status: "duplicate", paymentId: dup.id };
 
   const clients = await prisma.client.findMany({ select: { id: true, publicId: true, paymentReference: true } });
-  const match = matchClient(dep.concept, clients);
+  const found = matchClient(dep.concept, clients);
+  const match: MatchResult =
+    trusted || found.kind !== "exact"
+      ? found
+      : { kind: "suggestion", note: `Correo sin firma válida de Fondeadora: confirma el depósito en el banco antes de aplicarlo (concepto: "${dep.concept}")` };
 
   try {
     const result = await prisma.$transaction(async (tx) => {

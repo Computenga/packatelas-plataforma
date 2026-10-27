@@ -33,8 +33,20 @@ export async function vapidKeys(db: Db) {
   return cached;
 }
 
+// Solo servicios de notificaciones de los navegadores (Chrome/Android, Firefox, Safari, Edge):
+// así el servidor nunca hace peticiones a direcciones que elija quien se suscribe.
+const PUSH_HOSTS = [/^fcm\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^web\.push\.apple\.com$/, /\.push\.apple\.com$/, /\.notify\.windows\.com$/];
+export function isPushEndpoint(endpoint: string) {
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === "https:" && !u.port && PUSH_HOSTS.some((r) => r.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 export async function savePushSubscription(db: Db, userId: string, sub: { endpoint: string; keys: { p256dh: string; auth: string } }, userAgent?: string | null) {
-  if (!/^https:\/\//.test(sub.endpoint) || sub.endpoint.length > 1000) throw new Error("Suscripción inválida");
+  if (!isPushEndpoint(sub.endpoint) || sub.endpoint.length > 1000) throw new Error("Suscripción inválida");
   await db.pushSubscription.upsert({
     where: { endpoint: sub.endpoint },
     create: { userId, endpoint: sub.endpoint, p256dh: sub.keys.p256dh, auth: sub.keys.auth, userAgent: userAgent?.slice(0, 200) ?? null },
@@ -54,7 +66,7 @@ export async function sendPush(prisma: PrismaClient, userIds: string[], msg: Pus
     .then(() => prisma.appNotice.deleteMany({ where: { createdAt: { lt: new Date(Date.now() - 7 * 86400_000) } } }))
     .catch((e) => console.error("[push] avisos de la app:", e instanceof Error ? e.message : e));
   try {
-    const subs = await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+    const subs = (await prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } })).filter((x) => isPushEndpoint(x.endpoint));
     if (!subs.length) return { sent: 0, removed: 0 };
     const keys = await vapidKeys(prisma);
     let sent = 0, removed = 0;

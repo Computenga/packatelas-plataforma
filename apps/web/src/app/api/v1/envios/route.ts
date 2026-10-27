@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createManualOrder, Prisma, prisma, type OrderStatus } from "@packatelas/db";
+import { createManualOrder, Prisma, prisma, windowCount, type OrderStatus } from "@packatelas/db";
 import { apiAuth, apiError, orderView } from "@/lib/api-v1";
 import { geocodeAddress } from "@/lib/geocode-providers";
 
@@ -43,7 +43,10 @@ export async function POST(request: Request) {
 
   let lat = d.direccion.lat ?? undefined, lng = d.direccion.lng ?? undefined;
   let aviso: string | undefined;
-  if (lat == null || lng == null) {
+  // Ubicar direcciones tiene costo: hasta 1,500 al día por cliente; después se crea sin ubicar.
+  if ((lat == null || lng == null) && (await windowCount(prisma, `geocode:${clientId}`, 1440)) > 1500) {
+    aviso = "Se alcanzó el límite diario de direcciones por ubicar; manda lat y lng o Packatelas la ubicará";
+  } else if (lat == null || lng == null) {
     const q = [d.direccion.calle, d.direccion.colonia, d.direccion.ciudad, d.direccion.estado, d.direccion.cp].filter(Boolean).join(", ");
     const hit = await geocodeAddress(q).catch(() => null);
     if (hit) ({ lat, lng } = hit);
