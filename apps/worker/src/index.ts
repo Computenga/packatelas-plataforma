@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { getMessage, listMessageIds, type GmailConfig } from "./gmail.ts";
@@ -117,12 +117,35 @@ function startWebhooks() {
   }, 15_000);
 }
 
+/** Cada 5 min: alertas al administrador cuando algo de Salud operativa falla [A20]. */
+function startAlerts() {
+  const osrm = (process.env.OSRM_URL ?? "http://osrm:5000").replace(/\/$/, "");
+  const run = async () => {
+    try {
+      let osrmOk: boolean | null = null;
+      try {
+        const r = await fetch(`${osrm}/nearest/v1/driving/-99.1332,19.4326`, { signal: AbortSignal.timeout(3000) });
+        osrmOk = r.ok;
+      } catch {
+        osrmOk = false;
+      }
+      const sent = await syncAlerts(prisma, await evaluateAlerts(prisma, { osrmOk }), "worker");
+      if (sent.length) console.log(`[worker] Alertas enviadas: ${sent.join(", ")}`);
+    } catch (e) {
+      console.error("[worker] Alertas:", e instanceof Error ? e.message : e);
+    }
+  };
+  setTimeout(run, 60_000);
+  setInterval(run, 5 * 60_000);
+}
+
 async function main() {
   startHourlyJobs();
   startMlSync();
   startNotifier();
   startBackups();
   startWebhooks();
+  startAlerts();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

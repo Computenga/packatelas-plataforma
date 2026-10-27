@@ -71,6 +71,7 @@ services:
       ML_CLIENT_ID: ${ML_CLIENT_ID:-}
       ML_CLIENT_SECRET: ${ML_CLIENT_SECRET:-}
       DRIVE_REFRESH_TOKEN: ${DRIVE_REFRESH_TOKEN:-}
+      OSRM_URL: ${OSRM_URL:-http://osrm:5000}
       BACKUP_DIR: /backups
     volumes:
       - backups:/backups:ro
