@@ -61,3 +61,4 @@ export * from "./alerts.ts";
 export * from "./cleanup.ts";
 export * from "./mercadopago.ts";
 export * from "./ml-flex.ts";
+export * from "./ml-courier.ts";

@@ -10,6 +10,7 @@
 import { inflateRawSync } from "node:zlib";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { mapMlShipment, mlAccessToken } from "./ml-api.ts";
+import { enqueueCourierReport } from "./ml-courier.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -261,6 +262,7 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
 
 /** Al escanear un envío ML: se liga a su registro de Recuperados (pasa al histórico) y se guarda el QR. */
 export async function linkFlexScan(db: Db, orderId: string, shipmentId: bigint, raw: string) {
+  await enqueueCourierReport(db, shipmentId).catch(() => false);
   const qr = isFullMlQr(raw) ? raw.trim() : null;
   if (qr) await db.order.updateMany({ where: { id: orderId, mlQrRaw: null }, data: { mlQrRaw: qr } });
   await db.mlFlexShipment.updateMany({ where: { shipmentId, orderId: null }, data: { orderId, scannedAt: new Date() } });

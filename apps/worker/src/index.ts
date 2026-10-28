@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -89,6 +89,8 @@ function startMlSync() {
         return;
       }
       const r = await processMlJobs(prisma);
+      const c = await processCourierReports(prisma);
+      if (c.seen) console.log(`[worker] Mensajería ML: ${c.sent} reportados, ${c.failed} con error`);
       if (r.seen) console.log(`[worker] MercadoLibre: ${r.done} sincronizados, ${r.failed} con error`);
       await reportHealth(prisma, "mercadolibre", r.failed === 0, `Última vuelta: ${r.done} sincronizados, ${r.failed} con error`);
     } catch (e) {

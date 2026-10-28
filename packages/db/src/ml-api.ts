@@ -57,7 +57,7 @@ export function mlAuthUrl(clientIdOrState: { state: string }) {
 
 type TokenResponse = { access_token: string; refresh_token?: string; expires_in: number; user_id: number };
 
-async function tokenRequest(body: Record<string, string>, fetchImpl: Fetch): Promise<TokenResponse> {
+export async function tokenRequest(body: Record<string, string>, fetchImpl: Fetch): Promise<TokenResponse> {
   const res = await fetchImpl(`${API}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" },

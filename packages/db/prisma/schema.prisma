@@ -1235,3 +1235,29 @@ model MlFlexShipment {
   @@index([logisticType, scannedAt, mlCreatedAt])
   @@index([clientId])
 }
+
+// Reporte de envíos Flex a MercadoLibre como mensajería (modelo nuevo de ML: la mensajería avisa
+// qué envíos lleva con POST /flex/sites/MLM/users/{mensajería}/courier-shipment/v1).
+enum MlCourierReportStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model MlCourierReport {
+  id         String                @id @default(cuid())
+  shipmentId BigInt                @unique
+  status     MlCourierReportStatus @default(PENDING)
+  source     String // scan | prueba
+  attempts   Int                   @default(0)
+  httpStatus Int?
+  response   String?
+  lastError  String?
+  runAfter   DateTime              @default(now())
+  sentAt     DateTime?
+  createdById String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@index([status, runAfter])
+}

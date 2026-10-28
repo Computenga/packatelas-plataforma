@@ -73,6 +73,7 @@ export default async function SaludPage() {
           {mlTotal} cuenta(s): {mlCount("ACTIVE")} conectadas, {mlCount("TOKEN_EXPIRED")} sin autorizar, {mlCount("REVOKED")} revocadas
           {health.mercadolibre?.detail && <span className="block">{health.mercadolibre.detail}</span>}
           {health.recuperados?.detail && <span className="block">Recuperados: {health.recuperados.detail}</span>}
+          <a href="/admin/mercadolibre/mensajeria" className="block text-brand hover:underline">Mensajería Flex (reporte de envíos a ML) →</a>
           {pendingSync > 0 && <span className="block text-amber-700">{pendingSync} envío(s) sin datos de ML: su cuenta aún no autoriza a Packatelas</span>}
         </>
       ),
