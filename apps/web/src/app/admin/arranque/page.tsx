@@ -69,7 +69,7 @@ export default async function ArranquePage() {
           <div>
             <p className="font-medium">Un día antes</p>
             <ol className="mt-1 list-decimal space-y-1 pl-5">
-              <li>Repartidores: instalar la app (Android: nuevo.packatelas.mx/app/packatelas.apk), entrar con su usuario e iniciar y terminar un turno de prueba.</li>
+              <li>Repartidores: instalar la app (Android: nuevo.packatelas.mx/descargar), entrar con su usuario e iniciar y terminar un turno de prueba.</li>
               <li>Operador y despachador: repasar su sección del manual y escanear un paquete de prueba.</li>
               <li>Avisar a los clientes de su usuario del portal y de la nueva referencia de pago (Estado de cuenta).</li>
             </ol>
