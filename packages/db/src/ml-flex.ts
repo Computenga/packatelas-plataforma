@@ -147,6 +147,18 @@ export async function diagnoseLabel(prisma: PrismaClient, shipmentId: bigint, fe
   return out;
 }
 
+/** Etiqueta original de ML (PDF o ZPL) tal cual, para revisión del administrador. */
+export async function rawMlLabel(prisma: PrismaClient, shipmentId: bigint, type: "pdf" | "zpl2", fetchImpl: Fetch = fetch) {
+  const cap = await prisma.mlFlexShipment.findUnique({ where: { shipmentId }, select: { mlAccountId: true } });
+  const ord = cap ? null : await prisma.order.findUnique({ where: { mlShipmentId: shipmentId }, select: { mlAccountId: true } });
+  const accountId = cap?.mlAccountId ?? ord?.mlAccountId;
+  const token = accountId ? await mlAccessToken(prisma, accountId, fetchImpl) : null;
+  if (!token) return null;
+  const res = await fetchImpl(`${API}/shipment_labels?shipment_ids=${shipmentId}&response_type=${type}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
+  if (!res.ok) return null;
+  return { bytes: Buffer.from(await res.arrayBuffer()), contentType: res.headers.get("content-type") ?? "application/octet-stream" };
+}
+
 // ── Captura de envíos ──
 
 type MlJson = Record<string, unknown>;
