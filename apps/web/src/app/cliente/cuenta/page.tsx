@@ -63,7 +63,7 @@ export default async function CuentaPage({ searchParams }: PageProps<"/cliente/c
 
       {cardOn && (
         <Card title="Pagar con tarjeta">
-          <PayCard suggested={balance.gt(0) ? Number(balance) : mp.minAmount} min={mp.minAmount} tiers={mp.tiers} />
+          <PayCard balance={balance.gt(0) ? Number(balance) : 0} min={mp.minAmount} tiers={mp.tiers} />
         </Card>
       )}
 

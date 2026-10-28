@@ -47,7 +47,7 @@ export default async function MercadoPagoPage() {
             <p className="text-sm font-medium">Comisión por tramos del abono</p>
             <table className="mt-2 w-full text-sm">
               <thead className="text-left text-xs text-slate-500">
-                <tr><th className="pb-1 font-normal">Abonos hasta ($, incluido)</th><th className="pb-1 font-normal">Porcentaje (%)</th><th className="pb-1 font-normal">Fijo ($)</th></tr>
+                <tr><th className="pb-1 font-normal">Pagos hasta ($, incluido)</th><th className="pb-1 font-normal">Porcentaje (%)</th><th className="pb-1 font-normal">Fijo ($)</th></tr>
               </thead>
               <tbody>
                 {[0, 1, 2, 3, 4].map((i) => {
@@ -68,7 +68,7 @@ export default async function MercadoPagoPage() {
             Abono mínimo ($)
             <input name="minAmount" type="number" step="1" min="10" defaultValue={s.minAmount} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
           </label>
-          <p className="text-xs text-slate-500">La comisión se suma al total que paga el cliente; a su saldo se abona solo el monto que eligió. Pon 0 para absorberla.</p>
+          <p className="text-xs text-slate-500">La comisión se descuenta de lo que paga el cliente (primero el %, después el fijo, según el tramo del monto pagado); a su saldo se abona el resto. Pon 0 para absorberla.</p>
         </ActionForm>
       </Card>
 
@@ -78,15 +78,16 @@ export default async function MercadoPagoPage() {
         ) : (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-500">
-              <tr><th className="py-1">Fecha</th><th>Cliente</th><th className="text-right">Abono</th><th className="text-right">Comisión</th><th>Estado</th><th>MP</th></tr>
+              <tr><th className="py-1">Fecha</th><th>Cliente</th><th className="text-right">Pagó</th><th className="text-right">Comisión</th><th className="text-right">Abono</th><th>Estado</th><th>MP</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {list.map((c) => (
                 <tr key={c.id}>
                   <td className="py-1">{fecha(c.createdAt)}</td>
                   <td><Link href={`/admin/cobros/${c.client.id}`} className="hover:underline">{c.client.publicId.toUpperCase()} · {c.client.name}</Link></td>
-                  <td className="text-right">{mxn(c.amount)}</td>
+                  <td className="text-right">{mxn(c.total)}</td>
                   <td className="text-right">{mxn(c.fee)}</td>
+                  <td className="text-right">{mxn(c.amount)}</td>
                   <td><Badge tone={c.status === "APPROVED" ? "green" : c.status === "PENDING" ? "amber" : c.status === "REFUNDED" ? "red" : "gray"}>{STATUS[c.status]}</Badge>{c.detail && <span className="ml-1 text-xs text-slate-500">{c.detail}</span>}</td>
                   <td className="font-mono text-xs">{c.mpPaymentId ?? "—"}</td>
                 </tr>

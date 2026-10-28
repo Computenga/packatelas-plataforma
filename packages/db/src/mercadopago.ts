@@ -1,6 +1,6 @@
 // Pago de saldo con tarjeta por Mercado Pago (Checkout Pro) [I09].
-// El cliente elige cuánto abonar; se le cobra ese monto más la comisión configurada. Al aprobarse,
-// el abono entra solo a su saldo (PAYMENT por el total y FEE por la comisión: neto = lo abonado).
+// El cliente elige cuánto pagar; la comisión configurada se descuenta de ese pago. Al aprobarse,
+// entra a su saldo (PAYMENT por lo pagado y FEE por la comisión: neto = pagado − comisión).
 // Si después se devuelve o hay contracargo, el abono se revierte.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
@@ -66,11 +66,14 @@ export function feeFor(tiers: MpFeeTier[], amount: number) {
   return t ? r2((amount * t.percent) / 100 + t.fixed) : 0;
 }
 
-/** Comisión y total a cobrar por un abono. */
-export function quote(s: Pick<MpSettings, "tiers">, amount: number) {
-  const a = r2(amount);
-  const fee = feeFor(s.tiers, a);
-  return { amount: a, fee, total: r2(a + fee) };
+/**
+ * Pago con tarjeta: el cliente paga `paid`; la comisión (según el tramo del monto pagado: % del
+ * pago y después el fijo) se descuenta y a su saldo se abona el resto.
+ */
+export function quote(s: Pick<MpSettings, "tiers">, paid: number) {
+  const total = r2(paid);
+  const fee = Math.min(feeFor(s.tiers, total), total);
+  return { amount: r2(total - fee), fee, total };
 }
 
 async function mp<T>(path: string, init: RequestInit = {}, fetchImpl: Fetch = fetch): Promise<T> {
@@ -97,6 +100,7 @@ export async function createCheckout(
   if (input.amount > 200_000) throw new Error("Monto demasiado alto; haz una transferencia");
   const client = await prisma.client.findUniqueOrThrow({ where: { id: input.clientId }, select: { publicId: true, name: true, email: true } });
   const q = quote(s, input.amount);
+  if (!(q.amount > 0)) throw new Error("El monto no alcanza a cubrir la comisión");
   const c = await prisma.mpCheckout.create({
     data: { clientId: input.clientId, amount: q.amount, fee: q.fee, total: q.total, createdById: input.actorUserId },
   });
@@ -175,7 +179,7 @@ export async function syncMpPayment(prisma: PrismaClient, mpPaymentId: string, f
         await tx.ledgerEntry.create({ data: { clientId: cur.clientId, type: "FEE", amount: cur.fee, description: `Comisión por pago con tarjeta (Mercado Pago ${id})`, paymentId: payment.id } });
       }
       await tx.mpCheckout.update({ where: { id: cur.id }, data: { status: "APPROVED", mpPaymentId: id, paymentId: payment.id, detail: p.status_detail ?? null } });
-      await audit(tx, { action: "mp.payment_applied", entity: "Payment", entityId: payment.id, summary: `Pago con tarjeta aplicado: $${cur.amount} (+ comisión $${cur.fee})` });
+      await audit(tx, { action: "mp.payment_applied", entity: "Payment", entityId: payment.id, summary: `Pago con tarjeta aplicado: pagó $${cur.total}, comisión $${cur.fee}, abono $${cur.amount}` });
       return { status: "applied" as const, paymentId: payment.id };
     }
     if (["refunded", "charged_back", "cancelled"].includes(p.status) && cur.status === "APPROVED" && cur.paymentId) {

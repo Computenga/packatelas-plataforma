@@ -26,7 +26,7 @@ const fakeFetch = (async (url: string, init?: RequestInit) => {
 beforeAll(async () => {
   clientId = (await prisma.client.create({ data: { publicId: `mp${n}`, name: "MP test", paymentReference: `MP${n}`, tariffAmount: 50 } })).id;
   adminId = (await prisma.user.findFirstOrThrow({ where: { role: "ADMIN" } })).id;
-  await saveMpSettings(prisma, { enabled: true, tiers: [{ upTo: 999.99, percent: 4, fixed: 5 }, { upTo: 5000, percent: 0, fixed: 5 }, { upTo: null, percent: 0, fixed: 0 }], minAmount: 100 }, adminId);
+  await saveMpSettings(prisma, { enabled: true, tiers: [{ upTo: 999.99, percent: 4, fixed: 4 }, { upTo: 5000, percent: 0, fixed: 5 }, { upTo: null, percent: 0, fixed: 0 }], minAmount: 100 }, adminId);
 });
 afterAll(async () => {
   await prisma.mpCheckout.deleteMany({ where: { clientId } });
@@ -38,13 +38,13 @@ afterAll(async () => {
 });
 
 describe("comisión", () => {
-  it("por tramos: <$1000 4% + $5; $1000–$5000 $5; más de $5000 sin comisión", () => {
-    const tiers = normalizeTiers([{ upTo: null, percent: 0, fixed: 0 }, { upTo: 5000, percent: 0, fixed: 5 }, { upTo: 999.99, percent: 4, fixed: 5 }]);
-    expect(quote({ tiers }, 500)).toEqual({ amount: 500, fee: 25, total: 525 });
-    expect(quote({ tiers }, 999.99)).toEqual({ amount: 999.99, fee: 45, total: 1044.99 });
-    expect(quote({ tiers }, 1000)).toEqual({ amount: 1000, fee: 5, total: 1005 });
-    expect(quote({ tiers }, 5000)).toEqual({ amount: 5000, fee: 5, total: 5005 });
-    expect(quote({ tiers }, 5000.01)).toEqual({ amount: 5000.01, fee: 0, total: 5000.01 });
+  it("por tramos, descontada del pago: <$1000 4% y luego $4; $1000–$5000 $5; más de $5000 nada", () => {
+    const tiers = normalizeTiers([{ upTo: null, percent: 0, fixed: 0 }, { upTo: 5000, percent: 0, fixed: 5 }, { upTo: 999.99, percent: 4, fixed: 4 }]);
+    expect(quote({ tiers }, 500)).toEqual({ total: 500, fee: 24, amount: 476 });
+    expect(quote({ tiers }, 999.99)).toEqual({ total: 999.99, fee: 44, amount: 955.99 });
+    expect(quote({ tiers }, 1000)).toEqual({ total: 1000, fee: 5, amount: 995 });
+    expect(quote({ tiers }, 5000)).toEqual({ total: 5000, fee: 5, amount: 4995 });
+    expect(quote({ tiers }, 5000.01)).toEqual({ total: 5000.01, fee: 0, amount: 5000.01 });
   });
 });
 
@@ -65,19 +65,19 @@ describe("pago con tarjeta", () => {
     await expect(createCheckout(prisma, { clientId, amount: 50, baseUrl: "https://x.test" }, fakeFetch)).rejects.toThrow(/mínimo/);
     const before = Number(await getClientBalance(prisma, clientId));
     const c = await createCheckout(prisma, { clientId, amount: 500, baseUrl: "https://x.test/" }, fakeFetch);
-    expect(c).toMatchObject({ amount: 500, fee: 25, total: 525 });
+    expect(c).toMatchObject({ total: 500, fee: 24, amount: 476 });
     const pref = calls.find((x) => x.url.endsWith("/checkout/preferences"))!;
     expect(pref.auth).toBe("Bearer TEST-token");
-    expect(pref.body).toMatchObject({ external_reference: c.id, notification_url: "https://x.test/api/mp/webhook", items: [{ unit_price: 525, currency_id: "MXN" }] });
+    expect(pref.body).toMatchObject({ external_reference: c.id, notification_url: "https://x.test/api/mp/webhook", items: [{ unit_price: 500, currency_id: "MXN" }] });
 
     // Monto alterado: no se aplica.
     payments.set("900", { id: 900, status: "approved", external_reference: c.id, transaction_amount: 1, currency_id: "MXN" });
     expect((await syncMpPayment(prisma, "900", fakeFetch)).status).toBe("mismatch");
 
-    payments.set("901", { id: 901, status: "approved", external_reference: c.id, transaction_amount: 525, currency_id: "MXN", date_approved: new Date().toISOString() });
+    payments.set("901", { id: 901, status: "approved", external_reference: c.id, transaction_amount: 500, currency_id: "MXN", date_approved: new Date().toISOString() });
     const [a, b] = await Promise.all([syncMpPayment(prisma, "901", fakeFetch), syncMpPayment(prisma, "901", fakeFetch)]);
     expect([a.status, b.status].sort()).toEqual(["applied", "duplicate"]);
-    expect(Number(await getClientBalance(prisma, clientId))).toBeCloseTo(before - 500, 2);
+    expect(Number(await getClientBalance(prisma, clientId))).toBeCloseTo(before - 476, 2);
     expect(await prisma.payment.count({ where: { clientId, method: "MERCADOPAGO", status: "APPLIED" } })).toBe(1);
 
     payments.set("901", { ...payments.get("901"), status: "charged_back" });
@@ -89,7 +89,7 @@ describe("pago con tarjeta", () => {
   it("la conciliación aplica un pago cuyo aviso no llegó", async () => {
     const c = await createCheckout(prisma, { clientId, amount: 200, baseUrl: "https://x.test" }, fakeFetch);
     await prisma.mpCheckout.update({ where: { id: c.id }, data: { createdAt: new Date(Date.now() - 15 * 60_000) } });
-    payments.set("902", { id: 902, status: "approved", external_reference: c.id, transaction_amount: 213, currency_id: "MXN" });
+    payments.set("902", { id: 902, status: "approved", external_reference: c.id, transaction_amount: 200, currency_id: "MXN" });
     const r = await reconcileMp(prisma, fakeFetch);
     expect(r.applied).toBeGreaterThanOrEqual(1);
     expect((await prisma.mpCheckout.findUniqueOrThrow({ where: { id: c.id } })).status).toBe("APPROVED");
