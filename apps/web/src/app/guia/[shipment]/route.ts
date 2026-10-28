@@ -1,4 +1,4 @@
-import { audit, guiaData, prisma } from "@packatelas/db";
+import { audit, diagnoseLabel, guiaData, prisma } from "@packatelas/db";
 import { getSessionUser } from "@/lib/session";
 import { STAFF_ROLES } from "@/lib/roles";
 import { guiaPdf } from "@/lib/guia-pdf";
@@ -24,7 +24,9 @@ export async function GET(request: Request, ctx: { params: Promise<{ shipment: s
     if ((o ?? c)?.clientId !== user.clientId) return new Response("No encontrado", { status: 404 });
   }
 
-  const fetchQr = new URL(request.url).searchParams.get("qr") === "ml";
+  const params = new URL(request.url).searchParams;
+  if (params.get("diag") === "1" && user.role === "ADMIN") return Response.json(await diagnoseLabel(prisma, id).catch((e) => ({ error: String(e) })));
+  const fetchQr = params.get("qr") === "ml";
   const g = await guiaData(prisma, id, { fetchQr });
   if (!g) return new Response("No encontrado", { status: 404 });
   if (!g.qrRaw) {

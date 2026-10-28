@@ -107,6 +107,46 @@ export async function fetchLabelQr(token: string, shipmentId: bigint, fetchImpl:
   return qr && isFullMlQr(qr) ? qr : null;
 }
 
+/**
+ * Diagnóstico de la etiqueta (solo estructura, sin datos del destinatario): para revisar por qué no
+ * se pudo extraer el QR.
+ */
+export async function diagnoseLabel(prisma: PrismaClient, shipmentId: bigint, fetchImpl: Fetch = fetch) {
+  const cap = await prisma.mlFlexShipment.findUnique({ where: { shipmentId }, select: { mlAccountId: true, mlStatus: true, mlSubstatus: true } });
+  const ord = cap ? null : await prisma.order.findUnique({ where: { mlShipmentId: shipmentId }, select: { mlAccountId: true } });
+  const accountId = cap?.mlAccountId ?? ord?.mlAccountId;
+  if (!accountId) return { error: "sin cuenta" };
+  const token = await mlAccessToken(prisma, accountId, fetchImpl);
+  if (!token) return { error: "sin token" };
+  const out: Record<string, unknown> = { mlStatus: cap?.mlStatus, mlSubstatus: cap?.mlSubstatus };
+  for (const type of ["zpl2", "pdf"]) {
+    const res = await fetchImpl(`${API}/shipment_labels?shipment_ids=${shipmentId}&response_type=${type}`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(20_000) });
+    const buf = Buffer.from(await res.arrayBuffer());
+    const zip = buf.length > 4 && buf.readUInt32LE(0) === 0x04034b50;
+    const info: Record<string, unknown> = { status: res.status, contentType: res.headers.get("content-type"), bytes: buf.length, zip, head: zip ? "PK" : buf.subarray(0, 4).toString("latin1") };
+    if (type === "zpl2") {
+      let text = "";
+      try {
+        text = (zip ? firstFileFromZip(buf) ?? Buffer.alloc(0) : buf).toString("utf8");
+      } catch (e) {
+        info.unzipError = String(e);
+      }
+      if (!res.ok) info.body = buf.toString("utf8").slice(0, 300);
+      info.zplCommands = [...new Set(text.match(/\^[A-Z][A-Z0-9@]/g) ?? [])].join(" ");
+      const i = text.search(/\^BQ/i);
+      if (i >= 0) {
+        const seg = text.slice(i, i + 400).split(/\^FS/i)[0];
+        info.bqField = seg.replace(/[A-Za-z0-9+/=]{12,}/g, (m) => `<${m.length} chars>`).replace(/\d{6,}/g, (m) => `<${m.length} dígitos>`);
+      } else info.bq = "no hay ^BQ";
+      const qr = qrFromZpl(text);
+      info.qrExtraido = qr ? qr.replace(/"([^"]{6,})"/g, (_, v: string) => `"<${v.length}>"`).replace(/\d{6,}/g, (m) => `<${m.length}d>`) : null;
+      info.qrConHash = isFullMlQr(qr);
+    }
+    out[type] = info;
+  }
+  return out;
+}
+
 // ── Captura de envíos ──
 
 type MlJson = Record<string, unknown>;
