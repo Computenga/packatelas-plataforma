@@ -105,6 +105,7 @@ model Client {
   users      User[]
   branches   Branch[]
   mlAccounts MlAccount[]
+  flexShipments MlFlexShipment[]
   orders     Order[]
   pickups    Pickup[]
   ledger     LedgerEntry[]
@@ -162,6 +163,7 @@ model MlAccount {
 
   routes MlAccountRoute[]
   orders Order[]
+  flexShipments MlFlexShipment[]
 
   @@index([clientId])
 }
@@ -271,6 +273,7 @@ model Order {
   mlPackId     BigInt?
   mlStatus     String?
   mlSubstatus  String?
+  mlQrRaw      String? // contenido exacto del QR de la etiqueta (con hash_code) para reimprimir la guía
 
   recipientName  String?
   recipientPhone String?
@@ -298,6 +301,7 @@ model Order {
 
   events     OrderEvent[]
   evidence   Evidence[]
+  flexShipment MlFlexShipment?
   routeStops RouteStop[]
   return     ReturnCustody?
   ledger     LedgerEntry[]
@@ -1188,4 +1192,46 @@ model MpCheckout {
 
   @@index([status, createdAt])
   @@index([clientId, createdAt])
+}
+
+// Envíos de MercadoLibre de las cuentas de los clientes [Recuperados]: se traen de la API (avisos y
+// barrido periódico). Los Flex sin escanear forman «Recuperados»; al escanearlos uno de nuestros
+// repartidores se ligan a su pedido y pasan al histórico. Los que no son Flex solo se recuerdan para
+// no volver a consultarlos.
+model MlFlexShipment {
+  id                String    @id @default(cuid())
+  shipmentId        BigInt    @unique
+  mlAccountId       String
+  mlAccount         MlAccount @relation(fields: [mlAccountId], references: [id], onDelete: Cascade)
+  clientId          String
+  client            Client    @relation(fields: [clientId], references: [id])
+  logisticType      String? // self_service = Flex
+  mlStatus          String?
+  mlSubstatus       String?
+  mlOrderId         BigInt?
+  packId            BigInt?
+  recipientName     String?
+  recipientPhone    String?
+  addressLine       String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zip               String?
+  reference         String?
+  lat               Float?
+  lng               Float?
+  itemsSummary      String?
+  buyerNickname     String?
+  mlCreatedAt       DateTime?
+  estimatedDelivery DateTime?
+  qrRaw             String? // contenido exacto del QR (con hash_code)
+  orderId           String?   @unique
+  order             Order?    @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  scannedAt         DateTime?
+  checkedAt         DateTime  @default(now())
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([logisticType, scannedAt, mlCreatedAt])
+  @@index([clientId])
 }

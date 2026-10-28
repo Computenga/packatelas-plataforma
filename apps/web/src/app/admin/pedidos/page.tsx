@@ -4,7 +4,8 @@ import { prisma, type OrderStatus } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, hace, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
-import { buildWhere, filtersToQuery, LIVE_STATUSES, PAGE_SIZE, readFilters, RECOVERED_FROM, type OrderFilters } from "@/lib/order-filters";
+import { buildWhere, filtersToQuery, LIVE_STATUSES, PAGE_SIZE, readFilters, type OrderFilters } from "@/lib/order-filters";
+import { RecuperadosList } from "./recuperados";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -29,22 +30,18 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
   const recovered = f.view === "recuperados";
 
   const [orders, total, clients, liveCounts] = await Promise.all([
-    prisma.order.findMany({
+    recovered ? Promise.resolve([]) : prisma.order.findMany({
       where,
-      orderBy: live ? { createdAt: "asc" } : recovered ? { deliveredAt: "desc" } : { createdAt: "desc" },
+      orderBy: live ? { createdAt: "asc" } : { createdAt: "desc" },
       skip: (f.page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
         client: { select: { name: true } },
         driver: { include: { user: { select: { name: true } } } },
-        events: live
-          ? { where: { toStatus: { not: null } }, orderBy: { occurredAt: "desc" }, take: 1 }
-          : recovered
-            ? { where: { toStatus: { in: RECOVERED_FROM } }, orderBy: { occurredAt: "asc" }, take: 1 }
-            : false,
+        events: live ? { where: { toStatus: { not: null } }, orderBy: { occurredAt: "desc" }, take: 1 } : false,
       },
     }),
-    prisma.order.count({ where }),
+    recovered ? Promise.resolve(0) : prisma.order.count({ where }),
     prisma.client.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     live
       ? prisma.order.groupBy({ by: ["status"], where: buildWhere({ ...f, status: "" }), _count: { _all: true } })
@@ -61,9 +58,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
 
   const head = live
     ? ["Antigüedad", "Envío", "Estado", "Último movimiento", "Cliente", "Dirección", "Repartidor"]
-    : recovered
-      ? ["Entregado", "Envío", "Venía de", "Intentos", "Cliente", "Destinatario", "Repartidor"]
-      : ["Registrado", "Envío", "Estado", "Cliente", "Destinatario", "Dirección", "Repartidor"];
+    : ["Registrado", "Envío", "Estado", "Cliente", "Destinatario", "Dirección", "Repartidor"];
 
   return (
     <div className="mx-auto max-w-7xl">
@@ -85,9 +80,8 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
           </>
         }
       >
-        {total.toLocaleString("es-MX")} pedido(s)
+        {recovered ? "Envíos Flex de MercadoLibre por recoger" : <>{total.toLocaleString("es-MX")} pedido(s)</>}
         {live && " sin cerrar · se actualiza cada minuto"}
-        {recovered && " entregados después de un intento fallido, reprogramación o regreso a bodega"}
       </PageHeader>
 
       <nav className="mb-4 flex gap-1 border-b border-slate-200 text-sm" aria-label="Vistas">
@@ -103,6 +97,10 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         ))}
       </nav>
 
+      {recovered && <RecuperadosList f={f} clients={clients} />}
+
+      {!recovered && (
+        <>
       {live && liveCounts.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2 text-sm">
           {LIVE_STATUSES.map((s) => {
@@ -122,7 +120,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         {f.view && <input type="hidden" name="vista" value={f.view} />}
         <input name="q" defaultValue={f.q} placeholder="Envío, pedido, destinatario, dirección, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
         <select name="status" defaultValue={f.status} disabled={!statusOptions.length} className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50">
-          <option value="">{recovered ? "Entregados" : "Todos los estados"}</option>
+          <option value="">Todos los estados</option>
           {statusOptions.map((k) => (
             <option key={k} value={k}>{STATUS_LABEL[k]}</option>
           ))}
@@ -169,22 +167,6 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
               </tr>
             );
           }
-          if (recovered) {
-            return (
-              <tr key={o.id} className="hover:bg-slate-50">
-                <Td className="text-slate-600">{fecha(o.deliveredAt)}</Td>
-                {code}
-                <Td>
-                  {ev?.toStatus ? <Badge tone={STATUS_TONE[ev.toStatus]}>{STATUS_LABEL[ev.toStatus]}</Badge> : "—"}
-                  {ev?.note && <span className="ml-2 text-xs text-slate-500">{ev.note}</span>}
-                </Td>
-                <Td>{o.attempts}</Td>
-                <Td>{o.client.name}</Td>
-                <Td>{o.recipientName ?? "—"}</Td>
-                {driver}
-              </tr>
-            );
-          }
           return (
             <tr key={o.id} className="hover:bg-slate-50">
               <Td className="text-slate-600">{fecha(o.createdAt)}</Td>
@@ -207,6 +189,8 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
             {f.page < pages && <ButtonLink variant="secondary" href={`/admin/pedidos?${filtersToQuery(f, f.page + 1)}`}>Siguiente</ButtonLink>}
           </div>
         </nav>
+      )}
+        </>
       )}
     </div>
   );

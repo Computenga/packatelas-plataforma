@@ -7,6 +7,7 @@ import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { decryptSecret, encryptSecret } from "./crypto.ts";
 import { adminUserIds, sendPush } from "./push.ts";
 import { audit } from "./orders.ts";
+import { captureShipment } from "./ml-flex.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -245,6 +246,11 @@ export async function processMlJobs(prisma: PrismaClient, limit = 25, fetchImpl:
       }
       const r = await syncMlShipment(prisma, BigInt(id), fetchImpl);
       if (r.status === "unauthorized") throw new Error("La cuenta ML no ha autorizado a Packatelas");
+      // Envío de una cuenta conocida que aún no escaneamos: va a Recuperados si es Flex.
+      if (job.mlUserId) {
+        const acc = await prisma.mlAccount.findUnique({ where: { mlUserId: job.mlUserId }, select: { id: true } });
+        if (acc) await captureShipment(prisma, acc.id, BigInt(id), fetchImpl);
+      }
       await prisma.mlJob.update({ where: { id: job.id }, data: { status: "DONE", lastError: r.status === "synced" ? null : r.status } });
       done++;
     } catch (e) {

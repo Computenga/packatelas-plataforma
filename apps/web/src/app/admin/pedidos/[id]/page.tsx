@@ -56,7 +56,9 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
         actions={
           <>
             <a href={trackingPath(order.id)} target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Seguimiento</a>
-            {!order.mlShipmentId && (
+            {order.mlShipmentId ? (
+              <a href={`/guia/${order.mlShipmentId}`} target="_blank" rel="noopener" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Reimprimir guía</a>
+            ) : (
               <a href={`/etiqueta/${order.id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Etiqueta</a>
             )}
             <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>

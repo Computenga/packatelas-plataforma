@@ -11,8 +11,6 @@ export type OrderFilters = { q: string; status: string; clientId: string; from: 
 
 /** Pedidos que siguen en la calle o en la bodega sin cerrar. */
 export const LIVE_STATUSES: OrderStatus[] = ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED", "RETURNING"];
-/** Estados de los que un pedido "se recupera" al entregarse después. */
-export const RECOVERED_FROM: OrderStatus[] = ["FAILED", "RESCHEDULED", "RETURNING", "RETURNED_TO_WAREHOUSE"];
 
 export function readFilters(sp: Record<string, string | string[] | undefined>): OrderFilters {
   const s = (k: string) => (typeof sp[k] === "string" ? (sp[k] as string).trim() : "");
@@ -26,10 +24,6 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
   if (restrictClientId) where.clientId = restrictClientId;
   else if (f.clientId) where.clientId = f.clientId;
   if (f.view === "vivo") where.status = { in: LIVE_STATUSES };
-  if (f.view === "recuperados") {
-    where.status = "DELIVERED";
-    where.events = { some: { toStatus: { in: RECOVERED_FROM } } };
-  }
   if (STATUSES.has(f.status as OrderStatus) && (!f.view || (f.view === "vivo" && LIVE_STATUSES.includes(f.status as OrderStatus)))) {
     where.status = f.status as OrderStatus;
   }

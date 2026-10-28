@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -159,6 +159,27 @@ function startCleanup() {
   setInterval(run, 30 * 60_000);
 }
 
+/** Recuperados: barrido de ventas recientes de todas las cuentas ML cada 15 min. */
+function startFlexSweep() {
+  let busy = false;
+  const run = async () => {
+    if (busy || !mlConfig()) return;
+    busy = true;
+    try {
+      const r = await sweepFlexShipments(prisma);
+      const n = await refreshOpenFlex(prisma);
+      if (r.found || n) console.log(`[worker] Recuperados: ${r.found} envíos nuevos (${r.flex} Flex), ${n} actualizados, ${r.errors} errores`);
+      await reportHealth(prisma, "recuperados", r.errors === 0 || r.found > 0, `${r.accounts} cuentas revisadas; ${r.flex} Flex nuevos; ${r.errors} errores`);
+    } catch (e) {
+      console.error("[worker] Recuperados:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setTimeout(run, 60_000);
+  setInterval(run, 15 * 60_000);
+}
+
 /** Conciliación de pagos con tarjeta por si un aviso de Mercado Pago no llegó [I09]. */
 function startMp() {
   const run = async () => {
@@ -181,6 +202,7 @@ async function main() {
   startAlerts();
   startCleanup();
   startMp();
+  startFlexSweep();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

@@ -4,6 +4,7 @@ import { chargeOrder } from "./ledger.ts";
 import { parseScan } from "./scan.ts";
 import { pickRoute } from "./ml-routes.ts";
 import { enqueueMlJob } from "./ml-api.ts";
+import { isFullMlQr, linkFlexScan } from "./ml-flex.ts";
 import { enqueueWebhook } from "./client-api.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -98,6 +99,7 @@ export async function registerScan(
   });
   if (existing) {
     await addOrderEvent(prisma, { orderId: existing.id, type: "scanned", source, actorUserId: input.actorUserId });
+    await linkFlexScan(prisma, existing.id, parsed.shipmentId, input.raw);
     return { status: "existing", orderId: existing.id, code: existing.code, clientName: existing.client.name };
   }
 
@@ -120,6 +122,15 @@ export async function registerScan(
 
   const code = `ML-${parsed.shipmentId}`;
   const route = pickRoute(account.routes, input.branchHint);
+  // Si ya lo teníamos en Recuperados, el pedido nace con la dirección completa.
+  const known = await prisma.mlFlexShipment.findUnique({ where: { shipmentId: parsed.shipmentId } });
+  const fromKnown = known?.addressLine
+    ? {
+        addressLine: known.addressLine, recipientName: known.recipientName, recipientPhone: known.recipientPhone, neighborhood: known.neighborhood,
+        city: known.city, state: known.state, zip: known.zip, instructions: known.reference, lat: known.lat, lng: known.lng,
+        itemsSummary: known.itemsSummary, mlOrderId: known.mlOrderId, mlPackId: known.packId, mlStatus: known.mlStatus, mlSubstatus: known.mlSubstatus,
+      }
+    : { addressLine: "Pendiente de sincronizar con MercadoLibre" };
   // Si la sucursal es de una subcuenta, el pedido y su cargo son de esa subcuenta.
   const clientId = route?.branch.clientId ?? account.clientId;
   const clientName = route?.branch.client.name ?? account.client.name;
@@ -133,7 +144,8 @@ export async function registerScan(
           branchId: route?.branchId,
           mlAccountId: account.id,
           mlShipmentId: parsed.shipmentId,
-          addressLine: "Pendiente de sincronizar con MercadoLibre",
+          mlQrRaw: isFullMlQr(input.raw) ? input.raw.trim() : (known?.qrRaw ?? null),
+          ...fromKnown,
         },
       });
       await addOrderEvent(tx, {
@@ -145,6 +157,7 @@ export async function registerScan(
         data: { mlAccount: account.nickname },
       });
       const charge = await chargeOrder(tx, order.id, input.actorUserId);
+      await linkFlexScan(tx, order.id, parsed.shipmentId, input.raw);
       return { order, charged: !!charge };
     });
     // Trae destinatario y dirección desde MercadoLibre en segundo plano [A01].

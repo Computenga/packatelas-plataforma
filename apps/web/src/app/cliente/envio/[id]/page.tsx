@@ -40,7 +40,12 @@ export default async function EnvioPage({ params, searchParams }: PageProps<"/cl
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="font-mono text-lg font-bold">{order.code}</h1>
-        <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+        <div className="flex items-center gap-2">
+          {order.mlShipmentId && (
+            <a href={`/guia/${order.mlShipmentId}`} target="_blank" rel="noopener" className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm">Reimprimir guía</a>
+          )}
+          <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+        </div>
       </div>
       {isNew && (
         <div role="status" className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
