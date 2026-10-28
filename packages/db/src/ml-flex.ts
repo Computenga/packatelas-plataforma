@@ -4,9 +4,9 @@
 // repartidores lo escanea; entonces se liga a su pedido y pasa al histórico.
 //
 // La guía se regenera con el contenido EXACTO del QR original (JSON con id, sender_id, hash_code y
-// security_digit). Ese contenido sale de: la lectura del escáner (lo más confiable), o la etiqueta
-// ZPL de ML (`/shipment_labels?response_type=zpl2`), de la que se extrae el ^FD del ^BQ sin el
-// prefijo de modo («LA,», «QA,»…) y decodificando los escapes ^FH (_7B = «{»).
+// security_digit). La API de ML entrega la etiqueta con hash_code en null, así que el QR válido se
+// toma de la lectura del escáner (bodega o repartidor) de la etiqueta que imprimió el vendedor.
+// Nunca se genera una guía con el hash vacío.
 import { inflateRawSync } from "node:zlib";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { mapMlShipment, mlAccessToken } from "./ml-api.ts";
@@ -92,8 +92,10 @@ export function firstFileFromZip(buf: Buffer): Buffer | null {
 }
 
 /**
- * Pide la etiqueta ZPL a ML y devuelve el contenido del QR. Ojo: si el envío aún no se imprimía,
- * ML lo marca como impreso; por eso el barrido solo lo pide cuando el vendedor ya imprimió.
+ * Pide la etiqueta ZPL a ML y devuelve el contenido del QR solo si trae hash. Comprobado en
+ * producción (oct 2026): las etiquetas por API llegan con hash_code y security_digit en null, así
+ * que normalmente devuelve null; se deja por si ML lo cambia. Si el envío no estaba impreso, ML lo
+ * marca como impreso.
  */
 export async function fetchLabelQr(token: string, shipmentId: bigint, fetchImpl: Fetch = fetch): Promise<string | null> {
   const res = await fetchImpl(`${API}/shipment_labels?shipment_ids=${shipmentId}&response_type=zpl2`, {
@@ -221,10 +223,9 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
     buyerNickname = ((o?.buyer as { nickname?: string } | undefined)?.nickname ?? null) || null;
     packId = o?.pack_id != null ? BigInt(String(o.pack_id)) : null;
   }
-  // El QR solo se pide cuando el vendedor ya imprimió (pedirlo antes lo marcaría como impreso).
-  let qrRaw = prev?.qrRaw ?? (isFullMlQr(order?.mlQrRaw) ? order!.mlQrRaw : null);
-  const printed = m.mlSubstatus === "printed" || ["shipped", "delivered", "not_delivered"].includes(m.mlStatus ?? "");
-  if (!qrRaw && printed) qrRaw = await fetchLabelQr(token, shipmentId, fetchImpl).catch(() => null);
+  // El hash del QR NO viene en las etiquetas que entrega la API (hash_code: null): solo en la que
+  // imprime el vendedor. Se obtiene al escanearla; aquí solo se conserva si ya lo teníamos.
+  const qrRaw = prev?.qrRaw ?? (isFullMlQr(order?.mlQrRaw) ? order!.mlQrRaw : null);
 
   const lead = (j.lead_time ?? {}) as { estimated_delivery_time?: { date?: string } };
   const data = {

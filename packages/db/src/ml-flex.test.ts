@@ -78,6 +78,8 @@ describe("QR de la etiqueta", () => {
     expect(firstFileFromZip(zip("hola"))?.toString()).toBe("hola");
     expect(isFullMlQr(QR(FLEX))).toBe(true);
     expect(isFullMlQr(JSON.stringify({ id: String(FLEX), sender_id: seller }))).toBe(false);
+    // Como llega de la API de ML: hash en null → no sirve para la guía.
+    expect(isFullMlQr(JSON.stringify({ id: String(FLEX), sender_id: seller, hash_code: null, security_digit: null }))).toBe(false);
   });
 });
 
@@ -88,10 +90,11 @@ describe("Recuperados", () => {
     const rows = await prisma.mlFlexShipment.findMany({ where: { clientId }, orderBy: { shipmentId: "asc" } });
     expect(rows.map((x) => x.logisticType)).toEqual(["self_service", "self_service", "cross_docking"]);
     const [a, b] = rows;
-    expect(a).toMatchObject({ recipientName: "Ana Ficticia", zip: "06800", buyerNickname: "COMPRADOR_X", itemsSummary: "1× Audífonos", qrRaw: QR(FLEX), orderId: null });
-    // Aún sin imprimir por el vendedor: no se pide la etiqueta.
+    expect(a).toMatchObject({ recipientName: "Ana Ficticia", zip: "06800", buyerNickname: "COMPRADOR_X", itemsSummary: "1× Audífonos", orderId: null });
+    // La API no da el hash: no se piden etiquetas (ni se marcan como impresas) y el QR queda pendiente.
+    expect(a.qrRaw).toBeNull();
     expect(b.qrRaw).toBeNull();
-    expect(calls.some((c) => c.includes(`shipment_ids=${FLEX2}`))).toBe(false);
+    expect(calls.some((c) => c.includes("shipment_labels"))).toBe(false);
     // Segunda vuelta: no vuelve a consultar envíos conocidos.
     const before = calls.length;
     await sweepFlexShipments(prisma, { fetchImpl: fakeFetch });

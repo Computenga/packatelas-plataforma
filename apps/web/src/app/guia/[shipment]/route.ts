@@ -5,7 +5,7 @@ import { guiaPdf } from "@/lib/guia-pdf";
 
 /**
  * Reimpresión de la guía de un envío ML en PDF 4×6 [Recuperados]. Personal de Packatelas: cualquier
- * envío; cliente: solo los suyos. `?qr=ml` pide la etiqueta a ML si aún no tenemos el QR.
+ * envío; cliente: solo los suyos. Requiere el QR original con hash (se guarda al escanear la etiqueta).
  */
 export async function GET(request: Request, ctx: { params: Promise<{ shipment: string }> }) {
   const user = await getSessionUser();
@@ -30,16 +30,15 @@ export async function GET(request: Request, ctx: { params: Promise<{ shipment: s
     const l = await rawMlLabel(prisma, id, "pdf");
     return l ? new Response(new Uint8Array(l.bytes), { headers: { "Content-Type": l.contentType, "Cache-Control": "no-store" } }) : new Response("Sin etiqueta", { status: 404 });
   }
-  const fetchQr = params.get("qr") === "ml";
-  const g = await guiaData(prisma, id, { fetchQr });
+  const g = await guiaData(prisma, id);
   if (!g) return new Response("No encontrado", { status: 404 });
   if (!g.qrRaw) {
     return new Response(
       `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:system-ui;max-width:32rem;margin:3rem auto;padding:0 1rem;color:#0f1e4a">
 <h1 style="font-size:1.2rem">Aún no tenemos el QR original del envío ${g.shipmentId}</h1>
-<p>El QR (con su código de seguridad) se guarda al escanear la etiqueta o cuando el vendedor la imprime en MercadoLibre.</p>
-<p>Puedo pedírselo a MercadoLibre ahora. <strong>Si el vendedor aún no la imprimía, MercadoLibre la marcará como impresa.</strong></p>
-<p><a href="?qr=ml" style="display:inline-block;background:#0f1e4a;color:#fff;padding:10px 16px;border-radius:8px;text-decoration:none">Pedir QR a MercadoLibre y generar guía</a></p></body>`,
+<p>El QR de la guía lleva un código de seguridad (hash) que MercadoLibre <strong>no entrega por su API</strong>: solo viene en la etiqueta que imprime el vendedor.</p>
+<p>Se guarda en cuanto un repartidor o la bodega escanea esa etiqueta con la cámara o el lector. Después de eso ya se puede reimprimir aquí con el mismo QR.</p>
+<p>No generamos guías con el hash vacío porque la app de MercadoLibre Flex no las acepta.</p></body>`,
       { status: 409, headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
   }

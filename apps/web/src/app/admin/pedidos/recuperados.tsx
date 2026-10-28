@@ -98,9 +98,11 @@ export async function RecuperadosList({ f, clients }: { f: OrderFilters; clients
               {r.zip && <span className="block text-xs text-slate-500">CP {r.zip} · {r.city}</span>}
             </Td>
             <Td>
-              <a href={`/guia/${r.shipmentId}`} target="_blank" rel="noopener" className="text-brand hover:underline">
-                Reimprimir{!r.qrRaw && <span className="block text-xs text-slate-500">sin QR aún</span>}
-              </a>
+              {r.qrRaw ? (
+                <a href={`/guia/${r.shipmentId}`} target="_blank" rel="noopener" className="text-brand hover:underline">Reimprimir</a>
+              ) : (
+                <span className="text-xs text-slate-500">Se habilita al escanear la etiqueta</span>
+              )}
             </Td>
           </tr>
         ))}

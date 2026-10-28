@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addOrderEvent, createManualOrder, parseScan, prisma, registerScan, setShift, windowCount } from "@packatelas/db";
+import { addOrderEvent, createManualOrder, parseScan, prisma, registerScan, setShift, windowCount, linkFlexScan } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -43,6 +43,8 @@ export async function driverScan(raw: string): Promise<DriverScanResult> {
     else if (r.status === "unknown_account") return { status: "error", message: `${r.message}. Entrégalo en bodega o avisa al despachador.` };
   }
   if (!order) return { status: "error", message: "No se encontró el pedido" };
+  // Guarda el QR original (con hash) para poder reimprimir la guía y saca el envío de Recuperados.
+  if (parsed.kind === "ML") await linkFlexScan(prisma, order.id, parsed.shipmentId, raw).catch(() => {});
   // Freno contra buscar pedidos ajenos tecleando códigos (consecutivos): máximo 80 por hora.
   if (order.driverId !== driver.id && (await windowCount(prisma, `driver-lookup:${driver.id}`, 60)) > 80) {
     return { status: "error", message: "Demasiadas búsquedas de pedidos ajenos; avisa al despachador" };
