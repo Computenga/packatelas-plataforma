@@ -26,7 +26,12 @@ export default async function RepartidoresPage() {
       <PageHeader
         eyebrow="Operación"
         title="Repartidores"
-        actions={me.role === "ADMIN" && <ButtonLink href="/admin/usuarios" variant="secondary">Dar de alta</ButtonLink>}
+        actions={
+          <>
+            <ButtonLink href="/admin/repartidores/flex" variant="secondary">Vincular drivers Flex</ButtonLink>
+            {me.role === "ADMIN" && <ButtonLink href="/admin/usuarios" variant="secondary">Dar de alta</ButtonLink>}
+          </>
+        }
       >
         {active.filter((d) => d.onDuty).length} en turno de {active.length} activos
       </PageHeader>

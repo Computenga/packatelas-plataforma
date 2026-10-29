@@ -81,7 +81,7 @@ export async function connectCourier(prisma: PrismaClient, code: string, actorUs
   return { ok: true as const, nickname: value.nickname, userId: value.userId };
 }
 
-async function courierToken(prisma: PrismaClient, fetchImpl: Fetch) {
+export async function courierToken(prisma: PrismaClient, fetchImpl: Fetch = fetch) {
   const r = await prisma.setting.findUnique({ where: { key: ACCOUNT } });
   const a = r?.value as CourierAccount | undefined;
   if (!a || a.status === "REVOKED") return null;
