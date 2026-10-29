@@ -67,7 +67,7 @@ describe("drivers Flex", () => {
     assigned = false;
     const r = await lookupFlexDriver(prisma, JSON.stringify({ id: String(SID), sender_id: seller }), fakeFetch);
     expect(r.ok).toBe(false);
-    expect(!r.ok && r.error).toMatch(/no tiene un driver Flex asignado/);
+    expect(!r.ok && r.error).toMatch(/no tiene un driver Flex con ruta abierta/);
     assigned = true;
   });
 });
