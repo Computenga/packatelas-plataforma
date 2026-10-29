@@ -29,7 +29,7 @@ export default async function FacturasPage() {
     prisma.payment.findMany({ where: { clientId, status: "APPLIED", receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } }, orderBy: { receivedAt: "desc" } }),
   ]);
   const missing = missingFiscal(c);
-  const ready = !!facturaConfig() && !!s.serieId;
+  const ready = !!facturaConfig();
 
   return (
     <div className="mx-auto max-w-2xl space-y-4">

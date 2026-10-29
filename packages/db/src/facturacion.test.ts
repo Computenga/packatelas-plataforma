@@ -1,31 +1,32 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { autoInvoicePayments, cancelInvoice, cleanLegalName, invoiceFile, invoicePayment, missingFiscal, prisma, requestClientInvoice, saveInvoiceSettings, splitIva } from "./index.ts";
+import { autoInvoicePayments, cancelInvoice, cleanLegalName, facturaConfig, invoiceFile, invoicePayment, missingFiscal, prisma, requestClientInvoice, saveInvoiceSettings } from "./index.ts";
 
-process.env.FACTURACOM_API_KEY = "K";
-process.env.FACTURACOM_SECRET_KEY = "S";
-delete process.env.FACTURACOM_ENTORNO;
+process.env.FACTURAPI_KEY = "sk_test_PRUEBA";
 
 const n = Math.floor(Math.random() * 1e6);
 let clientId = "", adminId = "", prevSettings: unknown;
-const calls: { url: string; method: string; body?: Record<string, unknown>; headers: Record<string, string> }[] = [];
+const calls: { url: string; method: string; body?: Record<string, unknown>; auth?: string }[] = [];
 let createFails = false;
 let folio = 100;
 const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { "content-type": "application/json" } });
 const fakeFetch = (async (url: string | URL, init?: RequestInit) => {
   const u = String(url);
-  calls.push({ url: u, method: init?.method ?? "GET", body: init?.body ? JSON.parse(String(init.body)) : undefined, headers: (init?.headers ?? {}) as Record<string, string> });
-  if (/\/v1\/clients\/[A-Z0-9&Ñ]+$/.test(u)) return json({ status: "error", message: "No encontrado" });
-  if (u.endsWith("/v1/clients/create")) return json({ status: "success", Data: { UID: "CLI123" } });
-  if (/\/v1\/clients\/CLI123\/update$/.test(u)) return json({ status: "success", Data: { UID: "CLI123" } });
-  if (u.endsWith("/v4/cfdi40/create")) {
-    if (createFails) return json({ response: "error", message: { message: "Error en el nodo Receptor", messageDetail: "El RFC no está en la lista de RFC inscritos" } });
+  const method = init?.method ?? "GET";
+  calls.push({ url: u, method, body: init?.body ? JSON.parse(String(init.body)) : undefined, auth: (init?.headers as Record<string, string>)?.Authorization });
+  if (u.includes("/customers?q=")) return json({ data: [] });
+  if (u.endsWith("/v2/customers") && method === "POST") return json({ id: "cus_123", tax_id: "EKU9003173C9" });
+  if (u.endsWith("/v2/customers/cus_123") && method === "PUT") return json({ id: "cus_123", tax_id: "EKU9003173C9" });
+  if (u.endsWith("/v2/invoices") && method === "POST") {
+    if (createFails) return json({ message: "El RFC del receptor no está en la lista de RFC inscritos no cancelados del SAT", path: "customer.tax_id" }, 400);
     folio++;
-    return json({ response: "success", UUID: `uuid-${n}-${folio}`, uid: `inv${n}${folio}`, INV: { Serie: "P", Folio: folio }, SAT: { FechaTimbrado: "2026-10-29T12:00:00" } });
+    const b = JSON.parse(String(init!.body));
+    return json({ id: `inv_${folio}`, uuid: `uuid-${n}-${folio}`, status: "valid", series: b.series ?? "A", folio_number: folio, total: b.items[0].product.price, livemode: false });
   }
-  if (/\/cancel$/.test(u)) return json({ response: "success", message: "cancelado" });
+  if (/\/email$/.test(u)) return json({ ok: true });
+  if (method === "DELETE") return json({ status: "canceled", cancellation_status: "accepted" });
   if (/\/pdf$/.test(u)) return new Response(Buffer.from("%PDF-1.4 prueba"), { headers: { "content-type": "application/pdf" } });
-  return json({}, 404);
+  return json({ message: "no encontrado" }, 404);
 }) as typeof fetch;
 
 async function pay(amount: number, method: "TRANSFER" | "MERCADOPAGO" = "TRANSFER", daysAgo = 0) {
@@ -35,10 +36,11 @@ async function pay(amount: number, method: "TRANSFER" | "MERCADOPAGO" = "TRANSFE
 beforeAll(async () => {
   adminId = (await prisma.user.findFirstOrThrow({ where: { role: "ADMIN" } })).id;
   prevSettings = (await prisma.setting.findUnique({ where: { key: "facturacion" } }))?.value;
+  await prisma.setting.deleteMany({ where: { key: "facturacion" } });
   clientId = (await prisma.client.create({
     data: { publicId: `fac${n}`, name: "Facturas test", paymentReference: `FAC${n}`, tariffAmount: 0, rfc: "EKU9003173C9", legalName: "Escuela Kemper Urgate S.A. de C.V.", taxRegime: "601", taxZip: "42501", cfdiUse: "G03", email: "pruebas@ejemplo.mx" },
   })).id;
-  await saveInvoiceSettings(prisma, { serieId: 1234, serieName: "P" }, adminId);
+  await saveInvoiceSettings(prisma, { serie: "p" }, adminId);
 });
 afterAll(async () => {
   await prisma.invoice.deleteMany({ where: { clientId } });
@@ -49,70 +51,62 @@ afterAll(async () => {
   await prisma.$disconnect();
 });
 
-describe("cálculos y validaciones", () => {
-  it("IVA incluido suma exacto al total pagado", () => {
-    expect(splitIva(100, true)).toEqual({ base: 86.21, iva: 13.79, total: 100 });
-    expect(splitIva(1575, true)).toEqual({ base: 1357.76, iva: 217.24, total: 1575 });
-    expect(splitIva(100, false)).toEqual({ base: 100, iva: 16, total: 116 });
-  });
-  it("datos fiscales y razón social", () => {
+describe("validaciones", () => {
+  it("datos fiscales, razón social y modo según la llave", () => {
     expect(missingFiscal({ rfc: "XAXX010101000", legalName: "", taxRegime: "6", taxZip: "123", cfdiUse: null, email: null }).length).toBe(6);
     expect(cleanLegalName("Escuela Kemper Urgate S.A. de C.V.")).toBe("ESCUELA KEMPER URGATE");
     expect(cleanLegalName("Comercializadora Computenga, S. de R.L. de C.V.")).toBe("COMERCIALIZADORA COMPUTENGA");
+    expect(facturaConfig()?.sandbox).toBe(true);
+    process.env.FACTURAPI_KEY = "sk_live_X";
+    expect(facturaConfig()?.sandbox).toBe(false);
+    process.env.FACTURAPI_KEY = "sk_test_PRUEBA";
   });
 });
 
-describe("factura.com (pruebas)", () => {
-  it("timbra un pago: da de alta al cliente, CFDI PUE con IVA y usa el sandbox", async () => {
+describe("Facturapi (pruebas)", () => {
+  it("timbra un pago: alta del cliente, CFDI PUE con IVA incluido, idempotente y manda correo", async () => {
     const p = await pay(1160);
     const inv = await invoicePayment(prisma, p.id, { requestedBy: "admin", actorUserId: adminId, fetchImpl: fakeFetch });
-    expect(inv).toMatchObject({ status: "ISSUED", series: "P", sandbox: true, paymentForm: "03" });
-    expect(inv.uuid).toContain("uuid-");
-    const create = calls.find((c) => c.url.endsWith("/v4/cfdi40/create"))!;
-    expect(create.url).toBe("https://sandbox.factura.com/api/v4/cfdi40/create");
-    expect(create.headers["F-Api-Key"]).toBe("K");
-    expect(create.headers["F-PLUGIN"]).toBeTruthy();
-    expect(create.body).toMatchObject({ Receptor: { UID: "CLI123" }, MetodoPago: "PUE", FormaPago: "03", UsoCFDI: "G03", Serie: 1234, Moneda: "MXN", NumOrder: inv.id });
-    const c = (create.body!.Conceptos as Record<string, unknown>[])[0];
-    expect(c).toMatchObject({ ClaveProdServ: "78102203", ClaveUnidad: "E48", ValorUnitario: 1000, ObjetoImp: "02" });
-    expect((c.Impuestos as { Traslados: { Importe: number }[] }).Traslados[0].Importe).toBe(160);
-    const cli = calls.find((x) => x.url.endsWith("/v1/clients/create"))!;
-    expect(cli.body).toMatchObject({ rfc: "EKU9003173C9", razons: "ESCUELA KEMPER URGATE", codpos: 42501, regimen: "601", pais: "MEX" });
-    expect((await prisma.client.findUniqueOrThrow({ where: { id: clientId } })).fcClientUid).toBe("sbx:CLI123");
-    // No se factura dos veces el mismo pago.
+    expect(inv).toMatchObject({ status: "ISSUED", series: "P", sandbox: true, paymentForm: "03", providerUid: expect.stringMatching(/^inv_/) });
+    const create = calls.find((c) => c.url === "https://www.facturapi.io/v2/invoices")!;
+    expect(create.auth).toBe("Bearer sk_test_PRUEBA");
+    expect(create.body).toMatchObject({ customer: "cus_123", payment_method: "PUE", payment_form: "03", use: "G03", series: "P", currency: "MXN", external_id: inv.id, idempotency_key: inv.id });
+    expect((create.body!.items as { product: Record<string, unknown> }[])[0].product).toMatchObject({ product_key: "78102203", unit_key: "E48", price: 1160, tax_included: true, taxes: [{ type: "IVA", rate: 0.16 }] });
+    const cus = calls.find((c) => c.url.endsWith("/v2/customers") && c.method === "POST")!;
+    expect(cus.body).toMatchObject({ tax_id: "EKU9003173C9", legal_name: "ESCUELA KEMPER URGATE", tax_system: "601", address: { zip: "42501" } });
+    expect((await prisma.client.findUniqueOrThrow({ where: { id: clientId } })).billingCustomerId).toBe("test:cus_123");
+    expect(calls.some((c) => c.url.endsWith(`/invoices/${inv.providerUid}/email`))).toBe(true);
     const again = await invoicePayment(prisma, p.id, { requestedBy: "admin", fetchImpl: fakeFetch });
     expect(again.id).toBe(inv.id);
-    // Segunda factura: reutiliza el cliente (update, no create).
-    const before = calls.filter((x) => x.url.endsWith("/v1/clients/create")).length;
+    // Segunda factura: actualiza al cliente (PUT), no lo vuelve a crear; tarjeta = 04.
+    const before = calls.filter((c) => c.url.endsWith("/v2/customers") && c.method === "POST").length;
     await invoicePayment(prisma, (await pay(200, "MERCADOPAGO")).id, { requestedBy: "admin", fetchImpl: fakeFetch });
-    expect(calls.filter((x) => x.url.endsWith("/v1/clients/create")).length).toBe(before);
-    expect(calls.filter((x) => x.url.endsWith("/v4/cfdi40/create")).at(-1)!.body!.FormaPago).toBe("04");
+    expect(calls.filter((c) => c.url.endsWith("/v2/customers") && c.method === "POST").length).toBe(before);
+    expect(calls.some((c) => c.method === "PUT")).toBe(true);
+    expect(calls.filter((c) => c.url.endsWith("/v2/invoices")).at(-1)!.body!.payment_form).toBe("04");
   });
 
-  it("un error de factura.com queda como FALLIDA con el mensaje", async () => {
+  it("un error de Facturapi queda como FALLIDA con el mensaje", async () => {
     createFails = true;
     const p = await pay(50);
-    await expect(invoicePayment(prisma, p.id, { requestedBy: "admin", fetchImpl: fakeFetch })).rejects.toThrow(/Receptor/);
+    await expect(invoicePayment(prisma, p.id, { requestedBy: "admin", fetchImpl: fakeFetch })).rejects.toThrow(/lista de RFC/);
     const inv = await prisma.invoice.findFirstOrThrow({ where: { paymentId: p.id } });
     expect(inv.status).toBe("FAILED");
-    expect(inv.error).toContain("RFC no está");
+    expect(inv.error).toContain("customer.tax_id");
     createFails = false;
   });
 
-  it("descarga el PDF y cancela", async () => {
+  it("descarga el PDF y cancela con motivo", async () => {
     const inv = await prisma.invoice.findFirstOrThrow({ where: { clientId, status: "ISSUED" } });
-    const f = await invoiceFile(prisma, inv.id, "pdf", fakeFetch);
-    expect(f.bytes.toString()).toContain("%PDF");
-    const c = await cancelInvoice(prisma, inv.id, "02", adminId, fakeFetch);
-    expect(c.status).toBe("CANCELLED");
-    expect(calls.find((x) => x.url.endsWith("/cancel"))!.body).toEqual({ motivo: "02", folioSustituto: "" });
+    expect((await invoiceFile(prisma, inv.id, "pdf", fakeFetch)).bytes.toString()).toContain("%PDF");
+    expect((await cancelInvoice(prisma, inv.id, "02", adminId, fakeFetch)).status).toBe("CANCELLED");
+    expect(calls.find((c) => c.method === "DELETE")!.url).toBe(`https://www.facturapi.io/v2/invoices/${inv.providerUid}?motive=02`);
   });
 
   it("el cliente solo pide factura de sus pagos dentro del plazo", async () => {
     const old = await pay(300, "TRANSFER", 45);
     await expect(requestClientInvoice(prisma, clientId, old.id, adminId, fakeFetch)).rejects.toThrow(/30 días/);
-    const ok = await pay(300);
-    expect((await requestClientInvoice(prisma, clientId, ok.id, adminId, fakeFetch)).status).toBe("ISSUED");
+    expect((await requestClientInvoice(prisma, clientId, (await pay(300)).id, adminId, fakeFetch)).status).toBe("ISSUED");
   });
 
   it("automática: apagada no hace nada; encendida factura los pagos nuevos de clientes marcados", async () => {
@@ -120,8 +114,7 @@ describe("factura.com (pruebas)", () => {
     expect(await autoInvoicePayments(prisma, 20, fakeFetch)).toEqual({ issued: 0, failed: 0 });
     await saveInvoiceSettings(prisma, { autoEnabled: true }, adminId);
     const p = await pay(580);
-    const r = await autoInvoicePayments(prisma, 20, fakeFetch);
-    expect(r.issued).toBe(1);
+    expect((await autoInvoicePayments(prisma, 20, fakeFetch)).issued).toBe(1);
     expect((await prisma.invoice.findFirstOrThrow({ where: { paymentId: p.id } })).requestedBy).toBe("auto");
     expect((await autoInvoicePayments(prisma, 20, fakeFetch)).issued).toBe(0);
   });

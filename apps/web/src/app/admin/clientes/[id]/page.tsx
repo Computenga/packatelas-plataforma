@@ -65,7 +65,7 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
               <Field label="C.P. fiscal" name="taxZip" defaultValue={client.taxZip ?? ""} />
               <Field label="Uso de CFDI" name="cfdiUse" defaultValue={client.cfdiUse ?? ""} hint="p. ej. G03" />
             </div>
-            <Checkbox label="Facturar en automático cada pago (factura.com)" name="autoInvoice" defaultChecked={client.autoInvoice} />
+            <Checkbox label="Facturar en automático cada pago (Facturapi)" name="autoInvoice" defaultChecked={client.autoInvoice} />
             <Checkbox label="Cliente activo" name="active" defaultChecked={client.active} />
           </ActionForm>
         </Card>

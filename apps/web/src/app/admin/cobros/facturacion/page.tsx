@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { facturaConfig, getInvoiceSettings, listFacturaSeries, missingFiscal, prisma } from "@packatelas/db";
+import { facturaConfig, getInvoiceSettings, missingFiscal, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -21,9 +21,8 @@ export default async function FacturacionPage() {
   await requireUser(["ADMIN"]);
   const cfg = facturaConfig();
   const since = new Date(requestTime() - 60 * 86_400_000);
-  const [s, series, invoices, unbilled] = await Promise.all([
+  const [s, invoices, unbilled] = await Promise.all([
     getInvoiceSettings(prisma),
-    cfg ? listFacturaSeries().then((x) => ({ ok: true as const, list: x })).catch((e: Error) => ({ ok: false as const, error: e.message, list: [] as Awaited<ReturnType<typeof listFacturaSeries>> })) : Promise.resolve(null),
     prisma.invoice.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { client: { select: { id: true, name: true, publicId: true } }, payment: { select: { method: true, receivedAt: true, reference: true } } } }),
     prisma.payment.findMany({
       where: { status: "APPLIED", clientId: { not: null }, receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } },
@@ -35,18 +34,16 @@ export default async function FacturacionPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader eyebrow="Facturación" title="Cobros">Facturas CFDI 4.0 de los pagos de los clientes con factura.com.</PageHeader>
+      <PageHeader eyebrow="Facturación" title="Cobros">Facturas CFDI 4.0 de los pagos de los clientes con Facturapi.</PageHeader>
       <CobrosTabs active="facturacion" />
 
-      <Card title="Conexión con factura.com">
+      <Card title="Conexión con Facturapi">
         <ul className="space-y-1 text-sm">
-          <li>Claves (FACTURACOM_API_KEY y FACTURACOM_SECRET_KEY): {cfg ? <Badge tone="green">configuradas</Badge> : <Badge tone="red">faltan</Badge>}</li>
+          <li>Llave secreta (FACTURAPI_KEY): {cfg ? <Badge tone="green">configurada</Badge> : <Badge tone="red">falta</Badge>}</li>
           <li>
-            Entorno: {cfg ? (cfg.sandbox ? <Badge tone="amber">PRUEBAS (sandbox): no timbra real</Badge> : <Badge tone="green">PRODUCCIÓN</Badge>) : "—"}
-            <span className="ml-2 text-xs text-slate-500">Para timbrar real: FACTURACOM_ENTORNO=produccion en Coolify.</span>
+            Modo: {cfg ? (cfg.sandbox ? <Badge tone="amber">PRUEBAS (sk_test): no timbra real</Badge> : <Badge tone="green">REAL (sk_live)</Badge>) : "—"}
+            <span className="ml-2 text-xs text-slate-500">El modo lo decide la llave: sk_test_… pruebas, sk_live_… real.</span>
           </li>
-          {series && !series.ok && <li className="text-red-700">factura.com: {series.error}</li>}
-          {series?.ok && <li>Series de factura disponibles: {series.list.map((x) => x.SerieName).join(", ") || "ninguna"}</li>}
         </ul>
         <p className="mt-2 text-xs text-slate-500">Las claves se ponen en las variables de entorno del servidor (Coolify), nunca aquí.</p>
       </Card>
@@ -55,14 +52,8 @@ export default async function FacturacionPage() {
         <ActionForm action={saveFacturacionAction} submitLabel="Guardar">
           <div className="grid gap-3 sm:grid-cols-3">
             <label className="text-sm">
-              Serie
-              <select name="serie" defaultValue={s.serieId ? `${s.serieId}|${s.serieName ?? ""}` : ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2">
-                <option value="">— Elige —</option>
-                {s.serieId && !series?.list.some((x) => x.SerieID === s.serieId) && <option value={`${s.serieId}|${s.serieName ?? ""}`}>{s.serieName ?? s.serieId}</option>}
-                {series?.list.map((x) => (
-                  <option key={x.SerieID} value={`${x.SerieID}|${x.SerieName}`}>{x.SerieName}{x.SerieDescription ? ` · ${x.SerieDescription}` : ""}</option>
-                ))}
-              </select>
+              Serie (opcional)
+              <input name="serie" defaultValue={s.serie ?? ""} placeholder="La de tu cuenta de Facturapi" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 uppercase" />
             </label>
             <label className="text-sm">
               Clave producto/servicio SAT
@@ -95,7 +86,7 @@ export default async function FacturacionPage() {
           </div>
           <div className="space-y-1 text-sm">
             <label className="flex items-center gap-2"><input type="checkbox" name="preciosConIva" defaultChecked={s.preciosConIva} /> El monto pagado ya incluye IVA (se desglosa 16 %)</label>
-            <label className="flex items-center gap-2"><input type="checkbox" name="enviarCorreo" defaultChecked={s.enviarCorreo} /> factura.com envía la factura al correo del cliente</label>
+            <label className="flex items-center gap-2"><input type="checkbox" name="enviarCorreo" defaultChecked={s.enviarCorreo} /> Facturapi envía la factura al correo del cliente</label>
             <label className="flex items-center gap-2">
               <input type="checkbox" name="autoEnabled" defaultChecked={s.autoEnabled} /> Facturar en automático los pagos nuevos de clientes con «Facturar en automático»
               <Badge tone={s.autoEnabled ? "green" : "gray"}>{s.autoEnabled ? "encendido" : "apagado"}</Badge>

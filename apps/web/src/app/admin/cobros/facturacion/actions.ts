@@ -10,13 +10,10 @@ const msg = (e: unknown) => (e instanceof Error ? e.message : "Error").slice(0, 
 
 export async function saveFacturacionAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
-  const serie = String(fd.get("serie") ?? "");
-  const [serieId, serieName] = serie ? [Number(serie.split("|")[0]), serie.split("|")[1] ?? null] : [null, null];
   try {
     await saveInvoiceSettings(prisma, {
       autoEnabled: fd.get("autoEnabled") === "on",
-      serieId: serieId || null,
-      serieName,
+      serie: String(fd.get("serie") ?? "").trim() || null,
       claveProdServ: String(fd.get("claveProdServ") ?? "").trim(),
       claveUnidad: String(fd.get("claveUnidad") ?? "").trim().toUpperCase(),
       unidad: String(fd.get("unidad") ?? "").trim(),

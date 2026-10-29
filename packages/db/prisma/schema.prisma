@@ -89,7 +89,7 @@ model Client {
   taxZip      String?
   cfdiUse     String?
   autoInvoice Boolean @default(false)
-  fcClientUid String? // UID del cliente en factura.com [I05]
+  billingCustomerId String? // id del cliente en Facturapi (con prefijo test:/live:) [I05]
 
   // Tarifas y cobro [F01, F07]
   tariffMode        TariffMode @default(FIXED)
