@@ -3,6 +3,7 @@
 // escanea el QR de ese mismo paquete y se consulta a ML quién lo tiene asignado
 //   GET /flex/sites/MLM/shipments/{envío}/assignment/v1  → driver_id
 // Se prueba con el token del vendedor dueño del envío y, si no, con el de la mensajería.
+// ML responde 404 si no hay driver asignado, si la ruta ya se cerró o si el envío no existe.
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { mlAccessToken } from "./ml-api.ts";
 import { courierToken } from "./ml-courier.ts";
@@ -101,7 +102,7 @@ export async function lookupFlexDriver(prisma: PrismaClient, raw: string, fetchI
   return {
     ok: false,
     shipmentId: sid.toString(),
-    error: unassigned ? "MercadoLibre no tiene un driver Flex asignado a ese envío. Pide al repartidor que lo escanee primero en la app Flex de ML y vuelve a intentar." : "MercadoLibre no respondió con el driver del envío",
+    error: unassigned ? "MercadoLibre no tiene un driver Flex con ruta abierta para ese envío. Pide al repartidor que lo escanee en la app Flex de ML (y que no cierre la ruta) y vuelve a buscarlo." : "MercadoLibre no respondió con el driver del envío",
     detail: errors.join(" · ").slice(0, 600),
   };
 }
