@@ -107,6 +107,45 @@ export async function lookupFlexDriver(prisma: PrismaClient, raw: string, fetchI
   };
 }
 
+/**
+ * Diagnóstico para administradores (solo lectura): estado del envío en ML y respuesta de cada
+ * variante del endpoint de asignación, con cada token disponible. No incluye datos del comprador.
+ */
+export async function diagnoseFlexAssignment(prisma: PrismaClient, shipmentId: string, fetchImpl: Fetch = fetch) {
+  if (!/^\d{10,13}$/.test(shipmentId)) return { error: "Número de envío inválido" };
+  const sid = BigInt(shipmentId);
+  const accId =
+    (await prisma.order.findUnique({ where: { mlShipmentId: sid }, select: { mlAccountId: true } }))?.mlAccountId ??
+    (await prisma.mlFlexShipment.findUnique({ where: { shipmentId: sid }, select: { mlAccountId: true } }))?.mlAccountId ??
+    null;
+  const acc = accId ? await prisma.mlAccount.findUnique({ where: { id: accId }, select: { nickname: true, mlUserId: true, status: true } }) : null;
+  const tokens: { via: string; token: string }[] = [];
+  const st = accId ? await mlAccessToken(prisma, accId, fetchImpl).catch(() => null) : null;
+  if (st) tokens.push({ via: "vendedor", token: st });
+  const ct = await courierToken(prisma, fetchImpl).catch(() => null);
+  if (ct) tokens.push({ via: "mensajeria", token: ct.token });
+  const out: Record<string, unknown> = { cuentaVendedor: acc ? { nickname: acc.nickname, id: acc.mlUserId.toString(), status: acc.status } : "no está en Packatelas", mensajeria: ct ? ct.userId : "sin autorizar" };
+  const get = async (path: string, token: string) => {
+    const r = await fetchImpl(`${API}${path}`, { headers: { Authorization: `Bearer ${token}`, "x-format-new": "true" }, signal: AbortSignal.timeout(15_000) }).catch((e) => e as Error);
+    if (r instanceof Error) return { error: r.message };
+    const text = await r.text();
+    return { status: r.status, body: text.slice(0, 300) };
+  };
+  for (const t of tokens) {
+    const ship = await get(`/shipments/${sid}`, t.token);
+    let resumen: unknown = ship;
+    try {
+      const j = JSON.parse((ship as { body?: string }).body ?? "") as Record<string, unknown>;
+      resumen = { status: (ship as { status: number }).status, envio: { status: j.status, substatus: j.substatus, logistic: (j.logistic as { type?: string })?.type ?? j.logistic_type, sender_id: (j.sender_id ?? (j.origin as { sender_id?: number })?.sender_id) } };
+    } catch { /* deja la respuesta cruda */ }
+    out[`${t.via}.envio`] = resumen;
+    for (const path of [`/flex/sites/MLM/shipments/${sid}/assignment/v2`, `/flex/sites/MLM/shipments/${sid}/assignment/v1`, `/flex/sites/MLM/shipments/${sid}/assignment`]) {
+      out[`${t.via} ${path.replace(String(sid), "{envío}")}`] = await get(path, t.token);
+    }
+  }
+  return out;
+}
+
 /** Vincula (o mueve) un driver Flex a un repartidor de Packatelas. */
 export async function linkFlexDriver(prisma: PrismaClient, input: { flexDriverId: string; driverId: string; shipmentId?: string; actorUserId: string }) {
   if (!/^\d{3,15}$/.test(input.flexDriverId)) throw new Error("ID de driver Flex inválido");

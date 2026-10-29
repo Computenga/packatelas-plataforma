@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { linkFlexDriver, lookupFlexDriver, prisma, type FlexLookup } from "@packatelas/db";
+import { diagnoseFlexAssignment, linkFlexDriver, lookupFlexDriver, prisma, type FlexLookup } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 
 export async function lookupFlexAction(raw: string): Promise<FlexLookup> {
@@ -24,4 +24,10 @@ export async function linkFlexAction(flexDriverId: string, driverId: string, shi
   } catch (e) {
     return { error: e instanceof Error ? e.message : "No se pudo vincular" };
   }
+}
+
+/** Diagnóstico (solo administradores, solo lectura). */
+export async function diagnoseFlexAction(shipmentId: string): Promise<string> {
+  await requireUser(["ADMIN"]);
+  return JSON.stringify(await diagnoseFlexAssignment(prisma, shipmentId.trim()).catch((e) => ({ error: String(e) })), null, 2);
 }

@@ -3,7 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 import type { FlexLookup } from "@packatelas/db";
 import { Scanner } from "@/components/scanner";
-import { linkFlexAction, lookupFlexAction } from "./actions";
+import { diagnoseFlexAction, linkFlexAction, lookupFlexAction } from "./actions";
 
 type Driver = { id: string; name: string; username: string };
 
@@ -14,6 +14,7 @@ export function FlexLinkPanel({ drivers }: { drivers: Driver[] }) {
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
   const [busy, start] = useTransition();
   const [showScanner, setShowScanner] = useState(false);
+  const [diag, setDiag] = useState("");
 
   const search = useCallback((raw: string) => {
     setMsg({});
@@ -55,6 +56,12 @@ export function FlexLinkPanel({ drivers }: { drivers: Driver[] }) {
           {res.shipmentId && <p className="font-mono text-xs">Envío {res.shipmentId}</p>}
           <p className="font-medium">{res.error}</p>
           {res.detail && <p className="mt-1 break-all font-mono text-xs text-red-700/80">{res.detail}</p>}
+          {res.shipmentId && (
+            <button type="button" disabled={busy} onClick={() => start(async () => setDiag(await diagnoseFlexAction(res.shipmentId!)))} className="mt-2 text-xs text-red-800 underline">
+              Diagnóstico (administradores)
+            </button>
+          )}
+          {diag && <pre className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded bg-white p-2 text-xs text-slate-700">{diag}</pre>}
         </div>
       )}
 
