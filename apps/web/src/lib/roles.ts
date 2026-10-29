@@ -64,6 +64,7 @@ export const CLIENT_NAV: NavItem[] = [
   { href: "/cliente/recolecciones", label: "Recolecciones" },
   { href: "/cliente/devoluciones", label: "Devoluciones" },
   { href: "/cliente/cuenta", label: "Estado de cuenta" },
+  { href: "/cliente/facturas", label: "Facturas" },
   { href: "/cliente/mercadolibre", label: "Cuentas ML" },
 ];
 

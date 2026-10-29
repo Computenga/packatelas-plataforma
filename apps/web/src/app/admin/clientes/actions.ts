@@ -66,6 +66,7 @@ const updateSchema = z.object({
 export async function updateClient(clientId: string, _: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
   const parsed = updateSchema.safeParse({ ...Object.fromEntries(fd), active: fd.get("active") === "on" });
+  const autoInvoice = fd.get("autoInvoice") === "on";
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
   await prisma.client.update({
@@ -80,7 +81,8 @@ export async function updateClient(clientId: string, _: ActionState, fd: FormDat
       legalName: opt(d.legalName ?? null) ?? null,
       taxRegime: opt(d.taxRegime ?? null) ?? null,
       taxZip: opt(d.taxZip ?? null) ?? null,
-      cfdiUse: opt(d.cfdiUse ?? null) ?? null,
+      cfdiUse: opt(d.cfdiUse?.toUpperCase() ?? null) ?? null,
+      autoInvoice,
     },
   });
   await audit(prisma, { actorUserId: user.id, action: "client.updated", entity: "Client", entityId: clientId, summary: `Datos de ${d.name} actualizados` });

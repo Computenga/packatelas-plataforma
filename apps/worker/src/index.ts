@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -182,6 +182,25 @@ function startFlexSweep() {
   setInterval(run, 15 * 60_000);
 }
 
+/** Facturación automática de pagos nuevos [I10], cada 5 min (solo si está encendida). */
+function startInvoices() {
+  let busy = false;
+  const run = async () => {
+    if (busy || !facturaConfig()) return;
+    busy = true;
+    try {
+      const r = await autoInvoicePayments(prisma);
+      if (r.issued || r.failed) console.log(`[worker] Facturación: ${r.issued} timbradas, ${r.failed} con error`);
+      await reportHealth(prisma, "facturacion", r.failed === 0, `Última vuelta: ${r.issued} timbradas, ${r.failed} con error`);
+    } catch (e) {
+      console.error("[worker] Facturación:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 5 * 60_000);
+}
+
 /** Conciliación de pagos con tarjeta por si un aviso de Mercado Pago no llegó [I09]. */
 function startMp() {
   const run = async () => {
@@ -205,6 +224,7 @@ async function main() {
   startCleanup();
   startMp();
   startFlexSweep();
+  startInvoices();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

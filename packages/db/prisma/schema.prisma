@@ -89,6 +89,7 @@ model Client {
   taxZip      String?
   cfdiUse     String?
   autoInvoice Boolean @default(false)
+  fcClientUid String? // UID del cliente en factura.com [I05]
 
   // Tarifas y cobro [F01, F07]
   tariffMode        TariffMode @default(FIXED)
@@ -559,8 +560,14 @@ model Invoice {
   payment   Payment?      @relation(fields: [paymentId], references: [id])
   status    InvoiceStatus @default(PENDING)
   uuid      String?       @unique // folio fiscal
+  providerUid String?     @unique // UID del CFDI en factura.com
   series    String?
   folio     String?
+  paymentForm String?     // forma de pago SAT (03 transferencia, 04 tarjeta…)
+  sandbox   Boolean       @default(false) // timbrado en el entorno de pruebas de factura.com
+  requestedBy String?     // auto | cliente | admin
+  cancelReason String?
+  cancelledAt DateTime?
   total     Decimal       @db.Decimal(12, 2)
   pdfKey    String?
   xmlKey    String?
