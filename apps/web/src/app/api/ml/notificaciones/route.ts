@@ -16,6 +16,11 @@ export async function POST(request: Request) {
   // Avisos de Flex (handshakes: primer escaneo del driver o paso entre drivers): se vuelve a revisar
   // el envío, lo que anota en el historial quién lo tomó.
   if (/flex/i.test(body.topic)) {
+    // Últimos 30 avisos de Flex tal cual llegan (para revisar el formato desde administración).
+    const key = "ml.notif.flex.samples";
+    const prev = ((await prisma.setting.findUnique({ where: { key } }).catch(() => null))?.value as unknown[] | undefined) ?? [];
+    const sample = { at: new Date().toISOString(), topic: body.topic, resource: body.resource.slice(0, 200), user_id: body.user_id ?? null };
+    await prisma.setting.upsert({ where: { key }, update: { value: [sample, ...prev].slice(0, 30) }, create: { key, value: [sample] } }).catch(() => {});
     const sid = body.resource.match(/(\d{10,13})/)?.[1];
     if (sid) {
       const order = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(sid) }, select: { mlAccount: { select: { mlUserId: true } } } }).catch(() => null);

@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Mensajería Flex" };
 export default async function MensajeriaPage({ searchParams }: PageProps<"/admin/mercadolibre/mensajeria">) {
   const user = await requireUser(["ADMIN"]);
   const sp = await searchParams;
+  const flexSamples = ((await prisma.setting.findUnique({ where: { key: "ml.notif.flex.samples" } }))?.value as { at: string; topic: string; resource: string; user_id: number | null }[] | undefined) ?? [];
   const [s, acc, reports, candidates, pending] = await Promise.all([
     getCourierSettings(prisma),
     courierAccount(prisma),
@@ -93,6 +94,18 @@ export default async function MensajeriaPage({ searchParams }: PageProps<"/admin
             <input name="expectedUserId" defaultValue={s.expectedUserId ?? ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
           </label>
         </ActionForm>
+      </Card>
+
+      <Card title="Avisos de Flex recibidos de MercadoLibre">
+        {flexSamples.length === 0 ? (
+          <p className="text-sm text-slate-500">Aún no llega ninguno. Llegan cuando un repartidor escanea en la app Flex (si el tópico está activo en la app de ML).</p>
+        ) : (
+          <ul className="space-y-1 font-mono text-xs text-slate-600">
+            {flexSamples.map((x, i) => (
+              <li key={i}>{fecha(new Date(x.at))} · {x.topic} · {x.resource}{x.user_id ? ` · usuario ${x.user_id}` : ""}</li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <Card title="Reportes recientes">
