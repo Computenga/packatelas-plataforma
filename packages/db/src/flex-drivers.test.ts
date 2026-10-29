@@ -17,7 +17,7 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 const fakeFetch = (async (url: string | URL) => {
   const u = String(url);
   calls.push(u);
-  if (u.includes("/assignment/v1")) return assigned ? json({ shipment_id: SID, driver_id: FLEX_DRIVER, status: "assigned" }) : json({ message: "not found" }, 404);
+  if (u.includes("/assignment/v2")) return assigned ? json({ shipment_id: SID, driver_id: FLEX_DRIVER, status: "assigned" }) : json({ message: "not found" }, 404);
   if (u.endsWith(`/users/${FLEX_DRIVER}`)) return json({ id: FLEX_DRIVER, nickname: "DRIVERFLEX" });
   return json({}, 404);
 }) as typeof fetch;
@@ -52,7 +52,7 @@ describe("drivers Flex", () => {
     const qr = JSON.stringify({ id: String(SID), sender_id: seller, hash_code: "h" });
     const r = await lookupFlexDriver(prisma, qr, fakeFetch);
     expect(r).toMatchObject({ ok: true, shipmentId: String(SID), flexDriverId: String(FLEX_DRIVER), nickname: "DRIVERFLEX", via: "vendedor", linked: null });
-    expect(calls.some((c) => c === `https://api.mercadolibre.com/flex/sites/MLM/shipments/${SID}/assignment/v1`)).toBe(true);
+    expect(calls.some((c) => c === `https://api.mercadolibre.com/flex/sites/MLM/shipments/${SID}/assignment/v2`)).toBe(true);
     await linkFlexDriver(prisma, { flexDriverId: String(FLEX_DRIVER), driverId: driverA, shipmentId: String(SID), actorUserId: adminId });
     // Buscando solo por número de envío (sin QR): ya aparece vinculado.
     await prisma.mlFlexShipment.create({ data: { shipmentId: BigInt(SID), mlAccountId: (await prisma.mlAccount.findUniqueOrThrow({ where: { mlUserId: BigInt(seller) } })).id, clientId, logisticType: "self_service" } });

@@ -1,7 +1,7 @@
 // Vincular drivers Flex de MercadoLibre con repartidores de Packatelas [A05].
 // Flujo: el repartidor escanea un paquete en la app Flex de ML (queda asignado a él); en el panel se
 // escanea el QR de ese mismo paquete y se consulta a ML quién lo tiene asignado
-//   GET /flex/sites/MLM/shipments/{envío}/assignment/v1  → driver_id
+//   GET /flex/sites/MLM/shipments/{envío}/assignment/v2  → driver_id
 // Se prueba con el token del vendedor dueño del envío y, si no, con el de la mensajería.
 // ML responde 404 si no hay driver asignado, si la ruta ya se cerró o si el envío no existe.
 import type { PrismaClient } from "../generated/prisma/client.ts";
@@ -69,7 +69,7 @@ export async function lookupFlexDriver(prisma: PrismaClient, raw: string, fetchI
 
   const errors: string[] = [];
   for (const t of tries) {
-    const res = await fetchImpl(`${API}/flex/sites/MLM/shipments/${sid}/assignment/v1`, { headers: { Authorization: `Bearer ${t.token}` }, signal: AbortSignal.timeout(15_000) });
+    const res = await fetchImpl(`${API}/flex/sites/MLM/shipments/${sid}/assignment/v2`, { headers: { Authorization: `Bearer ${t.token}` }, signal: AbortSignal.timeout(15_000) });
     const text = await res.text();
     if (!res.ok) {
       errors.push(`${t.via}: HTTP ${res.status} ${text.slice(0, 150)}`);
