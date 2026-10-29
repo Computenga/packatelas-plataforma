@@ -6,8 +6,9 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { decryptSecret, encryptSecret } from "./crypto.ts";
 import { adminUserIds, sendPush } from "./push.ts";
-import { audit } from "./orders.ts";
+import { addOrderEvent, audit } from "./orders.ts";
 import { captureShipment } from "./ml-flex.ts";
+import { currentFlexDriver, recordFlexAssignment } from "./flex-drivers.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -191,6 +192,16 @@ export async function syncMlShipment(prisma: PrismaClient, shipmentId: bigint, f
   }
   if (!res.ok) throw new Error(`MercadoLibre respondió ${res.status} al pedir el envío`);
   const m = mapMlShipment((await res.json()) as Record<string, unknown>);
+  // Cambio de estado en ML → historial del pedido.
+  if (m.mlStatus && (m.mlStatus !== order.mlStatus || (m.mlSubstatus ?? null) !== (order.mlSubstatus ?? null))) {
+    await addOrderEvent(prisma, {
+      orderId: order.id,
+      type: "ml_status",
+      source: "ML_SYNC",
+      note: mlStatusText(m.mlStatus, m.mlSubstatus),
+      data: { status: m.mlStatus, substatus: m.mlSubstatus, previous: order.mlStatus ?? null },
+    }).catch(() => {});
+  }
   let itemsSummary: string | null = null;
   try {
     const ir = await fetchImpl(`${API}/shipments/${shipmentId}/items`, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15_000) });
@@ -221,6 +232,19 @@ export async function syncMlShipment(prisma: PrismaClient, shipmentId: bigint, f
   return { status: "synced" as const };
 }
 
+const ML_STATUS_ES: Record<string, string> = {
+  pending: "pendiente", handling: "en preparación", ready_to_ship: "listo para enviar", shipped: "en camino",
+  delivered: "entregado", not_delivered: "no entregado", cancelled: "cancelado",
+};
+const ML_SUB_ES: Record<string, string> = {
+  ready_to_print: "etiqueta sin imprimir", printed: "etiqueta impresa", out_for_delivery: "salió a reparto", picked_up: "recolectado",
+  receiver_absent: "destinatario ausente", returning_to_sender: "regresando al vendedor", delayed: "demorado", soon_deliver: "por entregar",
+};
+export function mlStatusText(status: string, sub: string | null) {
+  const st = ML_STATUS_ES[status] ?? status;
+  return sub ? `${st} · ${ML_SUB_ES[sub] ?? sub}` : st;
+}
+
 // ── Cola de trabajos ──
 export async function enqueueMlJob(db: Db, j: { topic: string; resource: string; mlUserId?: bigint | null }) {
   const id = j.resource.match(/^\/shipments\/(\d+)/)?.[1];
@@ -246,6 +270,12 @@ export async function processMlJobs(prisma: PrismaClient, limit = 25, fetchImpl:
       }
       const r = await syncMlShipment(prisma, BigInt(id), fetchImpl);
       if (r.status === "unauthorized") throw new Error("La cuenta ML no ha autorizado a Packatelas");
+      // Driver Flex asignado → historial del pedido.
+      const ord = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(id) }, select: { id: true, mlAccountId: true } });
+      if (ord) {
+        const d = await currentFlexDriver(prisma, BigInt(id), ord.mlAccountId, fetchImpl).catch(() => null);
+        if (d) await recordFlexAssignment(prisma, ord.id, d).catch(() => false);
+      }
       // Envío de una cuenta conocida que aún no escaneamos: va a Recuperados si es Flex.
       if (job.mlUserId) {
         const acc = await prisma.mlAccount.findUnique({ where: { mlUserId: job.mlUserId }, select: { id: true } });

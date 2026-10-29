@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -182,6 +182,24 @@ function startFlexSweep() {
   setInterval(run, 15 * 60_000);
 }
 
+/** Historial: driver Flex que tomó cada pedido ML activo, cada 5 min. */
+function startFlexTracking() {
+  let busy = false;
+  const run = async () => {
+    if (busy || !mlConfig()) return;
+    busy = true;
+    try {
+      const r = await trackFlexAssignments(prisma);
+      if (r.changed) console.log(`[worker] Flex: ${r.changed} pedido(s) con driver nuevo de ${r.checked} revisados`);
+    } catch (e) {
+      console.error("[worker] Flex:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 5 * 60_000);
+}
+
 /** Facturación automática de pagos nuevos [I10], cada 5 min (solo si está encendida). */
 function startInvoices() {
   let busy = false;
@@ -225,6 +243,7 @@ async function main() {
   startMp();
   startFlexSweep();
   startInvoices();
+  startFlexTracking();
   console.log(`[worker] Revisando Gmail cada ${EVERY_MS / 1000} s`);
   for (;;) {
     const cfg = config();

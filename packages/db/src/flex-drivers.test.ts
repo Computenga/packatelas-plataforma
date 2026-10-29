@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { driverIdFrom, encryptSecret, linkFlexDriver, lookupFlexDriver, prisma } from "./index.ts";
+import { driverIdFrom, encryptSecret, linkFlexDriver, lookupFlexDriver, prisma, trackFlexAssignments } from "./index.ts";
 
 process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
 process.env.ML_CLIENT_ID = "123";
@@ -33,6 +33,9 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await prisma.flexIdentity.deleteMany({ where: { flexDriverId: BigInt(FLEX_DRIVER) } });
+  const ords = await prisma.order.findMany({ where: { clientId }, select: { id: true } });
+  await prisma.orderEvent.deleteMany({ where: { orderId: { in: ords.map((o) => o.id) } } });
+  await prisma.order.deleteMany({ where: { clientId } });
   await prisma.driver.deleteMany({ where: { id: { in: [driverA, driverB] } } });
   await prisma.user.deleteMany({ where: { id: { in: [userA, userB] } } });
   await prisma.mlAccount.deleteMany({ where: { clientId } });
@@ -69,5 +72,18 @@ describe("drivers Flex", () => {
     expect(r.ok).toBe(false);
     expect(!r.ok && r.error).toMatch(/no tiene un driver Flex con ruta abierta/);
     assigned = true;
+  });
+
+  it("anota en el historial cuándo lo toma un driver Flex, solo si cambia, con el nombre del repartidor", async () => {
+    await linkFlexDriver(prisma, { flexDriverId: String(FLEX_DRIVER), driverId: driverA, actorUserId: adminId });
+    const acc = await prisma.mlAccount.findUniqueOrThrow({ where: { mlUserId: BigInt(seller) } });
+    const order = await prisma.order.create({ data: { code: `ML-${SID}`, source: "ML_FLEX", clientId, mlAccountId: acc.id, mlShipmentId: BigInt(SID), addressLine: "X" } });
+    const r1 = await trackFlexAssignments(prisma, { fetchImpl: fakeFetch });
+    expect(r1.changed).toBeGreaterThanOrEqual(1);
+    const ev = await prisma.orderEvent.findMany({ where: { orderId: order.id, type: "flex_assigned" } });
+    expect(ev).toHaveLength(1);
+    expect(ev[0]).toMatchObject({ source: "FLEX_HANDSHAKE", note: `Driver Flex ${FLEX_DRIVER} · Repartidor A` });
+    await trackFlexAssignments(prisma, { fetchImpl: fakeFetch });
+    expect(await prisma.orderEvent.count({ where: { orderId: order.id, type: "flex_assigned" } })).toBe(1);
   });
 });

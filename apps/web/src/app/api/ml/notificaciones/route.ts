@@ -13,5 +13,14 @@ export async function POST(request: Request) {
     const known = body.user_id ? await prisma.mlAccount.findUnique({ where: { mlUserId: BigInt(body.user_id) }, select: { id: true } }) : null;
     if (known) await enqueueMlJob(prisma, { topic: "shipments", resource: body.resource, mlUserId: BigInt(body.user_id!) }).catch(() => {});
   }
+  // Avisos de Flex (handshakes: primer escaneo del driver o paso entre drivers): se vuelve a revisar
+  // el envío, lo que anota en el historial quién lo tomó.
+  if (/flex/i.test(body.topic)) {
+    const sid = body.resource.match(/(\d{10,13})/)?.[1];
+    if (sid) {
+      const order = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(sid) }, select: { mlAccount: { select: { mlUserId: true } } } }).catch(() => null);
+      if (order) await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${sid}`, mlUserId: order.mlAccount?.mlUserId ?? null }).catch(() => {});
+    }
+  }
   return new Response("ok");
 }

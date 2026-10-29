@@ -9,6 +9,7 @@ import { mlAccessToken } from "./ml-api.ts";
 import { courierToken } from "./ml-courier.ts";
 import { audit } from "./orders.ts";
 import { parseScan } from "./scan.ts";
+import { addOrderEvent } from "./orders.ts";
 
 type Fetch = typeof fetch;
 const API = "https://api.mercadolibre.com";
@@ -89,6 +90,8 @@ export async function lookupFlexDriver(prisma: PrismaClient, raw: string, fetchI
       .then((r) => (r.ok ? (r.json() as Promise<{ nickname?: string }>) : null))
       .catch(() => null);
     const ident = await prisma.flexIdentity.findUnique({ where: { flexDriverId: BigInt(flexDriverId) }, include: { driver: { include: { user: { select: { name: true, username: true } } } } } });
+    const order = await prisma.order.findUnique({ where: { mlShipmentId: sid }, select: { id: true } });
+    if (order) await recordFlexAssignment(prisma, order.id, flexDriverId).catch(() => false);
     return {
       ok: true,
       shipmentId: sid.toString(),
@@ -167,4 +170,58 @@ export async function linkFlexDriver(prisma: PrismaClient, input: { flexDriverId
     summary: prev && prev.driverId !== driver.id ? `Driver Flex ${input.flexDriverId} movido de ${prev.driver.user.name} a ${driver.user.name}` : `Driver Flex ${input.flexDriverId} vinculado a ${driver.user.name}`,
   });
   return { name: driver.user.name, moved: !!prev && prev.driverId !== driver.id, previous: prev?.driver.user.name ?? null };
+}
+
+// ── Registro en el historial del pedido ──
+
+/** Consulta a ML quién tiene asignado el envío (null si nadie o si no hay con qué preguntar). */
+export async function currentFlexDriver(prisma: PrismaClient, shipmentId: bigint, mlAccountId: string | null, fetchImpl: Fetch = fetch) {
+  const tokens: string[] = [];
+  const st = mlAccountId ? await mlAccessToken(prisma, mlAccountId, fetchImpl).catch(() => null) : null;
+  if (st) tokens.push(st);
+  const ct = await courierToken(prisma, fetchImpl).catch(() => null);
+  if (ct) tokens.push(ct.token);
+  for (const t of tokens) {
+    const res = await fetchImpl(`${API}/flex/sites/MLM/shipments/${shipmentId}/assignment/v2`, { headers: { Authorization: `Bearer ${t}` }, signal: AbortSignal.timeout(15_000) }).catch(() => null);
+    if (!res?.ok) continue;
+    const id = driverIdFrom(await res.json().catch(() => null));
+    if (id) return id;
+  }
+  return null;
+}
+
+/**
+ * Si el driver Flex del envío cambió desde la última vez, lo anota en el historial del pedido
+ * («Tomado en Flex»), con el repartidor de Packatelas si el driver está vinculado.
+ */
+export async function recordFlexAssignment(prisma: PrismaClient, orderId: string, flexDriverId: string) {
+  const last = await prisma.orderEvent.findFirst({ where: { orderId, type: "flex_assigned" }, orderBy: { occurredAt: "desc" }, select: { data: true } });
+  if ((last?.data as { flexDriverId?: string } | null)?.flexDriverId === flexDriverId) return false;
+  const ident = await prisma.flexIdentity.findUnique({ where: { flexDriverId: BigInt(flexDriverId) }, include: { driver: { include: { user: { select: { name: true } } } } } });
+  await addOrderEvent(prisma, {
+    orderId,
+    type: "flex_assigned",
+    source: "FLEX_HANDSHAKE",
+    note: ident ? `Driver Flex ${flexDriverId} · ${ident.driver.user.name}` : `Driver Flex ${flexDriverId} (sin vincular a un repartidor)`,
+    data: { flexDriverId, driverId: ident?.driverId ?? null, ...(last ? { previous: (last.data as { flexDriverId?: string } | null)?.flexDriverId ?? null } : {}) },
+  });
+  return true;
+}
+
+const ACTIVE = ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED", "RETURNING"] as const;
+
+/** Worker: revisa en ML el driver Flex de los pedidos ML activos de los últimos días. */
+export async function trackFlexAssignments(prisma: PrismaClient, opts: { limit?: number; days?: number; fetchImpl?: Fetch } = {}) {
+  const orders = await prisma.order.findMany({
+    where: { mlShipmentId: { not: null }, status: { in: [...ACTIVE] }, createdAt: { gte: new Date(Date.now() - (opts.days ?? 3) * 86_400_000) } },
+    orderBy: { updatedAt: "asc" },
+    take: opts.limit ?? 150,
+    select: { id: true, mlShipmentId: true, mlAccountId: true },
+  });
+  let changed = 0;
+  for (const o of orders) {
+    const d = await currentFlexDriver(prisma, o.mlShipmentId!, o.mlAccountId, opts.fetchImpl).catch(() => null);
+    if (d && (await recordFlexAssignment(prisma, o.id, d))) changed++;
+  }
+  return { checked: orders.length, changed };
 }
