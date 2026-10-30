@@ -184,6 +184,7 @@ export async function invoicePayment(
     await tx.$queryRaw`SELECT id FROM "Payment" WHERE id = ${paymentId} FOR UPDATE`;
     const p = await tx.payment.findUnique({ where: { id: paymentId } });
     if (!p || p.status !== "APPLIED" || !p.clientId) throw new FacturaError("Solo se facturan pagos aplicados a un cliente");
+    if (p.source === "IMPORT") throw new FacturaError("Los pagos del sistema anterior no se facturan desde aquí");
     const open = await tx.invoice.findFirst({ where: { paymentId, status: { in: [...OPEN] } } });
     if (open) return { invoice: open, existed: true };
     const invoice = await tx.invoice.create({
@@ -297,7 +298,7 @@ export async function autoInvoicePayments(prisma: PrismaClient, limit = 20, fetc
   const s = await getInvoiceSettings(prisma);
   if (!s.autoEnabled || !s.enabledAt || !facturaConfig()) return { issued: 0, failed: 0 };
   const pays = await prisma.payment.findMany({
-    where: { status: "APPLIED", receivedAt: { gte: new Date(s.enabledAt) }, client: { autoInvoice: true }, invoices: { none: {} } },
+    where: { status: "APPLIED", source: { not: "IMPORT" }, receivedAt: { gte: new Date(s.enabledAt) }, client: { autoInvoice: true }, invoices: { none: {} } },
     orderBy: { receivedAt: "asc" },
     take: limit,
     select: { id: true },

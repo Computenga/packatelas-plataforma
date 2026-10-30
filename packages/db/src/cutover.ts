@@ -19,13 +19,13 @@ export async function getCutover(prisma: PrismaClient): Promise<CutoverState> {
 
 /** Lo que se borraría (y lo que se queda) si se arranca ahora. */
 export async function cutoverPreview(prisma: PrismaClient) {
-  const [orders, evidence, ledger, openings, payments, pickups, routes, pings, notices, webhooks, appNotices, mlJobs, clients, mlAccounts, users, employees] =
+  const [orders, evidence, ledger, openings, payments, pickups, routes, pings, notices, webhooks, appNotices, mlJobs, clients, mlAccounts, users, employees, histOrders, histPayments] =
     await Promise.all([
-      prisma.order.count(),
+      prisma.order.count({ where: { source: { not: "IMPORT" } } }),
       prisma.evidence.count(),
       prisma.ledgerEntry.count(),
       prisma.ledgerEntry.count({ where: { type: "ADJUSTMENT", description: OPENING_BALANCE_TAG } }),
-      prisma.payment.count({ where: { NOT: { status: "REJECTED", note: PAYMENT_NOTE } } }),
+      prisma.payment.count({ where: { source: { not: "IMPORT" }, NOT: { status: "REJECTED", note: PAYMENT_NOTE } } }),
       prisma.pickup.count(),
       prisma.route.count(),
       prisma.locationPing.count(),
@@ -37,11 +37,13 @@ export async function cutoverPreview(prisma: PrismaClient) {
       prisma.mlAccount.count(),
       prisma.user.count({ where: { active: true } }),
       prisma.employee.count(),
+      prisma.order.count({ where: { source: "IMPORT" } }),
+      prisma.payment.count({ where: { source: "IMPORT" } }),
     ]);
   return {
     borrar: { envios: orders, evidencias: evidence, movimientos: ledger, saldosIniciales: openings, recolecciones: pickups, rutas: routes, ubicaciones: pings, avisos: notices + appNotices, webhooks, tareasML: mlJobs },
     archivar: { pagos: payments },
-    conservar: { clientes: clients, cuentasML: mlAccounts, usuarios: users, personal: employees },
+    conservar: { clientes: clients, cuentasML: mlAccounts, usuarios: users, personal: employees, historialEnvios: histOrders, historialPagos: histPayments },
   };
 }
 
@@ -61,10 +63,12 @@ export async function resetForCutover(prisma: PrismaClient, actorUserId: string,
       await tx.routeStop.deleteMany();
       await tx.route.deleteMany();
       await tx.ledgerEntry.deleteMany();
-      await tx.invoice.deleteMany({ where: { uuid: null } }); // solo borradores sin timbrar
-      await tx.payment.updateMany({ data: { status: "REJECTED", note: PAYMENT_NOTE } });
+      // Borradores sin timbrar y facturas del modo de pruebas.
+      await tx.invoice.deleteMany({ where: { OR: [{ uuid: null }, { sandbox: true }] } });
+      // El historial migrado del sistema anterior (envíos y pagos de origen IMPORT) se conserva.
+      await tx.payment.updateMany({ where: { source: { not: "IMPORT" } }, data: { status: "REJECTED", note: PAYMENT_NOTE } });
       await tx.evidence.deleteMany();
-      await tx.order.deleteMany(); // eventos y custodias de devolución se borran en cascada
+      await tx.order.deleteMany({ where: { source: { not: "IMPORT" } } }); // eventos y custodias de devolución en cascada
       await tx.pickup.deleteMany();
       await tx.locationPing.deleteMany();
       await tx.notification.deleteMany();

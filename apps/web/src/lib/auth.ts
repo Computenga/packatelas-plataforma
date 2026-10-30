@@ -14,6 +14,8 @@ export type CurrentUser = NonNullable<Awaited<ReturnType<typeof getSessionUser>>
 export async function requireUser(roles?: Role[]): Promise<CurrentUser> {
   const user = await getSessionUser();
   if (!user) redirect("/login");
+  // Contraseña temporal (migración o alta): primero la cambia.
+  if (user.mustChangePassword) redirect("/cambiar-contrasena");
   if (roles && !roles.includes(user.role)) redirect(homeFor(user.role));
   return user;
 }

@@ -8,6 +8,7 @@ import { RangeForm } from "../informes/range-form";
 export const metadata: Metadata = { title: "Importar y exportar" };
 
 const IMPORTS = [
+  { href: "/admin/datos/migracion", label: "Migración del sistema anterior", hint: "Usuarios, repartidores, drivers Flex, accesos de clientes e historial." },
   { href: "/admin/clientes/importar", label: "Clientes", hint: "Pegar o subir el listado del sistema actual (ID cmx/emx, tarifas, saldos)." },
   { href: "/admin/clientes/importar-ml", label: "Cuentas de MercadoLibre", hint: "Ligar cuentas ML a su cliente y sucursal." },
   { href: "/admin/pedidos/carga", label: "Pedidos (carga masiva)", hint: "Hasta 500 envíos por archivo, con ubicación automática." },

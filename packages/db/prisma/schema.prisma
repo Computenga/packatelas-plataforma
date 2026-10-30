@@ -38,6 +38,7 @@ model User {
   employee     Employee?
   sessions     Session[]
   lastLoginAt  DateTime?
+  mustChangePassword Boolean @default(false) // contraseña temporal: la cambia al entrar
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -190,6 +191,7 @@ model Driver {
   phone          String?
   vehicleType    String? // moto, auto…
   plate          String?
+  legacyCarrierId Int?     @unique // carrier de Shipday en el sistema anterior (migración)
   active         Boolean   @default(true)
   onDuty         Boolean   @default(false)
   shiftStartedAt DateTime?
@@ -513,6 +515,7 @@ enum PaymentSource {
   GMAIL
   MERCADOPAGO
   MANUAL
+  IMPORT // historial del sistema anterior: no mueve saldos ni se factura
 }
 
 enum PaymentStatus {

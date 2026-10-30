@@ -30,5 +30,5 @@ export async function verifyLogin(_: { error?: string }, fd: FormData): Promise<
   attempts.delete(userId);
   await clearPendingLogin();
   await createSession(user.id);
-  redirect(homeFor(user.role));
+  redirect(user.mustChangePassword ? "/cambiar-contrasena" : homeFor(user.role));
 }

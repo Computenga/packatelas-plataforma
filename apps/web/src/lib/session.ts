@@ -39,7 +39,7 @@ export async function getSessionUser() {
     where: { id: hashToken(token) },
     include: {
       user: {
-        select: { id: true, name: true, username: true, role: true, active: true, clientId: true },
+        select: { id: true, name: true, username: true, role: true, active: true, clientId: true, mustChangePassword: true },
       },
     },
   });

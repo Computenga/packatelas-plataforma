@@ -25,7 +25,7 @@ export default async function FacturacionPage() {
     getInvoiceSettings(prisma),
     prisma.invoice.findMany({ orderBy: { createdAt: "desc" }, take: 100, include: { client: { select: { id: true, name: true, publicId: true } }, payment: { select: { method: true, receivedAt: true, reference: true } } } }),
     prisma.payment.findMany({
-      where: { status: "APPLIED", clientId: { not: null }, receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } },
+      where: { status: "APPLIED", source: { not: "IMPORT" }, clientId: { not: null }, receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } },
       orderBy: { receivedAt: "desc" },
       take: 100,
       include: { client: { select: { id: true, name: true, publicId: true, rfc: true, legalName: true, taxRegime: true, taxZip: true, cfdiUse: true, email: true, autoInvoice: true } } },

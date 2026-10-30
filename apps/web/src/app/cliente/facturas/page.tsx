@@ -26,7 +26,7 @@ export default async function FacturasPage() {
   const [c, invoices, payments] = await Promise.all([
     prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { rfc: true, legalName: true, taxRegime: true, taxZip: true, cfdiUse: true, email: true, autoInvoice: true } }),
     prisma.invoice.findMany({ where: { clientId, status: { in: ["ISSUED", "CANCELLED"] } }, orderBy: { createdAt: "desc" }, take: 100 }),
-    prisma.payment.findMany({ where: { clientId, status: "APPLIED", receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } }, orderBy: { receivedAt: "desc" } }),
+    prisma.payment.findMany({ where: { clientId, status: "APPLIED", source: { not: "IMPORT" }, receivedAt: { gte: since }, invoices: { none: { status: { in: ["PENDING", "ISSUED"] } } } }, orderBy: { receivedAt: "desc" } }),
   ]);
   const missing = missingFiscal(c);
   const ready = !!facturaConfig();

@@ -8,7 +8,8 @@ import { Logo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Entrar" };
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  const listo = (await searchParams).listo === "1";
   const user = await getSessionUser();
   if (user) redirect(homeFor(user.role));
 
@@ -20,6 +21,7 @@ export default async function LoginPage() {
           <Logo className="mx-auto mb-3 h-10 w-auto" />
           <p className="text-sm text-slate-500">Operación, entregas y cobranza</p>
         </div>
+        {listo && <p className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-center text-sm text-emerald-800">Contraseña cambiada. Entra con tu nueva contraseña.</p>}
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <LoginForm />
         </div>

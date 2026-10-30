@@ -109,7 +109,7 @@ export default async function ArranquePage() {
               {" "}<b>{b.avisos}</b> avisos y la numeración PK vuelve a empezar en PK-000001. Los <b>{preview.archivar.pagos}</b> depósitos recibidos se conservan como “anteriores al arranque” (ya están en el saldo del sistema anterior).
             </p>
             <p className="mt-2 text-sm text-slate-600">
-              Se conservan {preview.conservar.clientes} clientes con sus sucursales y tarifas, {preview.conservar.cuentasML} cuentas de MercadoLibre, {preview.conservar.usuarios} usuarios, {preview.conservar.personal} empleados, la flotilla y la nómina.
+              Se conservan {preview.conservar.clientes} clientes con sus sucursales y tarifas, {preview.conservar.cuentasML} cuentas de MercadoLibre, {preview.conservar.usuarios} usuarios, {preview.conservar.personal} empleados, la flotilla, la nómina y el historial migrado del sistema anterior ({preview.conservar.historialEnvios} envíos y {preview.conservar.historialPagos} pagos).
             </p>
             <div className="mt-4">
               <ActionForm action={cutoverAction} submitLabel="Borrar datos de prueba">

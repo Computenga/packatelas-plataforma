@@ -47,7 +47,7 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
   }
   await createSession(user.id);
   await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-  redirect(homeFor(user.role));
+  redirect(user.mustChangePassword ? "/cambiar-contrasena" : homeFor(user.role));
 }
 
 export async function logout() {
