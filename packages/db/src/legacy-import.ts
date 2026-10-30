@@ -115,3 +115,53 @@ export async function createClientUsers(prisma: PrismaClient, tempPassword: stri
   await audit(prisma, { actorUserId, action: "migration.client_users", entity: "User", summary: `Migración: ${created.length} usuarios de clientes creados` });
   return { created, skipped };
 }
+
+// ── Historial de pagos (sin saldos) ──
+
+export type LegacyPaymentRow = { date: string; publicId: string; amount: number; reference: string; method: "TRANSFER" | "MERCADOPAGO" | "OTHER"; note: string; key: string };
+
+/** CSV propio de la migración: fecha(AAAA-MM-DD),cliente_id,monto,referencia,metodo,nota,llave */
+export function parseLegacyPayments(text: string): { rows: LegacyPaymentRow[]; errors: string[] } {
+  const rows: LegacyPaymentRow[] = [];
+  const errors: string[] = [];
+  const lines = text.replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  for (const [i, line] of lines.entries()) {
+    if (i === 0 && /^fecha/i.test(line)) continue;
+    const c = line.split("\t");
+    const [date, publicId, amount, reference, method, note, key] = c;
+    const amt = Number(amount);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date ?? "") || !publicId || !(amt > 0) || !key) {
+      if (errors.length < 30) errors.push(`Renglón ${i + 1}`);
+      continue;
+    }
+    rows.push({ date, publicId: publicId.trim().toLowerCase(), amount: amt, reference: (reference ?? "").slice(0, 120), method: method === "MERCADOPAGO" ? "MERCADOPAGO" : method === "OTHER" ? "OTHER" : "TRANSFER", note: (note ?? "").slice(0, 500), key: key.slice(0, 80) });
+  }
+  return { rows, errors };
+}
+
+export async function importLegacyPayments(prisma: PrismaClient, rows: LegacyPaymentRow[], actorUserId: string) {
+  const clients = new Map((await prisma.client.findMany({ select: { id: true, publicId: true } })).map((c) => [c.publicId.toLowerCase(), c.id]));
+  const unknown = new Set<string>();
+  const data = rows.flatMap((r) => {
+    const clientId = clients.get(r.publicId);
+    if (!clientId) {
+      unknown.add(r.publicId);
+      return [];
+    }
+    return [{
+      clientId,
+      method: r.method,
+      source: "IMPORT" as const,
+      status: "APPLIED" as const,
+      amount: r.amount,
+      reference: r.reference || null,
+      receivedAt: new Date(`${r.date}T12:00:00-06:00`),
+      externalId: `legacy-pay:${r.key}`,
+      note: r.note || "Sistema anterior",
+    }];
+  });
+  let added = 0;
+  for (let i = 0; i < data.length; i += 500) added += (await prisma.payment.createMany({ data: data.slice(i, i + 500), skipDuplicates: true })).count;
+  await audit(prisma, { actorUserId, action: "migration.payments", entity: "Payment", summary: `Migración: ${added} pagos históricos importados (${data.length - added} ya estaban, ${unknown.size} clientes no encontrados)` });
+  return { added, duplicates: data.length - added, unknownClients: [...unknown].sort() };
+}

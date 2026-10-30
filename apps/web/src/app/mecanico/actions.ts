@@ -5,6 +5,7 @@ import { z } from "zod";
 import { audit, closeRepair, discardFault, prisma, Prisma, startRepair, upsertVehicleDocument } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
+import { formText } from "@/lib/form-text";
 
 const ROLES = ["MECANICO", "ADMIN"] as const;
 const keys = (fd: FormData, name: string) => fd.getAll(name).map(String).filter((k) => /^fleet\//.test(k)).slice(0, 8);
@@ -86,7 +87,7 @@ export async function saveVehicleAction(id: string | null, _: ActionState, fd: F
  */
 export async function importVehiclesAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
-  const lines = String(fd.get("text") ?? "").replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
+  const lines = (await formText(fd)).replace(/^﻿/, "").split(/\r?\n/).filter((l) => l.trim());
   if (!lines.length) return { error: "Pega las motos" };
   const head = lines[0].split(/\t|,/).map((h) => h.trim().toLowerCase());
   const col = (name: string) => head.indexOf(name);

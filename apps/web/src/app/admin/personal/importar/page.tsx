@@ -17,13 +17,15 @@ export default async function ImportarPersonalPage() {
       </PageHeader>
       <Card title="1. Empleados (pestaña Personal)">
         <ActionForm action={importEmployeesAction} submitLabel="Importar empleados">
-          <textarea name="text" rows={8} required className={area} placeholder={"no_empleado\tnombre\trfc\t…\thora_entrada\tdias_laborales\tminutos_comida\tchecadas"} />
+          <textarea name="text" rows={8} className={area} placeholder={"no_empleado\tnombre\trfc\t…\thora_entrada\tdias_laborales\tminutos_comida\tchecadas"} />
+          <input name="file" type="file" accept=".txt,.tsv,.csv" className="text-sm" />
           <p className="text-xs text-slate-500">Los PIN y llaves del portal actual no se importan. Si el empleado ya existe (mismo número), se actualizan solo las columnas que pegues.</p>
         </ActionForm>
       </Card>
       <Card title="2. Checadas (pestaña Checadas o exportación del ZKTeco)">
         <ActionForm action={importPunchesAction} submitLabel="Importar checadas">
-          <textarea name="text" rows={8} required className={area} placeholder={"UUID\tFecha\tHora\tNo. empleado\tNombre\tTipo\t…"} />
+          <textarea name="text" rows={8} className={area} placeholder={"UUID\tFecha\tHora\tNo. empleado\tNombre\tTipo\t…"} />
+          <input name="file" type="file" accept=".txt,.tsv,.csv" className="text-sm" />
           <p className="text-xs text-slate-500">Primero importa los empleados: las checadas de números que no estén en Personal se reportan y se omiten.</p>
         </ActionForm>
       </Card>

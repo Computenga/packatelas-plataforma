@@ -1,13 +1,13 @@
 "use server";
 
-import { createClientUsers, importFlexLinks, importLegacyUsers, parseFlexLinks, parseLegacyUsers, prisma } from "@packatelas/db";
+import { createClientUsers, importFlexLinks, importLegacyPayments, importLegacyUsers, parseFlexLinks, parseLegacyPayments, parseLegacyUsers, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 
 export type MigState = { ok?: string; error?: string; detail?: string[] };
 const text = async (fd: FormData, field: string) => {
   const f = fd.get(`${field}File`);
   if (f instanceof File && f.size > 0) {
-    if (f.size > 5_000_000) throw new Error("Archivo demasiado grande (máx. 5 MB)");
+    if (f.size > 20_000_000) throw new Error("Archivo demasiado grande (máx. 20 MB)");
     return await f.text();
   }
   return String(fd.get(field) ?? "");
@@ -42,6 +42,18 @@ export async function clientUsersAction(_: MigState, fd: FormData): Promise<MigS
   try {
     const r = await createClientUsers(prisma, String(fd.get("tempPassword") ?? ""), user.id);
     return { ok: `${r.created.length} usuarios de clientes creados · ${r.skipped.length} omitidos`, detail: r.skipped.map((s) => `usuario ya existía: ${s}`) };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Error" };
+  }
+}
+
+export async function migratePaymentsAction(_: MigState, fd: FormData): Promise<MigState> {
+  const user = await requireUser(["ADMIN"]);
+  try {
+    const { rows, errors } = parseLegacyPayments(await text(fd, "payments"));
+    if (!rows.length) return { error: "No se leyó ningún pago" };
+    const r = await importLegacyPayments(prisma, rows, user.id);
+    return { ok: `${r.added} pagos importados · ${r.duplicates} ya estaban · ${r.unknownClients.length} clientes no encontrados · ${errors.length} renglones con error`, detail: [...r.unknownClients.map((c) => `cliente no encontrado: ${c}`), ...errors] };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Error" };
   }

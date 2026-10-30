@@ -49,6 +49,7 @@ export default async function MotosPage() {
           <summary className="cursor-pointer text-sm font-medium text-brand">Importar desde la app de flotilla actual</summary>
           <ActionForm action={importVehiclesAction} submitLabel="Importar" className="mt-3">
             <TextArea label="Pega la pestaña Vehiculos con encabezados (vehiculo_id, placa, marca…)" name="text" rows={6} />
+            <input name="file" type="file" accept=".txt,.tsv,.csv" className="text-sm" />
           </ActionForm>
         </details>
       )}

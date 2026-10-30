@@ -9,6 +9,7 @@ import {
 import { requireUser } from "@/lib/auth";
 import { parseEmployees, parsePunches } from "@/lib/personnel-import";
 import type { ActionState } from "@/components/action-form";
+import { formText } from "@/lib/form-text";
 
 const opt = (max: number) => z.string().trim().max(max).optional().transform((v) => (v ? v : null));
 const schema = z.object({
@@ -105,7 +106,7 @@ export async function linkUserAction(id: string, _: ActionState, fd: FormData): 
 
 export async function importEmployeesAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
-  const p = parseEmployees(String(fd.get("text") ?? ""), { workdays: parseWorkdays, clock: parseClock });
+  const p = parseEmployees(await formText(fd), { workdays: parseWorkdays, clock: parseClock });
   if (!p.rows.length) return { error: p.errors[0] ?? "No se encontraron empleados" };
   const r = await importEmployees(prisma, p.rows, user.id);
   revalidatePath("/admin/personal");
@@ -114,8 +115,8 @@ export async function importEmployeesAction(_: ActionState, fd: FormData): Promi
 
 export async function importPunchesAction(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireUser(["ADMIN"]);
-  const text = String(fd.get("text") ?? "");
-  if (text.length > 5_000_000) return { error: "Demasiado grande; pega por meses" };
+  const text = await formText(fd);
+  if (text.length > 20_000_000) return { error: "Demasiado grande; súbelo por meses" };
   const p = parsePunches(text, normalizePunchKind);
   if (!p.rows.length) return { error: p.errors[0] ?? "No se encontraron checadas" };
   const r = await importPunches(prisma, p.rows);
