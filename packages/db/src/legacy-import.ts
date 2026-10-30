@@ -194,18 +194,25 @@ export function parseLegacyOrders(text: string): { rows: LegacyOrderRow[]; error
   return { rows, errors };
 }
 
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 const numOrNull = (s: string) => (s && Number.isFinite(Number(s)) && Number(s) !== 0 ? Number(s) : null);
 const bigOrNull = (s: string) => (/^\d{6,20}$/.test(s) ? BigInt(s) : null);
 const txt = (s: string, n = 300) => (s && s !== "-" ? s.slice(0, n) : null);
 
 export async function importLegacyOrders(prisma: PrismaClient, rows: LegacyOrderRow[], actorUserId: string) {
   const [accounts, clients, drivers] = await Promise.all([
-    prisma.mlAccount.findMany({ select: { id: true, nickname: true, clientId: true } }),
+    prisma.mlAccount.findMany({ select: { id: true, nickname: true, clientId: true, mlUserId: true } }),
     prisma.client.findMany({ select: { id: true, name: true } }),
     prisma.driver.findMany({ where: { legacyCarrierId: { not: null } }, select: { id: true, legacyCarrierId: true } }),
   ]);
-  const byNick = new Map(accounts.map((a) => [a.nickname.trim().toLowerCase(), a]));
-  const byName = new Map(clients.map((c) => [c.name.trim().toLowerCase(), c.id]));
+  const byNick = new Map(accounts.map((a) => [norm(a.nickname), a]));
+  const bySeller = new Map(accounts.map((a) => [a.mlUserId.toString(), a]));
+  const byName = new Map(clients.map((c) => [norm(c.name), c.id]));
+  const nameOf = (s: string) => {
+    const full = norm(s);
+    const head = norm(s.split(/\s+-\s+/)[0] ?? "");
+    return byName.get(full) ?? byName.get(head) ?? clients.find((c) => norm(c.name).length >= 4 && (full.startsWith(norm(c.name)) || norm(c.name).startsWith(head)))?.id;
+  };
   const byCarrier = new Map(drivers.map((d) => [String(d.legacyCarrierId), d.id]));
   const unknown = new Map<string, number>();
   const existing = new Map(
@@ -215,10 +222,11 @@ export async function importLegacyOrders(prisma: PrismaClient, rows: LegacyOrder
   const events: Prisma.OrderEventCreateManyInput[] = [];
   let updated = 0, skippedLive = 0;
   for (const r of rows) {
-    const acc = byNick.get(r.mlNick.toLowerCase());
-    const clientId = acc?.clientId ?? byName.get(r.clientName.toLowerCase());
+    const seller = /\((\d+)\)\s*$/.exec(r.mlNick)?.[1];
+    const acc = (seller ? bySeller.get(seller) : undefined) ?? byNick.get(norm(r.mlNick.replace(/\s*\(\d+\)\s*$/, "")));
+    const clientId = acc?.clientId ?? nameOf(r.clientName);
     if (!clientId) {
-      const k = r.mlNick || r.clientName || "(sin cuenta)";
+      const k = `${r.mlNick || "(sin cuenta ML)"} · ${r.clientName || "(sin cliente Shipday)"}`;
       unknown.set(k, (unknown.get(k) ?? 0) + 1);
       continue;
     }
