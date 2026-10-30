@@ -4,7 +4,7 @@
 // - Un usuario por cliente para su portal.
 // Todos con una contraseña temporal que deben cambiar al entrar. Re-ejecutable: lo que ya existe
 // no se toca y se reporta.
-import type { PrismaClient, Role } from "../generated/prisma/client.ts";
+import type { Prisma, PrismaClient, Role } from "../generated/prisma/client.ts";
 import { hashPassword } from "./password.ts";
 import { audit } from "./orders.ts";
 
@@ -164,4 +164,117 @@ export async function importLegacyPayments(prisma: PrismaClient, rows: LegacyPay
   for (let i = 0; i < data.length; i += 500) added += (await prisma.payment.createMany({ data: data.slice(i, i + 500), skipDuplicates: true })).count;
   await audit(prisma, { actorUserId, action: "migration.payments", entity: "Payment", summary: `Migración: ${added} pagos históricos importados (${data.length - added} ya estaban, ${unknown.size} clientes no encontrados)` });
   return { added, duplicates: data.length - added, unknownClients: [...unknown].sort() };
+}
+
+// ── Historial de envíos (sin cargos ni avisos) ──
+
+export type LegacyOrderRow = {
+  shipment: string; createdAt: string; mlNick: string; clientName: string; status: string; closedAt: string; carrierId: string;
+  recipient: string; phone: string; address: string; city: string; state: string; zip: string; lat: string; lng: string;
+  mlOrder: string; packId: string; mlStatus: string; mlSub: string; attempts: string; note: string;
+};
+const ORDER_COLS: (keyof LegacyOrderRow)[] = ["shipment", "createdAt", "mlNick", "clientName", "status", "closedAt", "carrierId", "recipient", "phone", "address", "city", "state", "zip", "lat", "lng", "mlOrder", "packId", "mlStatus", "mlSub", "attempts", "note"];
+const FINAL_EVENT: Record<string, string> = { DELIVERED: "delivered", CANCELLED: "cancelled", RETURNED_TO_SELLER: "returned_to_seller", RETURNED_TO_WAREHOUSE: "return_received", OUT_FOR_DELIVERY: "scanned_loaded" };
+const STATUSES = new Set(["DELIVERED", "CANCELLED", "RETURNED_TO_SELLER", "RETURNED_TO_WAREHOUSE", "OUT_FOR_DELIVERY", "FAILED", "CREATED"]);
+
+/** TSV propio de la migración, columnas en el orden de ORDER_COLS (con encabezado). */
+export function parseLegacyOrders(text: string): { rows: LegacyOrderRow[]; errors: string[] } {
+  const rows: LegacyOrderRow[] = [];
+  const errors: string[] = [];
+  for (const [i, line] of text.replace(/^﻿/, "").split(/\r?\n/).entries()) {
+    if (!line.trim() || (i === 0 && line.startsWith("shipment"))) continue;
+    const c = line.split("\t");
+    const r = Object.fromEntries(ORDER_COLS.map((k, j) => [k, (c[j] ?? "").trim()])) as LegacyOrderRow;
+    if (!/^\d{10,13}$/.test(r.shipment) || Number.isNaN(Date.parse(r.createdAt)) || !STATUSES.has(r.status)) {
+      if (errors.length < 30) errors.push(`Renglón ${i + 1}: ${r.shipment || "sin envío"}`);
+      continue;
+    }
+    rows.push(r);
+  }
+  return { rows, errors };
+}
+
+const numOrNull = (s: string) => (s && Number.isFinite(Number(s)) && Number(s) !== 0 ? Number(s) : null);
+const bigOrNull = (s: string) => (/^\d{6,20}$/.test(s) ? BigInt(s) : null);
+const txt = (s: string, n = 300) => (s && s !== "-" ? s.slice(0, n) : null);
+
+export async function importLegacyOrders(prisma: PrismaClient, rows: LegacyOrderRow[], actorUserId: string) {
+  const [accounts, clients, drivers] = await Promise.all([
+    prisma.mlAccount.findMany({ select: { id: true, nickname: true, clientId: true } }),
+    prisma.client.findMany({ select: { id: true, name: true } }),
+    prisma.driver.findMany({ where: { legacyCarrierId: { not: null } }, select: { id: true, legacyCarrierId: true } }),
+  ]);
+  const byNick = new Map(accounts.map((a) => [a.nickname.trim().toLowerCase(), a]));
+  const byName = new Map(clients.map((c) => [c.name.trim().toLowerCase(), c.id]));
+  const byCarrier = new Map(drivers.map((d) => [String(d.legacyCarrierId), d.id]));
+  const unknown = new Map<string, number>();
+  const existing = new Map(
+    (await prisma.order.findMany({ where: { mlShipmentId: { in: rows.map((r) => BigInt(r.shipment)) } }, select: { id: true, mlShipmentId: true, source: true } })).map((o) => [o.mlShipmentId!.toString(), o]),
+  );
+  const creates: Prisma.OrderCreateManyInput[] = [];
+  const events: Prisma.OrderEventCreateManyInput[] = [];
+  let updated = 0, skippedLive = 0;
+  for (const r of rows) {
+    const acc = byNick.get(r.mlNick.toLowerCase());
+    const clientId = acc?.clientId ?? byName.get(r.clientName.toLowerCase());
+    if (!clientId) {
+      const k = r.mlNick || r.clientName || "(sin cuenta)";
+      unknown.set(k, (unknown.get(k) ?? 0) + 1);
+      continue;
+    }
+    const final = r.status !== "OUT_FOR_DELIVERY" && r.status !== "CREATED";
+    const createdAt = new Date(r.createdAt);
+    const closedAt = r.closedAt && !Number.isNaN(Date.parse(r.closedAt)) ? new Date(r.closedAt) : null;
+    const data = {
+      status: r.status as Prisma.OrderCreateManyInput["status"],
+      mlStatus: txt(r.mlStatus, 40),
+      mlSubstatus: txt(r.mlSub, 60),
+      attempts: Math.max(0, Math.min(20, Number(r.attempts) || 0)),
+      deliveredAt: r.status === "DELIVERED" ? (closedAt ?? createdAt) : null,
+      driverId: final ? (byCarrier.get(r.carrierId) ?? null) : null,
+    };
+    const prev = existing.get(r.shipment);
+    if (prev) {
+      if (prev.source !== "IMPORT") {
+        skippedLive++;
+        continue;
+      }
+      await prisma.order.update({ where: { id: prev.id }, data });
+      updated++;
+      continue;
+    }
+    const id = `imp_${r.shipment}`;
+    creates.push({
+      id,
+      code: `ML-${r.shipment}`,
+      source: "IMPORT",
+      clientId,
+      mlAccountId: acc?.id ?? null,
+      mlShipmentId: BigInt(r.shipment),
+      mlOrderId: bigOrNull(r.mlOrder),
+      mlPackId: bigOrNull(r.packId),
+      recipientName: txt(r.recipient, 160),
+      recipientPhone: r.phone && !/^X+$/i.test(r.phone) && r.phone !== "-" ? r.phone.slice(0, 30) : null,
+      addressLine: txt(r.address, 300) ?? "(sin dirección en el sistema anterior)",
+      city: txt(r.city, 120),
+      state: txt(r.state, 120),
+      zip: /^\d{5}$/.test(r.zip) ? r.zip : null,
+      lat: numOrNull(r.lat),
+      lng: numOrNull(r.lng),
+      instructions: txt(r.note, 500),
+      createdAt,
+      ...data,
+    });
+    events.push({ orderId: id, type: "created", source: "IMPORT", toStatus: "CREATED", occurredAt: createdAt, note: "Sistema anterior" });
+    const ev = FINAL_EVENT[r.status];
+    if (ev) events.push({ orderId: id, type: ev, source: "IMPORT", fromStatus: "CREATED", toStatus: data.status, occurredAt: closedAt ?? createdAt });
+  }
+  let created = 0;
+  for (let i = 0; i < creates.length; i += 1000) created += (await prisma.order.createMany({ data: creates.slice(i, i + 1000), skipDuplicates: true })).count;
+  // Solo eventos de pedidos que sí quedaron (por si alguno chocó con un código existente).
+  const ids = new Set((await prisma.order.findMany({ where: { id: { in: creates.map((c) => c.id!) } }, select: { id: true } })).map((o) => o.id));
+  const evs = events.filter((e) => ids.has(e.orderId));
+  for (let i = 0; i < evs.length; i += 2000) await prisma.orderEvent.createMany({ data: evs.slice(i, i + 2000) });
+  await audit(prisma, { actorUserId, action: "migration.orders", entity: "Order", summary: `Migración: ${created} envíos históricos creados, ${updated} actualizados, ${skippedLive} ya existían en la plataforma nueva` });
+  return { created, updated, skippedLive, unknownAccounts: [...unknown.entries()].sort((a, b) => b[1] - a[1]) };
 }

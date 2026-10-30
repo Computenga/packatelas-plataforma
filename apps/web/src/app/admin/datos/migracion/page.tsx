@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { Card, PageHeader } from "@/components/ui";
-import { clientUsersAction, migrateFlexAction, migratePaymentsAction, migrateUsersAction } from "./actions";
+import { clientUsersAction, migrateFlexAction, migrateOrdersAction, migratePaymentsAction, migrateUsersAction } from "./actions";
 import { MigForm } from "./forms";
 
 export const metadata: Metadata = { title: "Migración" };
@@ -12,7 +12,7 @@ const input = "w-full rounded-lg border border-slate-300 px-3 py-2 text-sm";
 
 export default async function MigracionPage() {
   await requireUser(["ADMIN"]);
-  const [users, drivers, flex, clientUsers, clientsWithout, pending, histPays] = await Promise.all([
+  const [users, drivers, flex, clientUsers, clientsWithout, pending, histPays, histOrders] = await Promise.all([
     prisma.user.count({ where: { role: { not: "CLIENTE" } } }),
     prisma.driver.count(),
     prisma.flexIdentity.count(),
@@ -20,6 +20,7 @@ export default async function MigracionPage() {
     prisma.client.count({ where: { active: true, users: { none: {} } } }),
     prisma.user.count({ where: { mustChangePassword: true } }),
     prisma.payment.count({ where: { source: "IMPORT" } }),
+    prisma.order.count({ where: { source: "IMPORT" } }),
   ]);
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -27,7 +28,7 @@ export default async function MigracionPage() {
         Usuarios, repartidores, drivers Flex y accesos de clientes (sin saldos). Lo que ya existe no se toca.
       </PageHeader>
       <p className="text-sm text-slate-600">
-        Hoy: {users} usuarios del equipo · {drivers} repartidores · {flex} drivers Flex vinculados · {clientUsers} usuarios de clientes ({clientsWithout} clientes sin usuario) · {pending} con contraseña temporal pendiente de cambiar · {histPays} pagos históricos.
+        Hoy: {users} usuarios del equipo · {drivers} repartidores · {flex} drivers Flex vinculados · {clientUsers} usuarios de clientes ({clientsWithout} clientes sin usuario) · {pending} con contraseña temporal pendiente de cambiar · {histPays} pagos históricos · {histOrders} envíos históricos.
       </p>
 
       <Card title="1. Usuarios del equipo y repartidores">
@@ -54,7 +55,14 @@ export default async function MigracionPage() {
         </MigForm>
       </Card>
 
-      <Card title="4. Historial de pagos">
+      <Card title="4. Historial de envíos">
+        <MigForm action={migrateOrdersAction} label="Importar envíos">
+          <p className="text-xs text-slate-500">Archivo preparado (TSV, hasta ~1 MB por archivo). Sin cargos ni avisos; si se vuelve a subir, actualiza el estado.</p>
+          <input name="ordersFile" type="file" accept=".txt,.tsv" className="text-sm" />
+        </MigForm>
+      </Card>
+
+      <Card title="5. Historial de pagos">
         <MigForm action={migratePaymentsAction} label="Importar pagos">
           <p className="text-xs text-slate-500">Archivo preparado (TSV): fecha, cliente_id, monto, referencia, método, nota, llave. Solo historial: no mueve saldos ni se factura; no se duplica.</p>
           <input name="paymentsFile" type="file" accept=".txt,.tsv" className="text-sm" />

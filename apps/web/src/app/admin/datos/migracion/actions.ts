@@ -1,6 +1,6 @@
 "use server";
 
-import { createClientUsers, importFlexLinks, importLegacyPayments, importLegacyUsers, parseFlexLinks, parseLegacyPayments, parseLegacyUsers, prisma } from "@packatelas/db";
+import { createClientUsers, importFlexLinks, importLegacyOrders, importLegacyPayments, importLegacyUsers, parseFlexLinks, parseLegacyOrders, parseLegacyPayments, parseLegacyUsers, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 
 export type MigState = { ok?: string; error?: string; detail?: string[] };
@@ -54,6 +54,22 @@ export async function migratePaymentsAction(_: MigState, fd: FormData): Promise<
     if (!rows.length) return { error: "No se leyó ningún pago" };
     const r = await importLegacyPayments(prisma, rows, user.id);
     return { ok: `${r.added} pagos importados · ${r.duplicates} ya estaban · ${r.unknownClients.length} clientes no encontrados · ${errors.length} renglones con error`, detail: [...r.unknownClients.map((c) => `cliente no encontrado: ${c}`), ...errors] };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Error" };
+  }
+}
+
+export async function migrateOrdersAction(_: MigState, fd: FormData): Promise<MigState> {
+  const user = await requireUser(["ADMIN"]);
+  try {
+    const { rows, errors } = parseLegacyOrders(await text(fd, "orders"));
+    if (!rows.length) return { error: "No se leyó ningún envío" };
+    const r = await importLegacyOrders(prisma, rows, user.id);
+    const unk = r.unknownAccounts.reduce((a, [, n]) => a + n, 0);
+    return {
+      ok: `${r.created} envíos creados · ${r.updated} actualizados · ${r.skippedLive} ya estaban en la plataforma nueva · ${unk} sin cliente · ${errors.length} renglones con error`,
+      detail: [...r.unknownAccounts.map(([k, n]) => `sin cliente (${n}): ${k}`), ...errors],
+    };
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Error" };
   }
