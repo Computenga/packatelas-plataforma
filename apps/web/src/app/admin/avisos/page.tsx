@@ -5,8 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, testSendAction } from "./actions";
-import { phoneStatus, templateStatuses, webhookVerifyToken } from "@/lib/wa-templates";
+import { registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, subscribeWebhookAction, testSendAction } from "./actions";
+import { phoneStatus, templateStatuses, webhookSubscriptions, webhookVerifyToken } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
 
@@ -152,7 +152,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
 const STATUS_ES: Record<string, string> = { CONNECTED: "Conectado", PENDING: "Pendiente de registrar", DISCONNECTED: "Desconectado", FLAGGED: "Marcado por Meta", RESTRICTED: "Restringido", BANNED: "Bloqueado" };
 
 async function PhoneCard() {
-  const p = await phoneStatus();
+  const [p, subs] = await Promise.all([phoneStatus(), webhookSubscriptions()]);
   return (
     <Card title="Número de WhatsApp">
       {!p ? (
@@ -185,6 +185,14 @@ async function PhoneCard() {
             <p>URL de devolución de llamada: <span className="select-all font-mono">{(process.env.PUBLIC_URL || "https://nuevo.packatelas.mx").replace(/\/$/, "")}/api/whatsapp/webhook</span></p>
             <p>Token de verificación: <span className="select-all font-mono">{webhookVerifyToken() ?? "—"}</span></p>
             <p>Después suscribe el campo <span className="font-mono">messages</span>.</p>
+            <p className="mt-2">
+              Cuenta conectada a: {subs === null ? "—" : subs.length ? <span className="text-emerald-700">{subs.join(", ")}</span> : <span className="text-amber-700">ninguna app (no llegarán los estados)</span>}
+            </p>
+            {subs !== null && subs.length === 0 && (
+              <ActionForm action={subscribeWebhookAction} submitLabel="Conectar la cuenta al webhook" className="mt-2">
+                <span />
+              </ActionForm>
+            )}
           </div>
           <ActionForm action={testSendAction} submitLabel="Mandar prueba">
             <p className="text-xs text-slate-500">Manda la plantilla «Recolección asignada» a un celular (necesita estar aprobada).</p>

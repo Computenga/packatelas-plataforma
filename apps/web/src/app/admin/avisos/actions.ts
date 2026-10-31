@@ -56,3 +56,11 @@ export async function testSendAction(_: ActionState, fd: FormData): Promise<Acti
   revalidatePath("/admin/avisos");
   return ok ? { ok: "En cola: el proceso en segundo plano lo manda en unos segundos (míralo abajo en la bitácora)" } : { error: "No se pudo poner en cola (¿aviso apagado?)" };
 }
+
+export async function subscribeWebhookAction(_: ActionState): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const { subscribeWebhook } = await import("@/lib/wa-templates");
+  const r = await subscribeWebhook();
+  revalidatePath("/admin/avisos");
+  return r.ok ? { ok: "Cuenta conectada al webhook" } : { error: r.error ?? "No se pudo" };
+}

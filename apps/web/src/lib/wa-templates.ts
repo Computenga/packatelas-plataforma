@@ -97,3 +97,25 @@ export function validWebhookSignature(raw: string, header: string | null) {
   const b = createHmac("sha256", secret).update(raw).digest();
   return a.length === b.length && timingSafeEqual(a, b);
 }
+
+/** Apps suscritas a los avisos (webhook) de la cuenta de WhatsApp. */
+export async function webhookSubscriptions(): Promise<string[] | null> {
+  const c = cfg();
+  if (!c) return null;
+  try {
+    const res = await fetch(`${GRAPH}/${c.waba}/subscribed_apps`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    const j = (await res.json()) as { data?: { whatsapp_business_api_data?: { name?: string; id?: string } }[] };
+    return (j.data ?? []).map((d) => d.whatsapp_business_api_data?.name ?? d.whatsapp_business_api_data?.id ?? "app");
+  } catch {
+    return null;
+  }
+}
+
+/** Suscribe la app del token a los avisos de la cuenta (sin esto Meta no manda entregado/leído). */
+export async function subscribeWebhook(): Promise<{ ok: boolean; error?: string }> {
+  const c = cfg();
+  if (!c) return { ok: false, error: "Faltan WHATSAPP_TOKEN o WHATSAPP_WABA_ID" };
+  const res = await fetch(`${GRAPH}/${c.waba}/subscribed_apps`, { method: "POST", headers: { Authorization: `Bearer ${c.token}` }, signal: AbortSignal.timeout(15_000) });
+  const j = (await res.json().catch(() => ({}))) as { success?: boolean; error?: { message?: string } };
+  return res.ok && j.success ? { ok: true } : { ok: false, error: j.error?.message ?? `HTTP ${res.status}` };
+}

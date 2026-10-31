@@ -10,7 +10,7 @@ import { addOrderEvent } from "./orders.ts";
 type Db = PrismaClient | Prisma.TransactionClient;
 
 const END_TEXT: Record<CustodyEnd, string> = {
-  DELIVERED: "entregado (confirmado en ML y con evidencia)",
+  DELIVERED: "entregado con evidencia",
   RETURNED: "recibido de vuelta en Devoluciones",
   TRANSFERRED: "traspasado a otro repartidor",
   UNASSIGNED: "el despacho se lo quitó antes de cargarlo",
@@ -39,13 +39,13 @@ export async function custodyStart(db: Db, orderId: string, driverId: string, op
 }
 
 /** Cierra el inventario abierto del pedido con el motivo dado. */
-export async function custodyEnd(db: Db, orderId: string, reason: CustodyEnd, opts: { actorUserId?: string; source?: "ADMIN" | "SCAN" | "ML_SYNC" | "SYSTEM" | "DRIVER_APP" } = {}) {
+export async function custodyEnd(db: Db, orderId: string, reason: CustodyEnd, opts: { actorUserId?: string; source?: "ADMIN" | "SCAN" | "ML_SYNC" | "SYSTEM" | "DRIVER_APP"; detail?: string } = {}) {
   const open = await db.driverCustody.findFirst({ where: { orderId, endedAt: null } });
   if (!open) return false;
   const r = await db.driverCustody.updateMany({ where: { id: open.id, endedAt: null }, data: { endedAt: new Date(), endReason: reason, endedById: opts.actorUserId } });
   if (!r.count) return false;
   const name = await driverName(db, open.driverId);
-  await addOrderEvent(db, { orderId, type: "custody_out", source: opts.source ?? "SYSTEM", actorUserId: opts.actorUserId, note: `Inventario: sale del de ${name} · ${END_TEXT[reason]}`, data: { driverId: open.driverId, reason } });
+  await addOrderEvent(db, { orderId, type: "custody_out", source: opts.source ?? "SYSTEM", actorUserId: opts.actorUserId, note: `Inventario: sale del de ${name} · ${opts.detail ?? END_TEXT[reason]}`, data: { driverId: open.driverId, reason } });
   return true;
 }
 
@@ -59,7 +59,8 @@ export async function deliveryConfirmed(db: Db, orderId: string) {
 /** Revisa un pedido y, si ya cumple, lo saca del inventario. */
 export async function reconcileCustody(db: Db, orderId: string) {
   if (!(await deliveryConfirmed(db, orderId))) return false;
-  return custodyEnd(db, orderId, "DELIVERED", { source: "SYSTEM" });
+  const ml = (await db.order.findUnique({ where: { id: orderId }, select: { mlShipmentId: true } }))?.mlShipmentId != null;
+  return custodyEnd(db, orderId, "DELIVERED", { source: "SYSTEM", detail: ml ? "entregado (confirmado en ML y con evidencia)" : undefined });
 }
 
 /** Proceso en segundo plano: revisa los entregados que siguen en algún inventario. */
