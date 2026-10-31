@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/clie
 import { addOrderEvent, audit } from "./orders.ts";
 import { getMaxAttempts, markReturning, mustReturn } from "./failures.ts";
 import { sendPush } from "./push.ts";
+import { custodyEnd, custodyStart, reconcileCustody } from "./custody.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -22,24 +23,32 @@ export const FAIL_REASONS = {
 } as const;
 export type FailReason = keyof typeof FAIL_REASONS;
 
-export async function assignOrders(prisma: PrismaClient, orderIds: string[], driverId: string, actorUserId?: string) {
+export async function assignOrders(
+  prisma: PrismaClient,
+  orderIds: string[],
+  driverId: string,
+  actorUserId?: string,
+  opts: { source?: "ADMIN" | "FLEX_HANDSHAKE"; note?: string } = {},
+) {
   const driver = await prisma.driver.findUniqueOrThrow({ where: { id: driverId }, include: { user: true } });
   if (!driver.active || !driver.user.active) throw new Error("El repartidor está inactivo");
   let assigned = 0;
   for (const orderId of orderIds) {
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
-      if (!order || !ASSIGNABLE.includes(order.status)) return;
+      if (!order || order.kind !== "DELIVERY" || !ASSIGNABLE.includes(order.status)) return;
       if (order.driverId === driverId && order.status === "ASSIGNED") return;
       await tx.order.update({ where: { id: orderId }, data: { driverId } });
+      const source = opts.source ?? "ADMIN";
       await addOrderEvent(tx, {
         orderId,
         type: "assigned",
-        source: "ADMIN",
+        source,
         toStatus: "ASSIGNED",
         actorUserId,
-        note: `Asignado a ${driver.user.name}`,
+        note: opts.note ?? `Asignado a ${driver.user.name}`,
       });
+      await custodyStart(tx, orderId, driverId, { actorUserId, how: source === "FLEX_HANDSHAKE" ? "tomado en Flex" : "asignado en despacho", source });
       assigned++;
     });
   }
@@ -55,6 +64,7 @@ export async function unassignOrders(prisma: PrismaClient, orderIds: string[], a
       if (!order || order.status !== "ASSIGNED") return;
       await tx.order.update({ where: { id: orderId }, data: { driverId: null } });
       await addOrderEvent(tx, { orderId, type: "unassigned", source: "ADMIN", toStatus: "CREATED", actorUserId });
+      await custodyEnd(tx, orderId, "UNASSIGNED", { actorUserId, source: "ADMIN" });
       n++;
     });
   }
@@ -145,12 +155,15 @@ async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<Dri
       if (!["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED", "OUT_FOR_DELIVERY"].includes(order.status)) {
         return { ok: false as const, error: "Este pedido ya no está pendiente de entrega" };
       }
+      if (order.kind !== "DELIVERY") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
       if (free) await tx.order.update({ where: { id: order.id }, data: { driverId: e.driverId } });
       await addOrderEvent(tx, { ...base, type: "scanned_loaded", toStatus: "OUT_FOR_DELIVERY" });
+      await custodyStart(tx, order.id, e.driverId, { actorUserId: e.actorUserId, how: "cargado por el repartidor", source: "DRIVER_APP" });
       return { ok: true as const, duplicate: false, status: "OUT_FOR_DELIVERY" as OrderStatus };
     }
 
     if (order.driverId !== e.driverId) return { ok: false as const, error: "Este pedido no está en tu ruta" };
+    if (order.kind !== "DELIVERY") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
     if (!IN_ROUTE.includes(order.status)) return { ok: false as const, error: "Este pedido ya no está pendiente de entrega" };
 
     if (e.type === "delivered") {
@@ -165,6 +178,7 @@ async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<Dri
         data: { orderId: order.id, eventId: ev.id, kind: "PHOTO", storageKey: e.photoKey, receiverName: e.receiverName },
       });
       await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
+      await reconcileCustody(tx, order.id);
       return { ok: true as const, duplicate: false, status: "DELIVERED" as OrderStatus };
     }
 

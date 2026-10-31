@@ -6,7 +6,7 @@ import { audit } from "./orders.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_bloqueada" | "recordatorio_pago";
+export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
 export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[] }> = {
@@ -15,6 +15,8 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826"] },
   no_entregado: { label: "No se pudo entregar", audience: "Comprador", template: "pk_no_entregado", text: "Hola {{1}}, no pudimos entregar tu pedido de {{2}}. Motivo: {{3}}. Detalles en {{4}} y te contactaremos para reprogramar.", example: ["Ana", "Tienda Ejemplo", "No había nadie en el domicilio", "https://nuevo.packatelas.mx/s/abc"] },
   regresa_bodega: { label: "Paquete regresa a la tienda", audience: "Tienda", template: "pk_regresa_bodega", text: "Hola {{1}}, el envío {{2}} no se pudo entregar ({{3}}) y regresará a tu tienda.", example: ["Tienda Ejemplo", "ML-48341193826", "dirección incorrecta"] },
+  recoleccion_asignada: { label: "Recolección asignada", audience: "Tienda", template: "pk_recoleccion_asignada", text: "Hola {{1}}, tu recolección del {{2}} en {{3}} quedó asignada a {{4}}. Te mandaremos el enlace para seguirlo en vivo cuando vaya en camino a tu dirección.", example: ["Tienda Ejemplo", "sábado 31 de octubre", "Sucursal Centro", "Juan"] },
+  recoleccion_en_camino: { label: "Recolección en camino", audience: "Tienda", template: "pk_recoleccion_en_camino", text: "Hola {{1}}, {{2}} ya va en camino a {{3}} para recoger tus paquetes. Síguelo en tiempo real aquí: {{4}} Ten listos tus envíos, por favor.", example: ["Tienda Ejemplo", "Juan", "Sucursal Centro", "https://nuevo.packatelas.mx/s/abc"] },
   recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
@@ -28,7 +30,7 @@ export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") 
 export type NotifySettings = { enabled: Record<NotifyEvent, boolean>; reminderWeekday: number; reminderHour: number };
 const KEY = "notify.settings";
 export const DEFAULT_NOTIFY: NotifySettings = {
-  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: true, recoleccion_bloqueada: true, recordatorio_pago: true },
+  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: true, recoleccion_asignada: true, recoleccion_en_camino: true, recoleccion_bloqueada: true, recordatorio_pago: true },
   reminderWeekday: 6, // sábado
   reminderHour: 10,
 };
@@ -88,12 +90,12 @@ export async function notifyOrderStatus(db: Db, orderId: string, opts: { trackin
   const o = await db.order.findUnique({
     where: { id: orderId },
     select: {
-      id: true, code: true, status: true, recipientName: true, recipientPhone: true, attempts: true, clientId: true,
+      id: true, code: true, kind: true, status: true, recipientName: true, recipientPhone: true, attempts: true, clientId: true,
       client: { select: { name: true, phone: true } },
       events: { where: { type: { in: ["failed", "return_required"] } }, orderBy: { occurredAt: "desc" }, take: 1, select: { note: true } },
     },
   });
-  if (!o) return;
+  if (!o || o.kind !== "DELIVERY") return;
   const store = o.client.name;
   const reason = o.events[0]?.note?.split(" · ")[0] ?? "no fue posible";
   const base = { orderId: o.id, clientId: o.clientId };

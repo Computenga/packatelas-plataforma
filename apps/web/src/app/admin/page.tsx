@@ -19,15 +19,15 @@ export default async function AdminHome() {
   const today = startOfTodayMx();
 
   const [ordersToday, pending, delivered, clients, driversOnDuty, drivers, balance, lost, failed, toWarehouse, unidentified, signups] = await Promise.all([
-    prisma.order.count({ where: { createdAt: { gte: today } } }),
-    prisma.order.count({ where: { status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "RESCHEDULED"] } } }),
-    prisma.order.count({ where: { status: "DELIVERED", deliveredAt: { gte: today } } }),
+    prisma.order.count({ where: { kind: "DELIVERY", createdAt: { gte: today } } }),
+    prisma.order.count({ where: { kind: "DELIVERY", status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "RESCHEDULED"] } } }),
+    prisma.order.count({ where: { kind: "DELIVERY", status: "DELIVERED", deliveredAt: { gte: today } } }),
     prisma.client.count({ where: { active: true } }),
     prisma.driver.count({ where: { active: true, onDuty: true } }),
     prisma.driver.count({ where: { active: true } }),
     user.role === "ADMIN" ? prisma.ledgerEntry.aggregate({ _sum: { amount: true } }) : null,
     driversWithoutLocation(prisma),
-    prisma.order.count({ where: { status: "FAILED" } }),
+    prisma.order.count({ where: { kind: "DELIVERY", status: "FAILED" } }),
     prisma.order.count({ where: { status: "RETURNING" } }),
     user.role === "ADMIN" ? prisma.payment.count({ where: { status: "UNIDENTIFIED" } }) : 0,
     user.role === "ADMIN" ? prisma.clientSignup.count({ where: { status: "PENDING" } }) : 0,

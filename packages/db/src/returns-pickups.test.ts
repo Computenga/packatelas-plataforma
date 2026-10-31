@@ -96,7 +96,8 @@ describe("cobros y recolecciones", () => {
     await assignPickup(prisma, p.id, driver.id);
     await expect(completePickup(prisma, { pickupId: p.id, driverId: "otro", collected: true, count: 8 })).rejects.toThrow();
     await expect(completePickup(prisma, { pickupId: p.id, driverId: driver.id, collected: true })).rejects.toThrow();
-    await completePickup(prisma, { pickupId: p.id, driverId: driver.id, collected: true, count: 8 });
+    await expect(completePickup(prisma, { pickupId: p.id, driverId: driver.id, collected: true, count: 8 })).rejects.toThrow(/foto/);
+    await completePickup(prisma, { pickupId: p.id, driverId: driver.id, collected: true, count: 8, photoKeys: ["evidence/p.jpg"] });
     const done = await prisma.pickup.findUniqueOrThrow({ where: { id: p.id } });
     expect(done.status).toBe("COLLECTED");
     expect(done.collectedCount).toBe(8);

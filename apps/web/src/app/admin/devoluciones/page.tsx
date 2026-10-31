@@ -25,7 +25,7 @@ function byClient(rows: Row[]) {
 }
 
 export default async function DevolucionesPage({ searchParams }: PageProps<"/admin/devoluciones">) {
-  const user = await requireUser(["ADMIN", "OPERADOR"]);
+  const user = await requireUser(["ADMIN", "OPERADOR", "DESPACHADOR"]);
   const tab = String((await searchParams).tab ?? "recibir");
   const select = { id: true, code: true, status: true, updatedAt: true, client: { select: { id: true, name: true } }, driver: { select: { user: { select: { name: true } } } } } as const;
 

@@ -6,7 +6,7 @@ export type ScanResult =
   | { kind: "INVALID"; reason: string };
 
 const ML_ID = /^\d{10,13}$/;
-const OWN_CODE = /^PK-\d{4,}$/i;
+const OWN_CODE = /^(PK|RC)-\d{4,}$/i;
 
 /**
  * Las etiquetas de Mercado Envíos traen un QR con JSON, p. ej.

@@ -3,6 +3,7 @@
 import type { PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { addOrderEvent } from "./orders.ts";
 import { parseScan } from "./scan.ts";
+import { custodyEnd } from "./custody.ts";
 
 /** Pedidos que pueden entrar al almacén como devolución. */
 const RECEIVABLE: OrderStatus[] = ["FAILED", "RETURNING", "CANCELLED", "OUT_FOR_DELIVERY", "ASSIGNED", "RESCHEDULED"];
@@ -19,13 +20,21 @@ async function findByScan(prisma: PrismaClient, raw: string) {
 }
 
 /** Primer escaneo: el paquete llega al almacén de Packatelas. */
-export async function receiveReturn(prisma: PrismaClient, raw: string, actorUserId?: string): Promise<ReturnOutcome> {
+export async function receiveReturn(prisma: PrismaClient, raw: string, actorUserId?: string, actorRole?: string): Promise<ReturnOutcome> {
   const order = await findByScan(prisma, raw);
   if (!order) return { status: "error", message: "Paquete no encontrado en el sistema" };
   const ref = { orderId: order.id, code: order.code, clientName: order.client.name };
-  if (order.return?.status === "IN_WAREHOUSE") return { status: "already", ...ref };
+  // Si está en el inventario de un repartidor, solo admin o despachador lo pueden recibir de vuelta.
+  const custody = await prisma.driverCustody.findFirst({ where: { orderId: order.id, endedAt: null }, select: { id: true } });
+  if (custody && actorRole && !["ADMIN", "DESPACHADOR"].includes(actorRole)) {
+    return { status: "error", message: `${order.code} está en el inventario de un repartidor: lo debe recibir un admin o despachador` };
+  }
+  if (order.return?.status === "IN_WAREHOUSE") {
+    if (custody) await custodyEnd(prisma, order.id, "RETURNED", { actorUserId, source: "SCAN" });
+    return { status: "already", ...ref };
+  }
   if (order.return?.status === "RETURNED_TO_SELLER") return { status: "error", message: `${order.code} ya se devolvió al vendedor` };
-  if (!RECEIVABLE.includes(order.status)) return { status: "error", message: `${order.code} no está pendiente de devolución` };
+  if (!RECEIVABLE.includes(order.status) && !custody) return { status: "error", message: `${order.code} no está pendiente de devolución` };
 
   await prisma.$transaction(async (tx) => {
     await tx.returnCustody.upsert({
@@ -37,6 +46,7 @@ export async function receiveReturn(prisma: PrismaClient, raw: string, actorUser
     if (order.driverId) await tx.order.update({ where: { id: order.id }, data: { driverId: null } });
     const from = order.driver ? ` · lo entregó ${order.driver.user.name}` : "";
     await addOrderEvent(tx, { orderId: order.id, type: "return_received", source: "SCAN", toStatus: "RETURNED_TO_WAREHOUSE", actorUserId, note: `Recibido en Packatelas${from}` });
+    await custodyEnd(tx, order.id, "RETURNED", { actorUserId, source: "SCAN" });
   });
   return { status: "ok", ...ref };
 }

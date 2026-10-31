@@ -81,7 +81,7 @@ export async function rescheduleOrder(
 /** Paquetes no entregados que el repartidor trae consigo y debe dejar en bodega. */
 export function packagesToReturn(db: Db, driverId: string) {
   return db.order.findMany({
-    where: { driverId, status: { in: ["FAILED", "RETURNING"] } },
+    where: { driverId, kind: "DELIVERY", status: { in: ["FAILED", "RETURNING"] } },
     select: { id: true, code: true, status: true, recipientName: true, addressLine: true, client: { select: { name: true } } },
     orderBy: { updatedAt: "asc" },
   });

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
   const user = await getSessionUser();
   if (!user || user.role !== "CLIENTE" || !user.clientId) return new Response("No autorizado", { status: 401 });
   const f = readFilters(Object.fromEntries(new URL(request.url).searchParams));
-  const orders = await prisma.order.findMany({ where: buildWhere(f, user.clientId), orderBy: { createdAt: "desc" }, take: 50_000 });
+  const orders = await prisma.order.findMany({ where: { ...buildWhere(f, user.clientId), kind: "DELIVERY" }, orderBy: { createdAt: "desc" }, take: 50_000 });
   const lines = [["Registrado", "Envío", "Estado", "Destinatario", "Dirección", "Colonia", "CP", "Entregado", "Intentos"].map(cell).join(",")];
   for (const o of orders) {
     lines.push([fecha(o.createdAt), o.code, STATUS_LABEL[o.status], o.recipientName, o.addressLine, o.neighborhood, o.zip, fecha(o.deliveredAt), o.attempts].map(cell).join(","));

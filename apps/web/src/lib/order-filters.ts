@@ -36,7 +36,7 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
   if (f.q) {
     const digits = f.q.replace(/\D/g, "");
     // Un código completo (PK-000123, ML-48323149259) se busca directo, sin recorrer textos.
-    if (/^(PK|ML|PF)-\d+$/i.test(f.q.trim())) {
+    if (/^(PK|ML|PF|RC)-\d+$/i.test(f.q.trim())) {
       where.code = f.q.trim().toUpperCase();
       return where;
     }

@@ -22,7 +22,7 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
   const [pickups, drivers, branches] = await Promise.all([
     prisma.pickup.findMany({
       where: { scheduledFor: dateOnly(date) },
-      include: { client: { select: { id: true, name: true } }, branch: true, driver: { include: { user: { select: { name: true } } } } },
+      include: { client: { select: { id: true, name: true } }, branch: true, driver: { include: { user: { select: { name: true } } } }, order: { select: { id: true, code: true, status: true } } },
       orderBy: [{ status: "asc" }, { client: { name: "asc" } }],
     }),
     prisma.driver.findMany({ where: { active: true, user: { active: true } }, include: { user: { select: { name: true } } }, orderBy: { user: { name: "asc" } } }),
@@ -38,7 +38,8 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader eyebrow="Operación" title="Recolecciones">
-        Las automáticas se generan solas según los días de cada sucursal. Las de clientes con adeudo quedan bloqueadas.
+        Las automáticas se generan solas según los días de cada sucursal. Las de clientes con adeudo quedan bloqueadas. Cada recolección es un
+        pedido (RC-…) con fotos de lo recolectado; la tienda recibe por WhatsApp el aviso al asignarla y el enlace en vivo cuando el repartidor va hacia ella.
       </PageHeader>
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
@@ -51,12 +52,16 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
         {date !== today && <Link href="?" className="text-brand">Hoy</Link>}
       </div>
 
-      <Table head={["Cliente", "Sucursal", "Tipo", "Estado", "Paquetes", "Repartidor"]} empty={pickups.length ? undefined : "Sin recolecciones para este día"}>
+      <Table head={["Pedido", "Cliente", "Sucursal", "Tipo", "Estado", "Paquetes", "Repartidor"]} empty={pickups.length ? undefined : "Sin recolecciones para este día"}>
         {pickups.map((p) => {
           const [label, tone] = PICKUP_LABEL[p.status];
           const open = ["SCHEDULED", "ASSIGNED", "FAILED"].includes(p.status);
           return (
             <tr key={p.id}>
+              <Td>
+                {p.order ? <Link href={`/admin/pedidos/${p.order.id}`} className="font-mono text-brand hover:underline">{p.order.code}</Link> : <span className="text-slate-400">—</span>}
+                {p.order?.status === "OUT_FOR_DELIVERY" && <span className="block text-xs text-sky-700">en camino</span>}
+              </Td>
               <Td><Link href={`/admin/cobros/${p.client.id}`} className="text-brand hover:underline">{p.client.name}</Link></Td>
               <Td className="whitespace-normal"><span className="font-medium">{p.branch.name}</span><span className="block text-xs text-slate-500">{p.branch.address}</span></Td>
               <Td>{p.automatic ? "Automática" : "Solicitada"}</Td>

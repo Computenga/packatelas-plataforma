@@ -202,6 +202,7 @@ model Driver {
   updatedAt      DateTime  @updatedAt
 
   flexIdentities FlexIdentity[]
+  custodies      DriverCustody[]
   orders         Order[]
   routes         Route[]
   pickups        Pickup[]
@@ -247,6 +248,12 @@ enum OrderSource {
   API // creado por el sistema del cliente [I08]
 }
 
+// Entrega normal o recolección en la tienda del cliente (origen: su sucursal; destino: bodega).
+enum OrderKind {
+  DELIVERY
+  PICKUP
+}
+
 enum OrderStatus {
   CREATED // escaneado o registrado
   ASSIGNED
@@ -264,6 +271,7 @@ model Order {
   id           String      @id @default(cuid())
   code         String      @unique // ML-48323149259 o PK-000123
   source       OrderSource
+  kind         OrderKind   @default(DELIVERY)
   status       OrderStatus @default(CREATED)
   clientId     String
   client       Client      @relation(fields: [clientId], references: [id])
@@ -299,9 +307,13 @@ model Order {
   driverId String?
   driver   Driver? @relation(fields: [driverId], references: [id])
 
+  pickupId String? @unique
+  pickup   Pickup? @relation(fields: [pickupId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  custodies  DriverCustody[]
   events     OrderEvent[]
   evidence   Evidence[]
   flexShipment MlFlexShipment?
@@ -446,9 +458,40 @@ model Pickup {
   updatedAt      DateTime     @updatedAt
 
   routeStops RouteStop[]
+  order      Order?
 
   @@index([scheduledFor, status])
   @@index([clientId])
+}
+
+// ───────────────────────── Inventario por repartidor ─────────────────────────
+// Un paquete entra al inventario del repartidor al asignárselo (o al tomarlo él / por Flex) y solo
+// sale si queda entregado en ML y con evidencia en la app, si un admin o despachador lo recibe de
+// vuelta en Devoluciones, o si pasa a otro repartidor (traspaso).
+
+enum CustodyEnd {
+  DELIVERED // entregado en ML + evidencia en la app
+  RETURNED // recibido de vuelta en Devoluciones por admin/despachador
+  TRANSFERRED // pasó al inventario de otro repartidor
+  UNASSIGNED // el despacho lo quitó antes de que lo cargara
+}
+
+model DriverCustody {
+  id          String      @id @default(cuid())
+  orderId     String
+  order       Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  driverId    String
+  driver      Driver      @relation(fields: [driverId], references: [id])
+  startedAt   DateTime    @default(now())
+  startedById String?
+  how         String // asignado, cargado, flex, inicial
+  endedAt     DateTime?
+  endReason   CustodyEnd?
+  endedById   String?
+
+  @@index([driverId, endedAt])
+  @@index([orderId, endedAt])
+  @@index([endedAt, startedAt])
 }
 
 // ───────────────────────── Devoluciones [A10, R13, C07] ─────────────────────────

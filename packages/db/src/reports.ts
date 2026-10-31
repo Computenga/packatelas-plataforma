@@ -74,7 +74,7 @@ export async function clientReport(db: Db, r: Range): Promise<ClientReport[]> {
       COUNT(o.id) FILTER (WHERE o.status IN ('RETURNING', 'RETURNED_TO_WAREHOUSE', 'RETURNED_TO_SELLER')) AS returned,
       (SELECT SUM(l.amount) FROM "LedgerEntry" l WHERE l."clientId" = c.id AND l.type IN ('CHARGE', 'FEE') AND l."createdAt" >= ${r.from} AND l."createdAt" < ${r.to}) AS charged
     FROM "Client" c
-    JOIN "Order" o ON o."clientId" = c.id AND o."createdAt" >= ${r.from} AND o."createdAt" < ${r.to} AND o.status <> 'CANCELLED'
+    JOIN "Order" o ON o."clientId" = c.id AND o.kind = 'DELIVERY' AND o."createdAt" >= ${r.from} AND o."createdAt" < ${r.to} AND o.status <> 'CANCELLED'
     GROUP BY c.id
     ORDER BY created DESC`;
   return rows.map((x) => ({
@@ -93,7 +93,7 @@ export async function zoneReport(db: Db, r: Range, by: "city" | "zip" = "city"):
       COUNT(*) FILTER (WHERE o.status = 'DELIVERED') AS delivered,
       COUNT(*) FILTER (WHERE o.attempts > 0 AND o.status <> 'DELIVERED') AS failed
     FROM "Order" o
-    WHERE o."createdAt" >= ${r.from} AND o."createdAt" < ${r.to} AND o.status <> 'CANCELLED'
+    WHERE o.kind = 'DELIVERY' AND o."createdAt" >= ${r.from} AND o."createdAt" < ${r.to} AND o.status <> 'CANCELLED'
       AND o."addressLine" <> 'Pendiente de sincronizar con MercadoLibre'
     GROUP BY 1 ORDER BY created DESC LIMIT 300`;
   return rows.map((x) => {
@@ -116,7 +116,7 @@ export async function deliveriesByHour(db: Db, r: Range): Promise<number[]> {
 /** Puntos de entrega para el mapa de calor (máx. 5,000). */
 export async function deliveryPoints(db: Db, r: Range): Promise<[number, number][]> {
   const rows = await db.order.findMany({
-    where: { status: "DELIVERED", deliveredAt: { gte: r.from, lt: r.to }, lat: { not: null }, lng: { not: null } },
+    where: { kind: "DELIVERY", status: "DELIVERED", deliveredAt: { gte: r.from, lt: r.to }, lat: { not: null }, lng: { not: null } },
     select: { lat: true, lng: true },
     take: 5000,
     orderBy: { deliveredAt: "desc" },
@@ -150,7 +150,7 @@ export function classifyBurned(o: { createdAt: Date; requestedDeliveryAt: Date; 
 
 export async function burnedReport(db: Db, r: Range, now = new Date()): Promise<BurnedRow[]> {
   const orders = await db.order.findMany({
-    where: { createdAt: { gte: r.from, lt: r.to }, requestedDeliveryAt: { not: null } },
+    where: { kind: "DELIVERY", createdAt: { gte: r.from, lt: r.to }, requestedDeliveryAt: { not: null } },
     select: { id: true, code: true, createdAt: true, requestedDeliveryAt: true, deliveredAt: true, status: true, client: { select: { name: true, publicId: true } } },
     orderBy: { createdAt: "desc" },
     take: 20000,

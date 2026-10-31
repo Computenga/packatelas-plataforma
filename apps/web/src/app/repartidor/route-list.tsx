@@ -17,6 +17,8 @@ export type Stop = {
   instructions: string | null;
   lat: number | null;
   lng: number | null;
+  /** Minutos estimados de manejo hasta aquí (con tráfico, si hay TomTom). */
+  etaMin?: number | null;
 };
 
 const CACHE_KEY = "pk-route";
@@ -59,7 +61,7 @@ export function RouteList() {
       setStatus(
         data.method === "sin-ubicacion"
           ? "Sin tu ubicación: orden de asignación. Activa el GPS para ordenar la ruta."
-          : `Ordenada desde tu ubicación ${data.method === "osrm" ? "(tiempos reales)" : ""}`,
+          : `Ordenada desde tu ubicación ${data.method === "tomtom" ? "(con tráfico en vivo)" : data.method === "osrm" ? "(tiempos reales)" : ""}`,
       );
     } catch {
       const cached = readCache();
@@ -117,6 +119,7 @@ export function RouteList() {
                 <span className="block text-sm text-slate-600">{s.address}</span>
                 <span className="block text-xs text-slate-500">
                   <span className="font-mono">{s.code}</span> · {s.client}
+                  {s.etaMin != null && <span className="ml-1 text-slate-600">· ~{s.etaMin} min</span>}
                   {s.status === "ASSIGNED" && !loadedIds.has(s.id) && <span className="ml-1 text-amber-700">· falta escanear al cargar</span>}
                 </span>
               </span>

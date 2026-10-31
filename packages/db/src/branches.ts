@@ -40,6 +40,7 @@ export async function removeBranch(prisma: PrismaClient, branchId: string, actor
     await detachFromMl(tx, b.id, b.clientId);
     // Recolecciones aún por hacer en esta sucursal ya no aplican.
     await tx.pickup.updateMany({ where: { branchId: b.id, status: { in: ["SCHEDULED", "BLOCKED"] } }, data: { status: "CANCELLED" } });
+    await tx.order.updateMany({ where: { kind: "PICKUP", status: "CREATED", pickup: { branchId: b.id, status: "CANCELLED" } }, data: { status: "CANCELLED" } });
     if (b._count.orders === 0 && (await tx.pickup.count({ where: { branchId: b.id, status: { not: "CANCELLED" } } })) === 0) {
       await tx.pickup.deleteMany({ where: { branchId: b.id } });
       await tx.branch.delete({ where: { id: b.id } });

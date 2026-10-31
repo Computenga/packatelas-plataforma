@@ -95,6 +95,7 @@ export async function GET(request: Request) {
   const pagina = Math.max(1, Math.min(1000, Number(sp.get("pagina")) || 1));
   const where = {
     clientId: auth.clientId,
+    kind: "DELIVERY" as const,
     ...(estado ? { status: estado as OrderStatus } : {}),
     ...(desde || hasta ? { createdAt: {
       ...(desde ? { gte: new Date(`${desde}T00:00:00-06:00`) } : {}),

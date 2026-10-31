@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { prisma } from "@packatelas/db";
+import { orderStops, prisma, WAREHOUSE_ADDRESS } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
-import { PICKUP_LABEL, soloFecha } from "@/lib/format";
-import { ActionForm } from "@/components/action-form";
-import { Badge, Field } from "@/components/ui";
-import { completePickupAction } from "./actions";
+import { Badge } from "@/components/ui";
+import { PickupActions } from "./pickup-card";
 
 export const metadata: Metadata = { title: "Recolecciones" };
+// scheduledFor es solo fecha (medianoche UTC): se formatea en UTC para no correrla un día.
+const DIA = new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", dateStyle: "medium" });
 
 export default async function RepartidorRecolecciones() {
   const user = await requireUser(["REPARTIDOR"]);
@@ -14,49 +14,42 @@ export default async function RepartidorRecolecciones() {
   if (!driver) return null;
   const pickups = await prisma.pickup.findMany({
     where: { driverId: driver.id, status: "ASSIGNED" },
-    include: { client: { select: { name: true } }, branch: true },
+    include: { client: { select: { name: true } }, branch: true, order: { select: { code: true, status: true } } },
     orderBy: { scheduledFor: "asc" },
   });
+  // Orden sugerido desde donde está el repartidor; la que va en camino, primero.
+  const start = driver.lastLat != null && driver.lastLng != null ? { lat: driver.lastLat, lng: driver.lastLng } : null;
+  const { ordered } = await orderStops(start, pickups.map((p) => ({ ...p, lat: p.branch.lat, lng: p.branch.lng })));
+  const list = [...ordered].sort((a, b) => Number(b.order?.status === "OUT_FOR_DELIVERY") - Number(a.order?.status === "OUT_FOR_DELIVERY"));
 
   return (
     <div className="space-y-3">
-      <h1 className="text-lg font-bold">Recolecciones ({pickups.length})</h1>
-      {pickups.length === 0 && (
+      <h1 className="text-lg font-bold">Recolecciones ({list.length})</h1>
+      <p className="text-xs text-slate-500">Todo lo que recolectes va a {WAREHOUSE_ADDRESS}.</p>
+      {list.length === 0 && (
         <p className="rounded-xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">No tienes recolecciones asignadas.</p>
       )}
-      {pickups.map((p) => {
+      {list.map((p, i) => {
         const dest = p.branch.lat != null ? `${p.branch.lat},${p.branch.lng}` : encodeURIComponent(p.branch.address);
+        const enRoute = p.order?.status === "OUT_FOR_DELIVERY";
         return (
-          <div key={p.id} className="rounded-xl border border-slate-200 bg-white p-4">
+          <div key={p.id} className={`rounded-xl border bg-white p-4 ${enRoute ? "border-brand ring-1 ring-brand" : "border-slate-200"}`}>
             <div className="flex items-start justify-between gap-2">
               <div>
+                <p className="text-xs text-slate-500">
+                  {i + 1}. {p.order?.code ?? "Recolección"}
+                </p>
                 <p className="font-semibold">{p.client.name}</p>
                 <p className="text-sm text-slate-600">{p.branch.name} · {p.branch.address}</p>
                 <p className="text-xs text-slate-500">
-                  {soloFecha(p.scheduledFor)}
+                  {DIA.format(p.scheduledFor)}
                   {p.expectedCount && ` · ~${p.expectedCount} paquetes`}
                   {p.note && ` · ${p.note}`}
                 </p>
               </div>
-              <Badge tone={PICKUP_LABEL[p.status][1]}>{PICKUP_LABEL[p.status][0]}</Badge>
+              {enRoute ? <Badge tone="blue">En camino</Badge> : <Badge>Pendiente</Badge>}
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 text-center text-sm">
-              <a className="rounded-lg border border-slate-300 py-2" href={`https://www.google.com/maps/dir/?api=1&destination=${dest}`} target="_blank" rel="noreferrer">Google Maps</a>
-              {p.branch.phone ? <a className="rounded-lg border border-slate-300 py-2" href={`tel:${p.branch.phone}`}>Llamar</a> : <span className="rounded-lg border border-slate-200 py-2 text-slate-400">Sin teléfono</span>}
-            </div>
-            <div className="mt-3">
-              <ActionForm action={completePickupAction.bind(null, p.id)} submitLabel="Confirmar recolección">
-                <Field label="¿Cuántos paquetes recogiste?" name="count" type="number" min="0" inputMode="numeric" required />
-                <Field label="Nota" name="note" />
-              </ActionForm>
-              <details className="mt-2 text-sm">
-                <summary className="cursor-pointer text-red-600">No se pudo recolectar</summary>
-                <ActionForm action={completePickupAction.bind(null, p.id)} submitLabel="Reportar" className="mt-2">
-                  <input type="hidden" name="failed" value="1" />
-                  <Field label="Motivo" name="note" required />
-                </ActionForm>
-              </details>
-            </div>
+            <PickupActions pickupId={p.id} mapsUrl={`https://www.google.com/maps/dir/?api=1&destination=${dest}`} phone={p.branch.phone} enRoute={enRoute} />
           </div>
         );
       })}

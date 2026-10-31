@@ -2,13 +2,14 @@
 // - OAuth por cuenta de vendedor: el cliente autoriza con su cuenta ML y guardamos los tokens cifrados.
 // - Al escanear (o al llegar una notificación) se trae el envío: destinatario, dirección, pin y estado ML.
 // Todo lo de red pasa por `fetchImpl` para poder probarlo sin internet.
+import { reconcileCustody } from "./custody.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { decryptSecret, encryptSecret } from "./crypto.ts";
 import { adminUserIds, sendPush } from "./push.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { captureShipment } from "./ml-flex.ts";
-import { currentFlexDriver, recordFlexAssignment } from "./flex-drivers.ts";
+import { applyFlexAssignment, currentFlexDriver } from "./flex-drivers.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -229,6 +230,8 @@ export async function syncMlShipment(prisma: PrismaClient, shipmentId: bigint, f
       itemsSummary: order.itemsSummary ?? itemsSummary,
     },
   });
+  // Entregado en ML + evidencia en la app → sale del inventario del repartidor.
+  if (m.mlStatus === "delivered") await reconcileCustody(prisma, order.id).catch(() => false);
   return { status: "synced" as const };
 }
 
@@ -271,15 +274,18 @@ export async function processMlJobs(prisma: PrismaClient, limit = 25, fetchImpl:
       const r = await syncMlShipment(prisma, BigInt(id), fetchImpl);
       if (r.status === "unauthorized") throw new Error("La cuenta ML no ha autorizado a Packatelas");
       // Driver Flex asignado → historial del pedido.
-      const ord = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(id) }, select: { id: true, mlAccountId: true } });
-      if (ord) {
-        const d = await currentFlexDriver(prisma, BigInt(id), ord.mlAccountId, fetchImpl).catch(() => null);
-        if (d) await recordFlexAssignment(prisma, ord.id, d).catch(() => false);
-      }
       // Envío de una cuenta conocida que aún no escaneamos: va a Recuperados si es Flex.
       if (job.mlUserId) {
         const acc = await prisma.mlAccount.findUnique({ where: { mlUserId: job.mlUserId }, select: { id: true } });
         if (acc) await captureShipment(prisma, acc.id, BigInt(id), fetchImpl);
+      }
+      // Driver Flex que lo tomó → historial, y si es de los nuestros se le asigna (también si estaba en Recuperados).
+      const ord = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(id) }, select: { mlAccountId: true } });
+      const rec = ord ? null : await prisma.mlFlexShipment.findUnique({ where: { shipmentId: BigInt(id) }, select: { mlAccountId: true, orderId: true, logisticType: true } });
+      const accountId = ord?.mlAccountId ?? (rec && !rec.orderId && rec.logisticType === "self_service" ? rec.mlAccountId : undefined);
+      if (accountId !== undefined) {
+        const d = await currentFlexDriver(prisma, BigInt(id), accountId, fetchImpl).catch(() => null);
+        if (d) await applyFlexAssignment(prisma, BigInt(id), d).catch(() => null);
       }
       await prisma.mlJob.update({ where: { id: job.id }, data: { status: "DONE", lastError: r.status === "synced" ? null : r.status } });
       done++;

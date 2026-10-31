@@ -35,7 +35,7 @@ export default async function InformesPage({ searchParams }: PageProps<"/admin/i
     tab === "zonas" ? zoneReport(prisma, range, zoneBy) : Promise.resolve([]),
     tab === "mapa" || tab === "repartidores" ? deliveriesByHour(prisma, range) : Promise.resolve(new Array(24).fill(0)),
     tab === "mapa" ? deliveryPoints(prisma, range) : Promise.resolve([] as [number, number][]),
-    prisma.order.count({ where: { createdAt: { gte: range.from, lt: range.to }, status: { not: "CANCELLED" } } }),
+    prisma.order.count({ where: { kind: "DELIVERY", createdAt: { gte: range.from, lt: range.to }, status: { not: "CANCELLED" } } }),
   ]);
   const delivered = hours.reduce((a: number, b: number) => a + b, 0);
 

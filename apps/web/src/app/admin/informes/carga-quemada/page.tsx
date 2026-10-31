@@ -25,7 +25,7 @@ export default async function CargaQuemadaPage({ searchParams }: PageProps<"/adm
   const all = await burnedReport(prisma, range);
   const rows = kind ? all.filter((r) => r.kind === kind) : all;
   const count = (k: keyof typeof KIND) => all.filter((r) => r.kind === k).length;
-  const withPromise = await prisma.order.count({ where: { createdAt: { gte: range.from, lt: range.to }, requestedDeliveryAt: { not: null } } });
+  const withPromise = await prisma.order.count({ where: { kind: "DELIVERY", createdAt: { gte: range.from, lt: range.to }, requestedDeliveryAt: { not: null } } });
   const qs = (extra: Record<string, string>) => new URLSearchParams({ from: fromYmd, to: toYmd, ...extra }).toString();
 
   return (

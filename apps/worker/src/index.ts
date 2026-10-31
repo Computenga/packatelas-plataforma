@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -190,7 +190,7 @@ function startFlexTracking() {
     busy = true;
     try {
       const r = await trackFlexAssignments(prisma);
-      if (r.changed) console.log(`[worker] Flex: ${r.changed} pedido(s) con driver nuevo de ${r.checked} revisados`);
+      if (r.changed || r.recovered) console.log(`[worker] Flex: ${r.changed} pedido(s) reasignados y ${r.recovered} recuperado(s) tomados por nuestros repartidores, de ${r.checked} revisados`);
     } catch (e) {
       console.error("[worker] Flex:", e instanceof Error ? e.message : e);
     } finally {
@@ -198,6 +198,25 @@ function startFlexTracking() {
     }
   };
   setInterval(run, 5 * 60_000);
+}
+
+/** Inventario por repartidor: saca los entregados ya confirmados (ML + evidencia), cada 5 min. */
+function startCustody() {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const n = await sweepCustody(prisma);
+      if (n) console.log(`[worker] Inventario: ${n} paquete(s) entregados y confirmados salieron del inventario`);
+    } catch (e) {
+      console.error("[worker] Inventario:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 5 * 60_000);
+  void run();
 }
 
 /** Facturación automática de pagos nuevos [I10], cada 5 min (solo si está encendida). */
@@ -234,6 +253,7 @@ function startMp() {
 
 async function main() {
   startHourlyJobs();
+  startCustody();
   startMlSync();
   startNotifier();
   startBackups();

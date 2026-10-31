@@ -22,7 +22,7 @@ export default async function RepartidorHome() {
       where: { actorUserId: user.id, type: { in: ["delivered", "failed"] }, occurredAt: { gte: today } },
       _count: { _all: true },
     }),
-    prisma.order.count({ where: { driverId: driver.id, status: { in: ["ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
+    prisma.order.count({ where: { driverId: driver.id, kind: "DELIVERY", status: { in: ["ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
     prisma.pickup.aggregate({
       where: { driverId: driver.id, status: "COLLECTED", collectedAt: { gte: today } },
       _count: { _all: true },

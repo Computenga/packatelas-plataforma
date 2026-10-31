@@ -16,12 +16,12 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
   }
   const clientId = user.clientId;
   const f = readFilters(await searchParams);
-  const where = buildWhere(f, clientId); // siempre restringido a su propio cliente
+  const where = { ...buildWhere(f, clientId), kind: "DELIVERY" as const }; // siempre restringido a su propio cliente
 
   const [client, inProgress, deliveredCount, balance, orders, total] = await Promise.all([
     prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true } }),
-    prisma.order.count({ where: { clientId, status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
-    prisma.order.count({ where: { clientId, status: "DELIVERED" } }),
+    prisma.order.count({ where: { clientId, kind: "DELIVERY", status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
+    prisma.order.count({ where: { clientId, kind: "DELIVERY", status: "DELIVERED" } }),
     getClientBalance(prisma, clientId),
     prisma.order.findMany({ where, orderBy: { createdAt: "desc" }, skip: (f.page - 1) * PAGE_SIZE, take: PAGE_SIZE }),
     prisma.order.count({ where }),

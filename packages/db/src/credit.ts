@@ -97,7 +97,7 @@ export async function accountState(db: Db, clientId: string, now = new Date()): 
 export async function weeklyVolumes(db: Db, now = new Date()): Promise<Map<string, number>> {
   const rows = await db.order.groupBy({
     by: ["clientId"],
-    where: { createdAt: { gte: new Date(now.getTime() - 7 * 86400_000) }, status: { not: "CANCELLED" } },
+    where: { kind: "DELIVERY", createdAt: { gte: new Date(now.getTime() - 7 * 86400_000) }, status: { not: "CANCELLED" } },
     _count: { _all: true },
   });
   return new Map(rows.map((r) => [r.clientId, r._count._all]));

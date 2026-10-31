@@ -9,7 +9,10 @@ import { mlAccessToken } from "./ml-api.ts";
 import { courierToken } from "./ml-courier.ts";
 import { audit } from "./orders.ts";
 import { parseScan } from "./scan.ts";
-import { addOrderEvent } from "./orders.ts";
+import { addOrderEvent, registerScan } from "./orders.ts";
+import { ASSIGNABLE, assignOrders } from "./dispatch.ts";
+import { custodyStart } from "./custody.ts";
+import { FLEX_OPEN_STATUSES } from "./ml-flex.ts";
 
 type Fetch = typeof fetch;
 const API = "https://api.mercadolibre.com";
@@ -208,6 +211,49 @@ export async function recordFlexAssignment(prisma: PrismaClient, orderId: string
   return true;
 }
 
+/**
+ * Un driver tomó el envío en la app Flex (handshake). Si es uno de nuestros repartidores vinculados:
+ * - si el envío estaba en Recuperados (sin pedido), se registra como pedido (igual que al escanearlo),
+ * - y se le asigna a ese repartidor (entra a su inventario). Si otro lo traía, es un traspaso.
+ * Siempre queda en el historial quién lo tomó.
+ */
+export async function applyFlexAssignment(prisma: PrismaClient, shipmentId: bigint, flexDriverId: string) {
+  const ident = await prisma.flexIdentity.findUnique({ where: { flexDriverId: BigInt(flexDriverId) }, include: { driver: { include: { user: { select: { name: true, active: true } } } } } });
+  let order = await prisma.order.findUnique({ where: { mlShipmentId: shipmentId } });
+  if (!order) {
+    // Solo los nuestros convierten un recuperado en pedido; un driver ajeno no.
+    if (!ident) return { status: "unlinked" as const };
+    const fs = await prisma.mlFlexShipment.findUnique({ where: { shipmentId }, include: { mlAccount: { select: { mlUserId: true } } } });
+    if (!fs || fs.orderId) return { status: "no_order" as const };
+    const raw = fs.qrRaw ?? JSON.stringify({ id: String(shipmentId), sender_id: Number(fs.mlAccount.mlUserId) });
+    const r = await registerScan(prisma, { raw, source: "FLEX_HANDSHAKE" });
+    if (r.status !== "created" && r.status !== "existing") return { status: "error" as const, message: "message" in r ? r.message : "No se pudo registrar" };
+    order = await prisma.order.findUnique({ where: { id: r.orderId } });
+    if (!order) return { status: "error" as const, message: "No se pudo registrar" };
+  }
+  await recordFlexAssignment(prisma, order.id, flexDriverId);
+  if (!ident || !ident.driver.active || !ident.driver.user.active) return { status: "unlinked" as const, orderId: order.id };
+  if (order.driverId === ident.driverId) {
+    await custodyStart(prisma, order.id, ident.driverId, { how: "tomado en Flex", source: "FLEX_HANDSHAKE" });
+    return { status: "same" as const, orderId: order.id };
+  }
+  const note = `Tomado en Flex por ${ident.driver.user.name}`;
+  if (ASSIGNABLE.includes(order.status)) {
+    await assignOrders(prisma, [order.id], ident.driverId, undefined, { source: "FLEX_HANDSHAKE", note });
+    return { status: "assigned" as const, orderId: order.id };
+  }
+  if (order.status === "OUT_FOR_DELIVERY") {
+    // Paso entre drivers en Flex con el paquete ya en ruta.
+    await prisma.$transaction(async (tx) => {
+      await tx.order.update({ where: { id: order.id }, data: { driverId: ident.driverId } });
+      await addOrderEvent(tx, { orderId: order.id, type: "flex_transfer", source: "FLEX_HANDSHAKE", note });
+      await custodyStart(tx, order.id, ident.driverId, { how: "tomado en Flex", source: "FLEX_HANDSHAKE" });
+    });
+    return { status: "assigned" as const, orderId: order.id };
+  }
+  return { status: "closed" as const, orderId: order.id };
+}
+
 const ACTIVE = ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED", "RETURNING"] as const;
 
 /** Worker: revisa en ML el driver Flex de los pedidos ML activos de los últimos días. */
@@ -221,7 +267,23 @@ export async function trackFlexAssignments(prisma: PrismaClient, opts: { limit?:
   let changed = 0;
   for (const o of orders) {
     const d = await currentFlexDriver(prisma, o.mlShipmentId!, o.mlAccountId, opts.fetchImpl).catch(() => null);
-    if (d && (await recordFlexAssignment(prisma, o.id, d))) changed++;
+    if (!d) continue;
+    const r = await applyFlexAssignment(prisma, o.mlShipmentId!, d).catch(() => null);
+    if (r?.status === "assigned") changed++;
   }
-  return { checked: orders.length, changed };
+  // Recuperados (sin pedido): si uno de los nuestros ya lo tomó en Flex, se registra y se le asigna.
+  const open = await prisma.mlFlexShipment.findMany({
+    where: { logisticType: "self_service", orderId: null, mlStatus: { in: FLEX_OPEN_STATUSES }, OR: [{ mlCreatedAt: null }, { mlCreatedAt: { gte: new Date(Date.now() - (opts.days ?? 3) * 86_400_000) } }] },
+    orderBy: { checkedAt: "asc" },
+    take: opts.limit ?? 150,
+    select: { shipmentId: true, mlAccountId: true },
+  });
+  let recovered = 0;
+  for (const f of open) {
+    const d = await currentFlexDriver(prisma, f.shipmentId, f.mlAccountId, opts.fetchImpl).catch(() => null);
+    if (!d) continue;
+    const r = await applyFlexAssignment(prisma, f.shipmentId, d).catch(() => null);
+    if (r?.status === "assigned") recovered++;
+  }
+  return { checked: orders.length + open.length, changed, recovered };
 }

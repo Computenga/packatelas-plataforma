@@ -12,15 +12,15 @@ export async function GET(request: Request) {
   const start = hasPos ? { lat, lng } : s.driver.lastLat != null && s.driver.lastLng != null ? { lat: s.driver.lastLat, lng: s.driver.lastLng } : null;
 
   const orders = await prisma.order.findMany({
-    where: { driverId: s.driver.id, status: { in: IN_ROUTE } },
+    where: { driverId: s.driver.id, kind: "DELIVERY", status: { in: IN_ROUTE } },
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
-  const { ordered, method } = await orderStops(start, orders);
+  const { ordered, method, etaSeconds } = await orderStops(start, orders);
 
   return Response.json({
     method,
-    orders: ordered.map((o) => ({
+    orders: ordered.map((o, i) => ({
       id: o.id,
       code: o.code,
       status: o.status,
@@ -32,6 +32,7 @@ export async function GET(request: Request) {
       instructions: o.instructions,
       lat: o.lat,
       lng: o.lng,
+      etaMin: etaSeconds?.[i] != null && o.lat != null ? Math.round(etaSeconds[i] / 60) : null,
     })),
   });
 }

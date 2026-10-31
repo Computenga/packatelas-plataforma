@@ -18,3 +18,6 @@ export function orderIdFromToken(token: string): string | null {
   const b = Buffer.from(s);
   return a.length === b.length && timingSafeEqual(a, b) ? id : null;
 }
+
+/** Enlace completo de seguimiento (para WhatsApp). */
+export const publicTrackingUrl = (orderId: string) => `${(process.env.PUBLIC_URL ?? "https://nuevo.packatelas.mx").replace(/\/$/, "")}${trackingPath(orderId)}`;

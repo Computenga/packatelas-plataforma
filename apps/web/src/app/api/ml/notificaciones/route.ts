@@ -25,7 +25,10 @@ export async function POST(request: Request) {
     const sid = body.resource.match(/(\d{10,13})/)?.[1];
     if (sid) {
       const order = await prisma.order.findUnique({ where: { mlShipmentId: BigInt(sid) }, select: { mlAccount: { select: { mlUserId: true } } } }).catch(() => null);
-      if (order) await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${sid}`, mlUserId: order.mlAccount?.mlUserId ?? null }).catch(() => {});
+      // También los de Recuperados: si lo tomó uno de los nuestros, se registra y se le asigna.
+      const rec = order ? null : await prisma.mlFlexShipment.findUnique({ where: { shipmentId: BigInt(sid) }, select: { mlAccount: { select: { mlUserId: true } } } }).catch(() => null);
+      const owner = order?.mlAccount?.mlUserId ?? rec?.mlAccount.mlUserId;
+      if (order || rec) await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${sid}`, mlUserId: owner ?? null }).catch(() => {});
     }
   }
   return new Response("ok");

@@ -15,7 +15,7 @@ export default async function AdminLayout({ children }: LayoutProps<"/admin">) {
       roleLabel={ROLE_LABEL[user.role]}
       nav={adminNavFor(user.role)}
       favorites={ADMIN_FAVORITES}
-      ready={["/admin", "/admin/escanear", "/admin/despacho", "/admin/pedidos", "/admin/recolecciones", "/admin/devoluciones", "/admin/clientes", "/admin/repartidores", "/admin/cobros", "/admin/usuarios", "/admin/auditoria", "/admin/seguridad", "/admin/informes", "/admin/avisos", "/admin/salud", "/admin/personal", "/admin/checador", "/admin/nomina", "/admin/flotilla", "/admin/datos", "/admin/arranque"]}
+      ready={["/admin", "/admin/escanear", "/admin/despacho", "/admin/pedidos", "/admin/inventario", "/admin/recolecciones", "/admin/devoluciones", "/admin/clientes", "/admin/repartidores", "/admin/cobros", "/admin/usuarios", "/admin/auditoria", "/admin/seguridad", "/admin/informes", "/admin/avisos", "/admin/salud", "/admin/personal", "/admin/checador", "/admin/nomina", "/admin/flotilla", "/admin/datos", "/admin/arranque"]}
     >
       {needs2fa && (
         <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">

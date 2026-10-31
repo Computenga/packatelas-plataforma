@@ -105,6 +105,13 @@ export default async function SaludPage() {
       detail: osrm === "ok" ? "OSRM respondiendo (mapa CDMX y Edomex)" : osrm === "off" ? "Orden en línea recta hasta montar OSRM" : "OSRM aún preparando el mapa o sin responder; mientras, orden en línea recta",
     },
     {
+      name: "Tráfico en vivo (TomTom)",
+      level: process.env.TOMTOM_API_KEY ? "ok" : "off",
+      detail: process.env.TOMTOM_API_KEY
+        ? "La ruta del repartidor se afina con tráfico en vivo (modo moto) y muestra minutos estimados a cada parada"
+        : "Sin TOMTOM_API_KEY: la ruta usa OSRM (sin tráfico)",
+    },
+    {
       name: "Respaldos de la base",
       level: !health.respaldos ? "off" : health.respaldos.ok ? fresh(health.respaldos, 90, t) : health.respaldos.detail?.includes("falta DRIVE_REFRESH_TOKEN") ? "warn" : "bad",
       detail: (
