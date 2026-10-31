@@ -691,6 +691,8 @@ enum NotificationStatus {
   SENT
   FAILED
   SKIPPED // sin credenciales o aviso desactivado al momento de enviarlo
+  DELIVERED // WhatsApp confirmó que llegó al teléfono (webhook)
+  READ // la persona lo abrió (webhook)
 }
 
 // Bitácora de avisos por WhatsApp [C11, C12, F10, I04]. Cada aviso se guarda antes de enviarse;
@@ -712,6 +714,9 @@ model Notification {
   externalId String? // id del mensaje en WhatsApp
   createdAt  DateTime           @default(now())
   sentAt     DateTime?
+  statusAt   DateTime? // último aviso de entrega de WhatsApp
+
+  @@index([externalId])
 
   @@index([status, createdAt])
   @@index([clientId])

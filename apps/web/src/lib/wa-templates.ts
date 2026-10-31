@@ -1,4 +1,5 @@
 import "server-only";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NOTIFY_EVENTS, whatsappTemplatePayload, type NotifyEvent } from "@packatelas/db";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
@@ -80,4 +81,19 @@ export async function registerPhone(pin: string): Promise<{ ok: boolean; error?:
   });
   const j = (await res.json().catch(() => ({}))) as { success?: boolean; error?: { message?: string; error_user_msg?: string } };
   return res.ok && j.success ? { ok: true } : { ok: false, error: j.error?.error_user_msg ?? j.error?.message ?? `HTTP ${res.status}` };
+}
+
+/** Token para que Meta verifique el webhook (se deriva de ENCRYPTION_KEY; no hay que guardarlo aparte). */
+export function webhookVerifyToken() {
+  const k = process.env.ENCRYPTION_KEY?.trim();
+  return k ? createHmac("sha256", k).update("whatsapp-webhook").digest("base64url").slice(0, 24) : null;
+}
+
+/** Firma X-Hub-Signature-256 de Meta con el App Secret. */
+export function validWebhookSignature(raw: string, header: string | null) {
+  const secret = process.env.WHATSAPP_APP_SECRET?.trim();
+  if (!secret || !header?.startsWith("sha256=")) return false;
+  const a = Buffer.from(header.slice(7), "hex");
+  const b = createHmac("sha256", secret).update(raw).digest();
+  return a.length === b.length && timingSafeEqual(a, b);
 }

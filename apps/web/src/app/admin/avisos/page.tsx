@@ -6,7 +6,7 @@ import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
 import { registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, testSendAction } from "./actions";
-import { phoneStatus, templateStatuses } from "@/lib/wa-templates";
+import { phoneStatus, templateStatuses, webhookVerifyToken } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
 
@@ -14,7 +14,9 @@ const DAYS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado
 const daysAgo = (n: number) => new Date(Date.now() - n * 86400_000);
 const STATUS = {
   PENDING: { label: "En cola", tone: "blue" as const },
-  SENT: { label: "Enviado", tone: "green" as const },
+  SENT: { label: "Enviado a Meta", tone: "blue" as const },
+  DELIVERED: { label: "Entregado", tone: "green" as const },
+  READ: { label: "Leído", tone: "green" as const },
   FAILED: { label: "Falló", tone: "red" as const },
   SKIPPED: { label: "Omitido", tone: "gray" as const },
 };
@@ -23,7 +25,7 @@ const STATUS = {
 export default async function AvisosPage({ searchParams }: PageProps<"/admin/avisos">) {
   await requireUser(["ADMIN"]);
   const sp = await searchParams;
-  const status = (["PENDING", "SENT", "FAILED", "SKIPPED"] as const).find((s) => s === sp.estado);
+  const status = (["PENDING", "SENT", "DELIVERED", "READ", "FAILED", "SKIPPED"] as const).find((s) => s === sp.estado);
   const [settings, log, counts, health] = await Promise.all([
     getNotifySettings(prisma),
     prisma.notification.findMany({ where: status ? { status } : undefined, orderBy: { createdAt: "desc" }, take: 200 }),
@@ -38,7 +40,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <PageHeader eyebrow="Gestión" title="Avisos por WhatsApp">
-        Mensajes automáticos al comprador y a la tienda. Últimos 7 días: {c("SENT")} enviados · {c("FAILED")} fallidos · {c("SKIPPED")} omitidos · {c("PENDING")} en cola.
+        Mensajes automáticos al comprador y a la tienda. Últimos 7 días: {c("SENT") + c("DELIVERED") + c("READ")} enviados ({c("DELIVERED") + c("READ")} entregados) · {c("FAILED")} fallidos · {c("SKIPPED")} omitidos · {c("PENDING")} en cola.
       </PageHeader>
       {!configured && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
@@ -174,6 +176,16 @@ async function PhoneCard() {
               <input name="pin" inputMode="numeric" pattern={"[0-9]{6}"} maxLength={6} autoComplete="off" className="w-40 rounded-lg border border-slate-300 px-3 py-2 font-mono" aria-label="PIN de 6 dígitos" />
             </ActionForm>
           )}
+          <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-600">
+            <p className="font-medium text-slate-800">
+              Confirmación de entrega (webhook):{" "}
+              {process.env.WHATSAPP_APP_SECRET ? <span className="text-emerald-700">App Secret configurado</span> : <span className="text-amber-700">falta WHATSAPP_APP_SECRET en Coolify</span>}
+            </p>
+            <p className="mt-1">En Meta → tu app → WhatsApp → Configuración → Webhook:</p>
+            <p>URL de devolución de llamada: <span className="select-all font-mono">{(process.env.PUBLIC_URL || "https://nuevo.packatelas.mx").replace(/\/$/, "")}/api/whatsapp/webhook</span></p>
+            <p>Token de verificación: <span className="select-all font-mono">{webhookVerifyToken() ?? "—"}</span></p>
+            <p>Después suscribe el campo <span className="font-mono">messages</span>.</p>
+          </div>
           <ActionForm action={testSendAction} submitLabel="Mandar prueba">
             <p className="text-xs text-slate-500">Manda la plantilla «Recolección asignada» a un celular (necesita estar aprobada).</p>
             <input name="to" inputMode="tel" placeholder="55 1234 5678" className="w-48 rounded-lg border border-slate-300 px-3 py-2" aria-label="Celular" />

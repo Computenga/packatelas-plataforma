@@ -195,3 +195,46 @@ export async function readHealth(db: Db): Promise<Record<string, HealthEntry>> {
   const rows = await db.setting.findMany({ where: { key: { startsWith: "health." } } });
   return Object.fromEntries(rows.map((r) => [r.key.slice(7), r.value as HealthEntry]));
 }
+
+// ── Estados de entrega que manda WhatsApp (webhook) ──
+type WaStatus = { id?: string; status?: string; timestamp?: string; errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[] };
+
+const WA_ERROR_ES: Record<number, string> = {
+  131042: "Falta método de pago en la cuenta de WhatsApp",
+  131026: "El número no tiene WhatsApp o no puede recibir el mensaje",
+  131047: "Pasaron más de 24 h desde el último mensaje de la persona",
+  131049: "Meta no lo entregó para cuidar la experiencia del usuario (límite de mensajes de marketing)",
+  131051: "Tipo de mensaje no soportado",
+  132001: "La plantilla no existe o no está aprobada en ese idioma",
+  131056: "Demasiados mensajes al mismo número en poco tiempo",
+  130472: "El número es parte de un experimento de Meta y no recibió el mensaje",
+};
+const RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 };
+
+/** Aplica los estados (entregado, leído, falló) que reporta WhatsApp por webhook. */
+export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown) {
+  const statuses: WaStatus[] = [];
+  for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[] } }[] }[] })?.entry ?? [])) {
+    for (const c of e.changes ?? []) statuses.push(...(c.value?.statuses ?? []));
+  }
+  let n = 0;
+  for (const s of statuses) {
+    if (!s.id || !s.status) continue;
+    const at = s.timestamp && /^\d+$/.test(s.timestamp) ? new Date(Number(s.timestamp) * 1000) : new Date();
+    const row = await prisma.notification.findFirst({ where: { externalId: s.id } });
+    if (!row) continue;
+    if (s.status === "failed") {
+      const err = s.errors?.[0];
+      const why = (err?.code && WA_ERROR_ES[err.code]) || err?.error_data?.details || err?.title || err?.message || "WhatsApp no pudo entregarlo";
+      await prisma.notification.update({ where: { id: row.id }, data: { status: "FAILED", error: `${why}${err?.code ? ` (${err.code})` : ""}`.slice(0, 500), statusAt: at } });
+      n++;
+      continue;
+    }
+    const next = s.status === "read" ? "READ" : s.status === "delivered" ? "DELIVERED" : s.status === "sent" ? "SENT" : null;
+    // Los avisos pueden llegar desordenados: nunca se baja de "leído" a "entregado".
+    if (!next || (RANK[row.status] ?? 0) >= RANK[next] || row.status === "FAILED") continue;
+    await prisma.notification.update({ where: { id: row.id }, data: { status: next, statusAt: at, error: null } });
+    n++;
+  }
+  return n;
+}
