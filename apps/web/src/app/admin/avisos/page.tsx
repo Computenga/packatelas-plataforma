@@ -5,8 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { registerTemplatesAction, retryAction, saveNotifyAction } from "./actions";
-import { templateStatuses } from "@/lib/wa-templates";
+import { registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, testSendAction } from "./actions";
+import { phoneStatus, templateStatuses } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
 
@@ -46,6 +46,8 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
           credenciales de la API de WhatsApp de Meta en el servidor y aprobar las plantillas de abajo.
         </div>
       )}
+
+      <PhoneCard />
 
       <Card title="Plantillas en Meta">
         {!templates ? (
@@ -142,5 +144,42 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
         </Card>
       </div>
     </div>
+  );
+}
+
+const STATUS_ES: Record<string, string> = { CONNECTED: "Conectado", PENDING: "Pendiente de registrar", DISCONNECTED: "Desconectado", FLAGGED: "Marcado por Meta", RESTRICTED: "Restringido", BANNED: "Bloqueado" };
+
+async function PhoneCard() {
+  const p = await phoneStatus();
+  return (
+    <Card title="Número de WhatsApp">
+      {!p ? (
+        <p className="text-sm text-slate-500">Agrega <span className="font-mono">WHATSAPP_TOKEN</span> y <span className="font-mono">WHATSAPP_PHONE_ID</span> en Coolify.</p>
+      ) : p.error ? (
+        <p className="text-sm text-red-700">Meta respondió: {p.error}</p>
+      ) : (
+        <div className="space-y-4 text-sm">
+          <p>
+            <span className="font-semibold">{p.number}</span> · {p.name} · <span className={p.status === "CONNECTED" ? "text-emerald-700" : "text-amber-700"}>{STATUS_ES[p.status ?? ""] ?? p.status}</span>
+            <span className="block text-xs text-slate-500">
+              Nombre visible: {p.nameStatus ?? "—"} · Verificación: {p.verified ?? "—"} · Calidad: {p.quality ?? "—"} · Límite: {p.limit ?? "—"}
+            </span>
+          </p>
+          {p.status !== "CONNECTED" && (
+            <ActionForm action={registerPhoneAction} submitLabel="Registrar número en la API">
+              <p className="text-xs text-slate-500">
+                Último paso para que el número pueda mandar mensajes. Escribe un PIN de 6 dígitos para la verificación en dos pasos (guárdalo: Meta lo pide si
+                el número se vuelve a registrar).
+              </p>
+              <input name="pin" inputMode="numeric" pattern={"[0-9]{6}"} maxLength={6} autoComplete="off" className="w-40 rounded-lg border border-slate-300 px-3 py-2 font-mono" aria-label="PIN de 6 dígitos" />
+            </ActionForm>
+          )}
+          <ActionForm action={testSendAction} submitLabel="Mandar prueba">
+            <p className="text-xs text-slate-500">Manda la plantilla «Recolección asignada» a un celular (necesita estar aprobada).</p>
+            <input name="to" inputMode="tel" placeholder="55 1234 5678" className="w-48 rounded-lg border border-slate-300 px-3 py-2" aria-label="Celular" />
+          </ActionForm>
+        </div>
+      )}
+    </Card>
   );
 }

@@ -30,3 +30,29 @@ export async function registerTemplatesAction(): Promise<ActionState> {
   if (r.errors.length) return { error: r.errors.join(" · ") };
   return { ok: r.created.length ? `Enviadas a revisión de Meta: ${r.created.join(", ")}` : "Todas las plantillas ya estaban registradas" };
 }
+
+export async function registerPhoneAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const pin = String(fd.get("pin") ?? "").trim();
+  if (!/^\d{6}$/.test(pin)) return { error: "El PIN debe ser de 6 dígitos" };
+  const { registerPhone } = await import("@/lib/wa-templates");
+  const r = await registerPhone(pin);
+  revalidatePath("/admin/avisos");
+  return r.ok ? { ok: "Número registrado en la API de WhatsApp" } : { error: r.error ?? "No se pudo registrar" };
+}
+
+/** Manda una plantilla de prueba (la de recolección asignada) al número que se indique. */
+export async function testSendAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const to = String(fd.get("to") ?? "");
+  const { enqueueNotification, waPhone } = await import("@packatelas/db");
+  if (!waPhone(to)) return { error: "Escribe un celular de 10 dígitos" };
+  const ok = await enqueueNotification(prisma, {
+    event: "recoleccion_asignada",
+    to,
+    params: [user.name.split(" ")[0] || "Hola", "hoy", "Bodega Packatelas", "Prueba"],
+    dedupeKey: `prueba:${Date.now()}`,
+  });
+  revalidatePath("/admin/avisos");
+  return ok ? { ok: "En cola: el proceso en segundo plano lo manda en unos segundos (míralo abajo en la bitácora)" } : { error: "No se pudo poner en cola (¿aviso apagado?)" };
+}

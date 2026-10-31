@@ -49,6 +49,8 @@ services:
       FACTURAPI_KEY: ${FACTURAPI_KEY:-}
       WHATSAPP_TOKEN: ${WHATSAPP_TOKEN:-}
       WHATSAPP_WABA_ID: ${WHATSAPP_WABA_ID:-}
+      WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY:-}
       BACKUP_DIR: /backups
     volumes:
       - uploads:/data/uploads
@@ -77,6 +79,7 @@ services:
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
       FACTURAPI_KEY: ${FACTURAPI_KEY:-}
       DRIVE_REFRESH_TOKEN: ${DRIVE_REFRESH_TOKEN:-}
+      TOMTOM_API_KEY: ${TOMTOM_API_KEY:-}
       OSRM_URL: ${OSRM_URL:-http://osrm:5000}
       BACKUP_DIR: /backups
       UPLOAD_DIR: /data/uploads
