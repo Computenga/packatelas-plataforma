@@ -86,7 +86,7 @@ export function DispatchBoard({ orders, drivers }: { orders: BoardOrder[]; drive
   const mapOrders = focusDriver ? onStreet.filter((o) => o.driverId === focusDriver) : onStreet;
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[380px_1fr_300px]">
+    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[380px_1fr_300px] [&>*]:min-w-0">
       {/* Por asignar */}
       <section className="flex max-h-[78vh] flex-col rounded-xl border border-slate-200 bg-white">
         <div className="border-b border-slate-100 p-3">

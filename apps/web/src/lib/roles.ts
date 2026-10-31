@@ -55,6 +55,9 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/seguridad", label: "Seguridad", roles: STAFF_ROLES },
 ];
 
+/** Accesos fijos abajo en el celular (admin y operación). Agrega aquí más rutas de ADMIN_NAV. */
+export const ADMIN_FAVORITES = ["/admin/escanear", "/admin/flotilla"];
+
 export function adminNavFor(role: Role): NavItem[] {
   return ADMIN_NAV.filter((i) => i.roles.includes(role)).map(({ href, label }) => ({ href, label }));
 }

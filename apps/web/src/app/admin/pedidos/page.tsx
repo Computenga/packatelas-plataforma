@@ -90,7 +90,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
             key={v.key}
             href={tabHref(v.key)}
             aria-current={f.view === v.key ? "page" : undefined}
-            className={`-mb-px border-b-2 px-3 py-2 ${f.view === v.key ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600 hover:text-slate-900"}`}
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${f.view === v.key ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600 hover:text-slate-900"}`}
           >
             {v.label}
           </Link>
@@ -116,7 +116,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         </div>
       )}
 
-      <form className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-6">
+      <form className="mb-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-6 [&>*]:min-w-0 [&_input]:min-w-0">
         {f.view && <input type="hidden" name="vista" value={f.view} />}
         <input name="q" defaultValue={f.q} placeholder="Envío, pedido, destinatario, dirección, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
         <select name="status" defaultValue={f.status} disabled={!statusOptions.length} className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50">

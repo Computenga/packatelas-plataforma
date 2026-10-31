@@ -40,10 +40,10 @@ export default async function DevolucionesClientePage({ searchParams }: PageProp
         <Stat label="Listas en almacén" value={inWarehouse} hint="Se entregan en tu siguiente recolección" />
         <Stat label="Devueltas (30 días)" value={returned30} tone="green" />
       </div>
-      <nav className="flex gap-1 border-b border-slate-200 text-sm">
+      <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
         {(["pendientes", "entregadas"] as const).map((t) => (
           <Link key={t} href={t === "pendientes" ? "/cliente/devoluciones" : "/cliente/devoluciones?tab=entregadas"}
-            className={`-mb-px border-b-2 px-3 py-2 ${tab === t ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${tab === t ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>
             {t === "pendientes" ? "Pendientes" : "Ya devueltas"}
           </Link>
         ))}

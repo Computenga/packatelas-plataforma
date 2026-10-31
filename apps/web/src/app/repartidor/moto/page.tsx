@@ -31,9 +31,9 @@ export default async function MotoPage({ searchParams }: PageProps<"/repartidor/
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Aún no haces el check matutino de hoy.</p>
       )}
       {openFaults > 0 && <p className="text-sm text-slate-600">{openFaults} falla(s) que reportaste siguen con el mecánico.</p>}
-      <nav className="flex gap-1 border-b border-slate-200 text-sm">
-        <Link href="/repartidor/moto" className={`-mb-px border-b-2 px-3 py-2 ${tab === "matutino" ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>Check matutino</Link>
-        <Link href="/repartidor/moto?tab=ruta" className={`-mb-px border-b-2 px-3 py-2 ${tab === "ruta" ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>Antes de ruta</Link>
+      <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
+        <Link href="/repartidor/moto" className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${tab === "matutino" ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>Check matutino</Link>
+        <Link href="/repartidor/moto?tab=ruta" className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${tab === "ruta" ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600"}`}>Antes de ruta</Link>
       </nav>
       <Card>
         {tab === "matutino" ? <MorningCheckForm vehicles={vehicles} defaultId={myCheck?.vehicleId} /> : <BeforeRouteForm vehicles={vehicles} defaultId={myCheck?.vehicleId} />}

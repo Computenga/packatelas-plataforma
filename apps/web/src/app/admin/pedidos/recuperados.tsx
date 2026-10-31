@@ -56,7 +56,7 @@ export async function RecuperadosList({ f, clients }: { f: OrderFilters; clients
         {" "}<strong>{open.toLocaleString("es-MX")}</strong> abiertos
         {byStatus.length > 0 && ` (${byStatus.map((b) => `${ML_STATUS[b.mlStatus ?? ""] ?? b.mlStatus} ${b._count._all}`).join(" · ")})`}.
       </p>
-      <form className="mb-4 grid gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-6">
+      <form className="mb-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-6 [&>*]:min-w-0 [&_input]:min-w-0">
         <input type="hidden" name="vista" value="recuperados" />
         <input name="q" defaultValue={f.q} placeholder="Envío, destinatario, comprador, cuenta, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
         <select name="status" defaultValue={all ? "todos" : ""} className="rounded-lg border border-slate-300 px-3 py-2">

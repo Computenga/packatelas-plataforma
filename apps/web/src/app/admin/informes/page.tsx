@@ -50,10 +50,10 @@ export default async function InformesPage({ searchParams }: PageProps<"/admin/i
         <Link href="/admin/informes/tiempos-ruta" className="text-brand hover:underline">Tiempos de ruta →</Link>
       </PageHeader>
       <RangeForm base="/admin/informes" fromYmd={fromYmd} toYmd={toYmd} extra={{ tab }} />
-      <nav className="flex gap-1 border-b border-slate-200 text-sm" aria-label="Informes">
+      <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 text-sm" aria-label="Informes">
         {TABS.map((t) => (
           <Link key={t.key} href={`/admin/informes?${qs({ tab: t.key })}`} aria-current={tab === t.key ? "page" : undefined}
-            className={`-mb-px border-b-2 px-3 py-2 ${tab === t.key ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600 hover:text-slate-900"}`}>
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${tab === t.key ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600 hover:text-slate-900"}`}>
             {t.label}
           </Link>
         ))}

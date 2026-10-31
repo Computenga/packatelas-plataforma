@@ -15,3 +15,13 @@ html {
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+/* Celular: que nada empuje la página a lo ancho (las tablas se desplazan dentro de su caja). */
+@layer base {
+  main :where(.grid > *, .flex > :not(input, svg, img, button, select)) {
+    min-width: 0;
+  }
+  main :where(code, .font-mono) {
+    overflow-wrap: anywhere;
+  }
+}

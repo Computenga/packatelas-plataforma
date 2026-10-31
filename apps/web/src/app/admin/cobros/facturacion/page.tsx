@@ -100,7 +100,7 @@ export default async function FacturacionPage() {
         {unbilled.length === 0 ? (
           <p className="text-sm text-slate-500">Todos los pagos recientes tienen factura.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-left text-slate-500"><tr><th className="py-1">Recibido</th><th>Cliente</th><th>Método</th><th className="text-right">Monto</th><th>Datos fiscales</th><th /></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {unbilled.map((p) => {
@@ -117,7 +117,7 @@ export default async function FacturacionPage() {
                 );
               })}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
 
@@ -125,7 +125,7 @@ export default async function FacturacionPage() {
         {invoices.length === 0 ? (
           <p className="text-sm text-slate-500">Aún no hay facturas.</p>
         ) : (
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto"><table className="w-full text-sm">
             <thead className="text-left text-slate-500"><tr><th className="py-1">Fecha</th><th>Folio</th><th>Cliente</th><th className="text-right">Total</th><th>Estado</th><th>Archivos</th><th /></tr></thead>
             <tbody className="divide-y divide-slate-100">
               {invoices.map((i) => (
@@ -164,7 +164,7 @@ export default async function FacturacionPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+          </table></div>
         )}
       </Card>
     </div>

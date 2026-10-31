@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { logout } from "@/app/login/actions";
 import type { NavItem } from "@/lib/roles";
 import { NavLinks } from "./nav-links";
+import { MobileNav } from "./mobile-nav";
 import { PushPrompt } from "./push-prompt";
 import { Isotipo, Logo } from "@/components/brand";
 
@@ -17,10 +18,13 @@ type Props = {
   mobileBottomNav?: boolean;
   /** Ofrecer notificaciones push (personal interno). */
   push?: boolean;
+  /** Sin navegación inferior: accesos fijos abajo en celular; el resto va en el menú ☰. */
+  favorites?: string[];
   children: ReactNode;
 };
 
-export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, push = true, children }: Props) {
+export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, push = true, favorites = [], children }: Props) {
+  const hasFavs = !mobileBottomNav && favorites.some((h) => nav.some((n) => n.href === h) && ready.includes(h));
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
       <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-slate-200 bg-white md:flex">
@@ -34,23 +38,21 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
         <UserBox userName={userName} roleLabel={roleLabel} />
       </aside>
 
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
-        <div className="flex items-center gap-2">
-          <Isotipo className="h-7 w-auto" />
-          <span className="font-semibold">{title}</span>
-        </div>
-        <form action={logout}>
-          <LogoutButton compact />
-        </form>
-      </header>
-
-      {!mobileBottomNav && (
-        <nav className="overflow-x-auto border-b border-slate-200 bg-white px-2 md:hidden">
-          <NavLinks nav={nav} ready={ready} variant="top" />
-        </nav>
+      {mobileBottomNav ? (
+        <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:hidden">
+          <div className="flex items-center gap-2">
+            <Isotipo className="h-7 w-auto" />
+            <span className="font-semibold">{title}</span>
+          </div>
+          <form action={logout}>
+            <LogoutButton compact />
+          </form>
+        </header>
+      ) : (
+        <MobileNav title={title} userName={userName} roleLabel={roleLabel} nav={nav} ready={ready} favorites={favorites} />
       )}
 
-      <main className={`flex-1 p-4 md:p-8 ${mobileBottomNav ? "pb-24 md:pb-8" : ""}`}>
+      <main className={`min-w-0 flex-1 p-4 md:p-8 ${mobileBottomNav || hasFavs ? "pb-24 md:pb-8" : ""}`}>
         {push && <PushPrompt />}
         {children}
       </main>
