@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const STYLE = "https://tiles.openfreemap.org/styles/liberty";
+import { MAP_STYLE as STYLE } from "@/lib/map-style";
 const CDMX: [number, number] = [-99.1332, 19.4326];
 
 export function MapPicker({ lat, lng, onChange, className = "" }: {

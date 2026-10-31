@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-const STYLE = "https://tiles.openfreemap.org/styles/liberty";
+import { MAP_STYLE as STYLE } from "@/lib/map-style";
 
 /** Mapa del seguimiento: destino y, si va en camino, la última posición del repartidor. */
 export function TrackMap({ dest, driver }: { dest: { lat: number; lng: number } | null; driver: { lat: number; lng: number } | null }) {

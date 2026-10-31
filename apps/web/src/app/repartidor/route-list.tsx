@@ -99,6 +99,21 @@ export function RouteList() {
 
   const visible = stops.filter((s) => !doneIds.has(s.id));
 
+  // Al cerrar una parada se quita de la lista local (y del respaldo sin señal): cuando la cola
+  // termina de enviarla deja de estar en `doneIds`, y sin esto volvía a aparecer pidiendo evidencia.
+  const closeStop = (id: string) => {
+    setOpen(null);
+    setStops((prev) => {
+      const next = prev.filter((x) => x.id !== id);
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ stops: next, at: new Date().toISOString() }));
+      } catch {
+        /* sin almacenamiento: solo en memoria */
+      }
+      return next;
+    });
+  };
+
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
@@ -124,7 +139,7 @@ export function RouteList() {
                 </span>
               </span>
             </button>
-            {open === s.id && <StopActions stop={s} onDone={() => setOpen(null)} />}
+            {open === s.id && <StopActions stop={s} onDone={() => closeStop(s.id)} />}
           </li>
         ))}
       </ol>

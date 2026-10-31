@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { BoardDriver, BoardOrder } from "./board";
 
-const STYLE = "https://tiles.openfreemap.org/styles/liberty";
+import { MAP_STYLE as STYLE } from "@/lib/map-style";
 
 type ML = typeof import("maplibre-gl");
 
