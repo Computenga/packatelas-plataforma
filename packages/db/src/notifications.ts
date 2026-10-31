@@ -70,6 +70,7 @@ export async function enqueueNotification(
   if (!settings.enabled[n.event]) return false;
   const to = waPhone(n.to);
   if (!to) return false;
+  if (await isOptedOut(db, to)) return false;
   const params = n.params.map((p) => (p ?? "").replace(/\s+/g, " ").trim().slice(0, 300) || "-");
   try {
     await db.notification.create({
@@ -196,6 +197,25 @@ export async function readHealth(db: Db): Promise<Record<string, HealthEntry>> {
   return Object.fromEntries(rows.map((r) => [r.key.slice(7), r.value as HealthEntry]));
 }
 
+// ── Bajas: quien responde «BAJA» deja de recibir avisos ──
+const OPTOUT_KEY = "wa.optout";
+async function optOutList(db: Db): Promise<string[]> {
+  const v = (await db.setting.findUnique({ where: { key: OPTOUT_KEY } }))?.value;
+  return Array.isArray(v) ? (v as string[]) : [];
+}
+export async function isOptedOut(db: Db, to: string) {
+  return (await optOutList(db)).includes(to);
+}
+export async function setOptOut(db: Db, raw: string, out: boolean) {
+  const to = waPhone(raw);
+  if (!to) return false;
+  const list = new Set(await optOutList(db));
+  if (out) list.add(to);
+  else list.delete(to);
+  await db.setting.upsert({ where: { key: OPTOUT_KEY }, update: { value: [...list] }, create: { key: OPTOUT_KEY, value: [...list] } });
+  return true;
+}
+
 // ── Estados de entrega que manda WhatsApp (webhook) ──
 type WaStatus = { id?: string; status?: string; timestamp?: string; errors?: { code?: number; title?: string; message?: string; error_data?: { details?: string } }[] };
 
@@ -214,8 +234,19 @@ const RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 };
 /** Aplica los estados (entregado, leído, falló) que reporta WhatsApp por webhook. */
 export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown) {
   const statuses: WaStatus[] = [];
-  for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[] } }[] }[] })?.entry ?? [])) {
-    for (const c of e.changes ?? []) statuses.push(...(c.value?.statuses ?? []));
+  const inbound: { from?: string; text?: { body?: string }; button?: { text?: string } }[] = [];
+  for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[]; messages?: typeof inbound } }[] }[] })?.entry ?? [])) {
+    for (const c of e.changes ?? []) {
+      statuses.push(...(c.value?.statuses ?? []));
+      inbound.push(...(c.value?.messages ?? []));
+    }
+  }
+  // Mensajes que nos escriben: «BAJA» / «ALTA» para dejar o volver a recibir avisos.
+  for (const m of inbound) {
+    const t = (m.text?.body ?? m.button?.text ?? "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    if (!m.from) continue;
+    if (/^(BAJA|STOP|ALTO|CANCELAR AVISOS)$/.test(t)) await setOptOut(prisma, m.from, true);
+    else if (/^(ALTA|START)$/.test(t)) await setOptOut(prisma, m.from, false);
   }
   let n = 0;
   for (const s of statuses) {

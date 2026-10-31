@@ -24,3 +24,16 @@ describe("estados de WhatsApp", () => {
     expect(fb.error).toContain("método de pago");
   });
 });
+
+describe("bajas por WhatsApp", () => {
+  it("quien responde BAJA ya no recibe avisos; ALTA lo regresa", async () => {
+    const { enqueueNotification, isOptedOut } = await import("./index.ts");
+    const from = "5215599990000";
+    const msg = (text: string) => ({ entry: [{ changes: [{ value: { messages: [{ from, text: { body: text } }] } }] }] });
+    await applyWhatsappStatuses(prisma, msg("baja"));
+    expect(await isOptedOut(prisma, "525599990000")).toBe(true);
+    expect(await enqueueNotification(prisma, { event: "entregado", to: "5599990000", params: ["a", "b", "c"], dedupeKey: `${tag}-optout` })).toBe(false);
+    await applyWhatsappStatuses(prisma, msg("Alta"));
+    expect(await isOptedOut(prisma, "525599990000")).toBe(false);
+  });
+});
