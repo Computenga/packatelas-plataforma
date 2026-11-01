@@ -30,7 +30,7 @@ export function driveAuthUrl(userId: string) {
     response_type: "code",
     scope: SCOPE,
     access_type: "offline",
-    prompt: "consent",
+    prompt: "select_account consent",
     include_granted_scopes: "true",
     state: signMlState(`${PREFIX}${userId}`, 1 / 48),
   });
