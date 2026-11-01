@@ -56,7 +56,25 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   useEffect(() => {
     if (!native) return;
     native.setOnDuty(onDuty);
-    if (onDuty) setTimeout(() => setGps(native.hasLocation() ? "ok" : "denied"), 0);
+    if (!onDuty) return;
+    // El permiso se concede en un diálogo de Android después de esta llamada: hay que volver a
+    // preguntar (antes se quedaba en "sin ubicación" aunque ya estuviera permitido).
+    const check = () => {
+      try {
+        setGps(native.hasLocation() ? "ok" : "denied");
+      } catch {
+        setGps("off");
+      }
+    };
+    const first = setTimeout(check, 0);
+    const id = setInterval(check, 4000);
+    const onVisible = () => document.visibilityState === "visible" && check();
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearTimeout(first);
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [onDuty, native]);
 
   // Ubicación en vivo durante el turno
@@ -159,7 +177,7 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
         </span>
         {onDuty && (
           <span className={`rounded-full px-2 py-1 ${gps === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-700"}`}>
-            {gps === "ok" ? "Ubicación activa" : gps === "denied" ? "Permite la ubicación en el navegador" : "Buscando GPS…"}
+            {gps === "ok" ? "Ubicación activa" : gps === "denied" ? (native ? "Permite la ubicación a la app" : "Permite la ubicación en el navegador") : "Buscando GPS…"}
           </span>
         )}
         {pending.length > 0 && (
