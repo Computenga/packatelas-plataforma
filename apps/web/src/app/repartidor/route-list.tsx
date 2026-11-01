@@ -59,7 +59,9 @@ export function RouteList() {
       setStops(data.orders);
       localStorage.setItem(CACHE_KEY, JSON.stringify({ stops: data.orders, at: new Date().toISOString() }));
       setStatus(
-        data.method === "sin-ubicacion"
+        data.orders.length === 0
+          ? ""
+          : data.method === "sin-ubicacion"
           ? "Sin tu ubicación: orden de asignación. Activa el GPS para ordenar la ruta."
           : `Ordenada desde tu ubicación ${data.method === "tomtom" ? "(con tráfico en vivo)" : data.method === "osrm" ? "(tiempos reales)" : ""}`,
       );

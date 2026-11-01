@@ -4,7 +4,7 @@ import { Logo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Descargar app" };
 
-const VERSION = "1.3";
+const VERSION = "1.4";
 export const dynamic = "force-dynamic";
 
 /** Página pública para instalar la app Android desde cualquier celular. */

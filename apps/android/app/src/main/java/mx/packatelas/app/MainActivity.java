@@ -59,6 +59,21 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
         setContentView(web);
+        // Android 15 dibuja la app detrás de las barras del sistema: se deja espacio para que la barra
+        // de navegación (botones o gestos) no tape el menú inferior ni la barra de estado el encabezado.
+        web.setOnApplyWindowInsetsListener((v, insets) -> {
+            int top, bottom, left, right;
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets b = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                top = b.top; bottom = b.bottom; left = b.left; right = b.right;
+            } else {
+                top = insets.getSystemWindowInsetTop(); bottom = insets.getSystemWindowInsetBottom();
+                left = insets.getSystemWindowInsetLeft(); right = insets.getSystemWindowInsetRight();
+            }
+            v.setPadding(left, top, right, bottom);
+            return insets;
+        });
+        web.setBackgroundColor(0xFF0F1E4A);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);

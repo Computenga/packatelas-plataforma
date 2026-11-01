@@ -56,11 +56,11 @@ export default async function RepartidorHome() {
           { label: "Entregados", value: delivered, cls: "text-emerald-700" },
           { label: "No entregados", value: failedToday, cls: failedToday ? "text-amber-700" : "text-slate-900" },
           { label: "Pendientes", value: inRoute, cls: "text-slate-900" },
-          { label: "Recolecciones", value: pickupsDone._count._all, cls: "text-slate-900", hint: pickupsDone._sum.collectedCount ? `${pickupsDone._sum.collectedCount} paq.` : undefined },
+          { label: "Recolectas", value: pickupsDone._count._all, cls: "text-slate-900", hint: pickupsDone._sum.collectedCount ? `${pickupsDone._sum.collectedCount} paq.` : undefined },
         ].map((x) => (
           <div key={x.label} className="rounded-xl border border-slate-200 bg-white px-1 py-2">
             <p className={`text-xl font-bold ${x.cls}`}>{x.value}</p>
-            <p className="text-[11px] leading-tight text-slate-500">{x.label}</p>
+            <p className="break-words text-[11px] leading-tight text-slate-500 [hyphens:auto]" lang="es">{x.label}</p>
             {x.hint && <p className="text-[10px] text-slate-400">{x.hint}</p>}
           </div>
         ))}
