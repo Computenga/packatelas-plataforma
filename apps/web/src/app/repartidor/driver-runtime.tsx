@@ -19,13 +19,14 @@ const MIN_MOVE_MS = 10_000;
 const noopSubscribe = () => () => {};
 
 /** Puente que expone la app Android (window.PackatelasNative). */
-type NativeBridge = { setOnDuty: (on: boolean) => void; hasLocation: () => boolean };
+type NativeBridge = { setOnDuty: (on: boolean) => void; hasLocation: () => boolean; locationStatus?: () => string; openLocationSettings?: () => void };
 
 export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   const [queue, setQueue] = useState<QueuedEvent[]>([]);
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
   const [wake, setWake] = useState(false);
   const [gps, setGps] = useState<"ok" | "denied" | "off">("off");
+  const [nativeLoc, setNativeLoc] = useState<string>("ok");
   const [awayMin, setAwayMin] = useState(0);
   const buffer = useRef<{ lat: number; lng: number; accuracy?: number; speed?: number | null; at: string }[]>([]);
   const wakeLock = useRef<{ release: () => Promise<void> } | null>(null);
@@ -61,7 +62,10 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     // preguntar (antes se quedaba en "sin ubicación" aunque ya estuviera permitido).
     const check = () => {
       try {
-        setGps(native.hasLocation() ? "ok" : "denied");
+        // App 1.3+: estado detallado (GPS apagado, solo aproximada, solo "mientras se usa").
+        const st = native.locationStatus?.() ?? (native.hasLocation() ? "ok" : "denied");
+        setNativeLoc(st);
+        setGps(st === "denied" ? "denied" : st === "gps_off" ? "off" : "ok");
       } catch {
         setGps("off");
       }
@@ -191,6 +195,25 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
           </button>
         )}
       </div>
+      {onDuty && native && ["gps_off", "approx", "foreground"].includes(nativeLoc) && (
+        <div role="alert" className={`rounded-lg px-3 py-2 text-sm ${nativeLoc === "gps_off" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>
+          <p className="font-semibold">
+            {nativeLoc === "gps_off" ? "La ubicación del teléfono está apagada" : nativeLoc === "approx" ? "Solo diste ubicación aproximada" : "Falta «Permitir todo el tiempo»"}
+          </p>
+          <p>
+            {nativeLoc === "gps_off"
+              ? "Enciéndela para que despacho vea dónde vas."
+              : nativeLoc === "approx"
+                ? "Activa «Usar ubicación precisa» en el permiso de ubicación de la app."
+                : "Con «Solo mientras se usa la app» la ubicación puede detenerse al bloquear el teléfono. En Permisos → Ubicación elige «Permitir todo el tiempo»."}
+          </p>
+          {native.openLocationSettings && (
+            <button type="button" onClick={() => native.openLocationSettings?.()} className="mt-1 text-sm font-semibold underline">
+              Abrir ajustes
+            </button>
+          )}
+        </div>
+      )}
       {onDuty && gps === "denied" && (
         <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
           <p className="font-semibold">Despacho no puede ver tu ubicación</p>

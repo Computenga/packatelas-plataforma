@@ -51,8 +51,28 @@ public class LocationService extends Service implements LocationListener {
         c.stopService(new Intent(c, LocationService.class));
     }
 
+    /** Precisa o aproximada: con cualquiera de las dos el servicio manda ubicación. */
     static boolean hasPermission(Context c) {
+        return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                || c.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    static boolean hasPrecise(Context c) {
         return c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** "Permitir todo el tiempo" (Android 10+). */
+    static boolean hasBackground(Context c) {
+        return android.os.Build.VERSION.SDK_INT < 29
+                || c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    /** Ubicación del teléfono encendida (el interruptor de "Ubicación"/GPS). */
+    static boolean deviceLocationOn(Context c) {
+        LocationManager m = c.getSystemService(LocationManager.class);
+        if (m == null) return false;
+        if (android.os.Build.VERSION.SDK_INT >= 28) return m.isLocationEnabled();
+        return m.isProviderEnabled(LocationManager.GPS_PROVIDER) || m.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
     }
 
     @Override

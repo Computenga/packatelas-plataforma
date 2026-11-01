@@ -126,6 +126,7 @@ public class MainActivity extends Activity {
                     LocationService.stop(MainActivity.this);
                 } else if (LocationService.hasPermission(MainActivity.this)) {
                     LocationService.start(MainActivity.this);
+                    askBackgroundOnce();
                 } else {
                     pendingDuty = true;
                     requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, REQ_PERMS);
@@ -136,6 +137,27 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean hasLocation() {
             return LocationService.hasPermission(MainActivity.this);
+        }
+
+        /** ok · denied (sin permiso) · gps_off (ubicación del teléfono apagada) · approx (solo aproximada) · foreground (solo "mientras se usa"). */
+        @JavascriptInterface
+        public String locationStatus() {
+            if (!LocationService.hasPermission(MainActivity.this)) return "denied";
+            if (!LocationService.deviceLocationOn(MainActivity.this)) return "gps_off";
+            if (!LocationService.hasPrecise(MainActivity.this)) return "approx";
+            if (!LocationService.hasBackground(MainActivity.this)) return "foreground";
+            return "ok";
+        }
+
+        /** Abre los ajustes de la app (permisos) o de ubicación del teléfono. */
+        @JavascriptInterface
+        public void openLocationSettings() {
+            runOnUiThread(() -> {
+                if (LocationService.hasPermission(MainActivity.this) && !LocationService.deviceLocationOn(MainActivity.this))
+                    startActivity(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+                else
+                    startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+            });
         }
 
         @JavascriptInterface
@@ -295,14 +317,38 @@ public class MainActivity extends Activity {
         }
         if (pendingDuty) {
             pendingDuty = false;
-            if (loc) LocationService.start(this);
-            else new AlertDialog.Builder(this)
+            if (loc) {
+                LocationService.start(this);
+                askBackgroundOnce();
+            } else new AlertDialog.Builder(this)
                     .setTitle("Ubicación necesaria")
                     .setMessage("Para trabajar en turno, Packatelas necesita tu ubicación. Actívala en Ajustes → Apps → Packatelas → Permisos → Ubicación.")
                     .setPositiveButton("Abrir ajustes", (d, w) -> startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName()))))
                     .setNegativeButton("Ahora no", null)
                     .show();
         }
+    }
+
+    /**
+     * Android solo ofrece "Permitir todo el tiempo" en un segundo paso (desde Android 11 en los
+     * ajustes). Se explica antes y se pregunta como máximo una vez al día.
+     */
+    private void askBackgroundOnce() {
+        if (LocationService.hasBackground(this)) return;
+        String today = new java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).format(new java.util.Date());
+        if (today.equals(Api.prefs(this).getString("askedBg", ""))) return;
+        Api.prefs(this).edit().putString("askedBg", today).apply();
+        new AlertDialog.Builder(this)
+                .setTitle("Ubicación con la pantalla apagada")
+                .setMessage("Para que despacho te vea aunque bloquees el teléfono, en la siguiente pantalla elige «Permitir todo el tiempo» y también «Usar ubicación precisa».")
+                .setPositiveButton("Continuar", (d, w) -> {
+                    if (android.os.Build.VERSION.SDK_INT >= 30)
+                        startActivity(new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+                    else
+                        requestPermissions(new String[]{Manifest.permission.ACCESS_BACKGROUND_LOCATION}, REQ_PERMS);
+                })
+                .setNegativeButton("Ahora no", null)
+                .show();
     }
 
     private void askNotificationsOnce() {
