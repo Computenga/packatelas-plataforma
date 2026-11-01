@@ -89,5 +89,10 @@ export function DispatchMap({ orders, drivers, colorOf, selected, onToggle }: {
     }
   }, [ready, orders, drivers, colorOf, selected]);
 
-  return <div ref={el} className="absolute inset-0" />;
+  // maplibre le pone position:relative al contenedor: el tamaño lo da la envoltura absoluta.
+  return (
+    <div className="absolute inset-0">
+      <div ref={el} className="h-full w-full" />
+    </div>
+  );
 }
