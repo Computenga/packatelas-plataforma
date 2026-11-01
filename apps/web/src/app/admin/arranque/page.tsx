@@ -106,7 +106,9 @@ export default async function ArranquePage() {
           <>
             <p className="text-sm text-slate-600">
               Se borran <b>{b.envios}</b> envíos (con sus <b>{b.evidencias}</b> fotos), <b>{b.movimientos}</b> movimientos de saldo, <b>{b.recolecciones}</b> recolecciones, <b>{b.ubicaciones}</b> ubicaciones,
-              {" "}<b>{b.avisos}</b> avisos y la numeración PK vuelve a empezar en PK-000001. Los <b>{preview.archivar.pagos}</b> depósitos recibidos se conservan como “anteriores al arranque” (ya están en el saldo del sistema anterior).
+              {" "}<b>{b.avisos}</b> avisos y la numeración PK vuelve a empezar en PK-000001. Los <b>{preview.archivar.pagos}</b> depósitos recibidos quedan archivados como “anteriores al arranque” (ya están en el saldo del sistema anterior; no aparecen en el historial de pagos).
+              {preview.pruebas.clientes.length > 0 && <> Se eliminan los clientes de prueba: <b>{preview.pruebas.clientes.join(", ")}</b>.</>}
+              {preview.pruebas.usuarios > 0 && <> Se eliminan {preview.pruebas.usuarios} usuario(s) de prueba (z_…).</>}
             </p>
             <p className="mt-2 text-sm text-slate-600">
               Se conservan {preview.conservar.clientes} clientes con sus sucursales y tarifas, {preview.conservar.cuentasML} cuentas de MercadoLibre, {preview.conservar.usuarios} usuarios, {preview.conservar.personal} empleados, la flotilla, la nómina y el historial migrado del sistema anterior ({preview.conservar.historialEnvios} envíos y {preview.conservar.historialPagos} pagos).

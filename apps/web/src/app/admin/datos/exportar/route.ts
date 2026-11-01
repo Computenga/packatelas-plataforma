@@ -1,4 +1,5 @@
 import { audit, prisma } from "@packatelas/db";
+import { PAYMENT_NOTE } from "@packatelas/db";
 import { getSessionUser } from "@/lib/session";
 import { csvResponse } from "@/lib/csv";
 import { readRange } from "@/lib/report-range";
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
       ...list.map((l) => [fmt(l.createdAt), l.client.publicId, l.client.name, TYPE[l.type] ?? l.type, money(l.amount), l.description, l.order?.code ?? ""])];
     name = `movimientos-${fromYmd}_${toYmd}`;
   } else if (tipo === "pagos") {
-    const list = await prisma.payment.findMany({ where: { receivedAt: created }, orderBy: { receivedAt: "asc" }, include: { client: { select: { publicId: true, name: true } } } });
+    const list = await prisma.payment.findMany({ where: { receivedAt: created, NOT: { status: "REJECTED", note: PAYMENT_NOTE } }, orderBy: { receivedAt: "asc" }, include: { client: { select: { publicId: true, name: true } } } });
     rows = [["Recibido", "ID cliente", "Cliente", "Método", "Origen", "Estado", "Monto", "Comisión", "Referencia", "Remitente", "Nota"],
       ...list.map((p) => [fmt(p.receivedAt), p.client?.publicId ?? "", p.client?.name ?? "", p.method, p.source, PSTATUS[p.status] ?? p.status, money(p.amount), money(p.fee), p.reference, p.senderName, p.note])];
     name = `pagos-${fromYmd}_${toYmd}`;

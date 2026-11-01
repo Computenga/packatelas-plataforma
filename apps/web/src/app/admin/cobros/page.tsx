@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { accountStates, prisma } from "@packatelas/db";
+import { PAYMENT_NOTE } from "@packatelas/db";
 import { CobrosTabs } from "./tabs";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
@@ -16,7 +17,7 @@ export default async function CobrosPage() {
     prisma.ledgerEntry.groupBy({ by: ["clientId"], _sum: { amount: true } }),
     prisma.ledgerEntry.groupBy({ by: ["type"], _sum: { amount: true } }),
     prisma.client.findMany({ select: { id: true, name: true, publicId: true, creditLimit: true, pickupExemptUntil: true } }),
-    prisma.payment.findMany({ orderBy: { receivedAt: "desc" }, take: 15, include: { client: { select: { name: true } } } }),
+    prisma.payment.findMany({ where: { NOT: { status: "REJECTED", note: PAYMENT_NOTE } }, orderBy: { receivedAt: "desc" }, take: 15, include: { client: { select: { name: true } } } }),
     prisma.payment.findMany({ where: { status: "UNIDENTIFIED" }, orderBy: { receivedAt: "asc" }, take: 100 }),
     accountStates(prisma),
   ]);

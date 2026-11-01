@@ -8,7 +8,12 @@ import { OPENING_BALANCE_TAG } from "./migration.ts";
 
 const KEY = "arranque";
 export const CUTOVER_CONFIRM = "BORRAR DATOS DE PRUEBA";
-const PAYMENT_NOTE = "Anterior al arranque: ya incluido en el saldo del sistema anterior";
+export const PAYMENT_NOTE = "Anterior al arranque: ya incluido en el saldo del sistema anterior";
+
+/** Clientes de prueba que se eliminan al arrancar (el demo y los marcados «(borrar)»). */
+const TEST_CLIENT_WHERE = { OR: [{ publicId: "demo00001" }, { name: { contains: "(borrar)", mode: "insensitive" as const } }, { name: { contains: "prueba, borrar", mode: "insensitive" as const } }] };
+/** Usuarios de prueba del sistema anterior. */
+const TEST_USER_WHERE = { username: { startsWith: "z_" } };
 
 export type CutoverState = { at: string; by?: string; summary?: Record<string, number> } | null;
 
@@ -40,7 +45,12 @@ export async function cutoverPreview(prisma: PrismaClient) {
       prisma.order.count({ where: { source: "IMPORT" } }),
       prisma.payment.count({ where: { source: "IMPORT" } }),
     ]);
+  const [testClients, testUsers] = await Promise.all([
+    prisma.client.findMany({ where: TEST_CLIENT_WHERE, select: { name: true } }),
+    prisma.user.count({ where: TEST_USER_WHERE }),
+  ]);
   return {
+    pruebas: { clientes: testClients.map((c) => c.name), usuarios: testUsers },
     borrar: { envios: orders, evidencias: evidence, movimientos: ledger, saldosIniciales: openings, recolecciones: pickups, rutas: routes, ubicaciones: pings, avisos: notices + appNotices, webhooks, tareasML: mlJobs },
     archivar: { pagos: payments },
     conservar: { clientes: clients, cuentasML: mlAccounts, usuarios: users, personal: employees, historialEnvios: histOrders, historialPagos: histPayments },
@@ -77,6 +87,26 @@ export async function resetForCutover(prisma: PrismaClient, actorUserId: string,
       await tx.mlJob.deleteMany();
       await tx.storeConnector.updateMany({ data: { received: 0, created: 0, lastAt: null, lastResult: null } });
       await tx.driver.updateMany({ data: { onDuty: false, shiftStartedAt: null } });
+      // Clientes de prueba (demo y «(borrar)») con todo lo suyo.
+      const ids = (await tx.client.findMany({ where: TEST_CLIENT_WHERE, select: { id: true } })).map((c) => c.id);
+      if (ids.length) {
+        const accounts = (await tx.mlAccount.findMany({ where: { clientId: { in: ids } }, select: { id: true } })).map((a) => a.id);
+        await tx.mlFlexShipment.deleteMany({ where: { OR: [{ clientId: { in: ids } }, { mlAccountId: { in: accounts } }] } });
+        await tx.mlAccountRoute.deleteMany({ where: { OR: [{ mlAccountId: { in: accounts } }, { branch: { clientId: { in: ids } } }] } });
+        await tx.order.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.mpCheckout.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.invoice.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.payment.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.apiKey.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.webhookEndpoint.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.storeConnector.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.clientSignup.updateMany({ where: { clientId: { in: ids } }, data: { clientId: null } });
+        await tx.user.updateMany({ where: { clientId: { in: ids } }, data: { clientId: null, active: false } });
+        await tx.mlAccount.deleteMany({ where: { id: { in: accounts } } });
+        await tx.branch.deleteMany({ where: { clientId: { in: ids } } });
+        await tx.client.deleteMany({ where: { id: { in: ids } } });
+      }
+      await tx.user.updateMany({ where: TEST_USER_WHERE, data: { active: false } });
       await tx.$executeRawUnsafe("ALTER SEQUENCE order_code_seq RESTART WITH 1");
       const summary = { ...before.borrar, pagosArchivados: before.archivar.pagos };
       await tx.setting.upsert({
@@ -95,5 +125,15 @@ export async function resetForCutover(prisma: PrismaClient, actorUserId: string,
     },
     { timeout: 120_000 },
   );
+  // Usuarios de prueba (y los que eran de clientes de prueba): se borran si no tienen historial;
+  // si lo tienen, se quedan desactivados.
+  const leftovers = await prisma.user.findMany({ where: { OR: [TEST_USER_WHERE, { role: "CLIENTE", clientId: null, active: false }] }, select: { id: true } });
+  for (const u of leftovers) {
+    try {
+      await prisma.$transaction([prisma.session.deleteMany({ where: { userId: u.id } }), prisma.driver.deleteMany({ where: { userId: u.id } }), prisma.user.delete({ where: { id: u.id } })]);
+    } catch {
+      /* tiene historial: queda desactivado */
+    }
+  }
   return { before, evidenceKeys };
 }
