@@ -52,6 +52,9 @@ services:
       WHATSAPP_PHONE_ID: ${WHATSAPP_PHONE_ID:-}
       WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
       TOMTOM_API_KEY: ${TOMTOM_API_KEY:-}
+      GMAIL_CLIENT_ID: ${GMAIL_CLIENT_ID:-}
+      GMAIL_CLIENT_SECRET: ${GMAIL_CLIENT_SECRET:-}
+      DRIVE_REFRESH_TOKEN: ${DRIVE_REFRESH_TOKEN:-}
       BACKUP_DIR: /backups
     volumes:
       - uploads:/data/uploads

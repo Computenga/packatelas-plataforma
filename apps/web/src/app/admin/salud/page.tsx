@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { driversWithoutLocation, prisma, readHealth, type HealthEntry } from "@packatelas/db";
+import { driveConnection, driversWithoutLocation, prisma, readHealth, type HealthEntry } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace } from "@/lib/format";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -30,7 +30,10 @@ async function pingOsrm(): Promise<"ok" | "off" | "down"> {
 }
 
 /** Estado de integraciones y procesos [A20]. */
-export default async function SaludPage() {
+export default async function SaludPage({ searchParams }: PageProps<"/admin/salud">) {
+  const sp = await searchParams;
+  const driveMsg = typeof sp.drive === "string" ? sp.drive : null;
+  const driveOk = typeof sp.driveok === "string" ? sp.driveok : null;
   await requireUser(["ADMIN"]);
   const t = now();
   const [health, ml, pendingSync, unidentified, failedNotices, lost, lastDeposit] = await Promise.all([
@@ -42,7 +45,7 @@ export default async function SaludPage() {
     driversWithoutLocation(prisma),
     prisma.payment.findFirst({ where: { source: "GMAIL" }, orderBy: { receivedAt: "desc" }, select: { receivedAt: true } }),
   ]);
-  const osrm = await pingOsrm();
+  const [osrm, gdrive] = await Promise.all([pingOsrm(), driveConnection(prisma)]);
   const mlCount = (s: string) => ml.find((m) => m.status === s)?._count._all ?? 0;
   const mlTotal = ml.reduce((a, m) => a + m._count._all, 0);
   const wa = health.whatsapp;
@@ -113,12 +116,21 @@ export default async function SaludPage() {
     },
     {
       name: "Respaldos de la base",
-      level: !health.respaldos ? "off" : health.respaldos.ok ? fresh(health.respaldos, 90, t) : health.respaldos.detail?.includes("falta DRIVE_REFRESH_TOKEN") ? "warn" : "bad",
+      level: !health.respaldos ? "off" : health.respaldos.ok ? fresh(health.respaldos, 90, t) : /falta (DRIVE_REFRESH_TOKEN|conectar Google Drive)/.test(health.respaldos.detail ?? "") ? "warn" : "bad",
       detail: (
         <>
           {health.respaldos?.detail ?? "Aún sin datos: el worker revisa cada 30 min"}
           {health.respaldos && !health.respaldos.detail?.startsWith("Aún no hay") && (
             <a href="/admin/salud/respaldo" className="mt-1 block text-brand hover:underline">Descargar el más reciente</a>
+          )}
+          {gdrive.connected ? (
+            <span className="mt-1 block text-xs text-slate-500">
+              Drive: {gdrive.email}
+              {gdrive.at ? ` · desde ${fecha(new Date(gdrive.at))}` : ""} ·{" "}
+              <a href="/api/drive/conectar" className="text-brand hover:underline">cambiar cuenta</a>
+            </span>
+          ) : (
+            <a href="/api/drive/conectar" className="mt-2 inline-block rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white">Conectar Google Drive</a>
           )}
         </>
       ),
@@ -134,6 +146,8 @@ export default async function SaludPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader eyebrow="Gestión" title="Salud operativa">Estado de procesos e integraciones. Se actualiza al recargar.</PageHeader>
+      {driveOk && <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{driveOk}</p>}
+      {driveMsg && <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{driveMsg}</p>}
       <div className="grid gap-4 md:grid-cols-2">
         {items.map((i) => (
           <Card key={i.name} title={i.name} actions={<Badge tone={TONE[i.level]}>{LABEL[i.level]}</Badge>}>

@@ -40,6 +40,7 @@ export * from "./failures.ts";
 export * from "./migration.ts";
 export * from "./signups.ts";
 export * from "./crypto.ts";
+export * from "./drive.ts";
 export * from "./totp.ts";
 export * from "./ml-routes.ts";
 export * from "./branches.ts";

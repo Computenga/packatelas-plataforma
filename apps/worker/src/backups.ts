@@ -2,7 +2,7 @@
 // a una carpeta de Google Drive (fuera del VPS). Usa el mismo cliente OAuth que Gmail.
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { prisma, reportHealth } from "@packatelas/db";
+import { driveRefreshToken, prisma, reportHealth } from "@packatelas/db";
 
 const DIR = process.env.BACKUP_DIR ?? "/backups";
 const KEY = "backup.drive";
@@ -17,7 +17,8 @@ export async function localBackups(dir = DIR) {
 }
 
 async function driveToken(): Promise<string | null> {
-  const { GMAIL_CLIENT_ID: id, GMAIL_CLIENT_SECRET: secret, DRIVE_REFRESH_TOKEN: refresh } = process.env;
+  const { GMAIL_CLIENT_ID: id, GMAIL_CLIENT_SECRET: secret } = process.env;
+  const refresh = await driveRefreshToken(prisma);
   if (!id || !secret || !refresh) return null;
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -81,7 +82,7 @@ export async function backupOnce() {
   }
   const ageH = (Date.now() - last.at.getTime()) / 3600_000;
   const mb = (last.size / 1048576).toFixed(1);
-  let drivePart = "Sin copia fuera del servidor (falta DRIVE_REFRESH_TOKEN)";
+  let drivePart = "Sin copia fuera del servidor (falta conectar Google Drive)";
   let ok = ageH < 30;
   try {
     const token = await driveToken();
