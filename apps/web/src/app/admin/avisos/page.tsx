@@ -188,7 +188,7 @@ async function PhoneCard() {
             <p className="mt-2">
               Cuenta conectada a: {subs === null ? "—" : subs.length ? <span className="text-emerald-700">{subs.join(", ")}</span> : <span className="text-amber-700">ninguna app (no llegarán los estados)</span>}
             </p>
-            {subs !== null && subs.length === 0 && (
+            {subs !== null && !subs.some((n) => /packatelas/i.test(n)) && (
               <ActionForm action={subscribeWebhookAction} submitLabel="Conectar la cuenta al webhook" className="mt-2">
                 <span />
               </ActionForm>
