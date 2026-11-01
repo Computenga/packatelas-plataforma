@@ -7,7 +7,7 @@ import { admsConfigAction, forgetDeviceAction } from "./actions";
 /** Recepción directa del checador ZKTeco por ADMS [A23]. Apagada hasta que el admin la active. */
 export async function AdmsCard() {
   const c = await getAdmsConfig(prisma);
-  const host = (process.env.PUBLIC_URL ?? "https://nuevo.packatelas.mx").replace(/^https?:\/\//, "").replace(/\/$/, "");
+  const host = (process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const devices = Object.entries(c.devices).sort((a, b) => b[1].lastAt.localeCompare(a[1].lastAt));
   return (
     <Card title="Recepción directa del ZKTeco" actions={<Badge tone={c.enabled ? "green" : "gray"}>{c.enabled ? "Activa" : "Apagada"}</Badge>}>

@@ -20,4 +20,4 @@ export function orderIdFromToken(token: string): string | null {
 }
 
 /** Enlace completo de seguimiento (para WhatsApp). */
-export const publicTrackingUrl = (orderId: string) => `${(process.env.PUBLIC_URL ?? "https://nuevo.packatelas.mx").replace(/\/$/, "")}${trackingPath(orderId)}`;
+export const publicTrackingUrl = (orderId: string) => `${(process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/\/$/, "")}${trackingPath(orderId)}`;

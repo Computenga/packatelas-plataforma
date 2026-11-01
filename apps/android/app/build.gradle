@@ -7,7 +7,7 @@ def ks = new Properties()
 if (ksFile.exists()) ks.load(new FileInputStream(ksFile))
 
 // Dirección de la plataforma. Para el cambio de dominio: ./gradlew assembleRelease -PbaseUrl=https://admin.packatelas.mx
-def baseUrl = project.findProperty("baseUrl") ?: "https://nuevo.packatelas.mx"
+def baseUrl = project.findProperty("baseUrl") ?: "https://portal.packatelas.mx"
 
 android {
     namespace "mx.packatelas.app"

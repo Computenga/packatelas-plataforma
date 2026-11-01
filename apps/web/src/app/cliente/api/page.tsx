@@ -22,7 +22,7 @@ export default async function ApiPage() {
     prisma.webhookEndpoint.findUnique({ where: { clientId } }),
   ]);
   const deliveries = ep ? await prisma.webhookDelivery.findMany({ where: { endpointId: ep.id }, orderBy: { createdAt: "desc" }, take: 20 }) : [];
-  const base = (process.env.PUBLIC_URL ?? "https://admin.packatelas.mx").replace(/\/$/, "");
+  const base = (process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/\/$/, "");
 
   return (
     <div className="mx-auto max-w-4xl space-y-6">

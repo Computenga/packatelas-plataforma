@@ -182,7 +182,7 @@ async function PhoneCard() {
               {process.env.WHATSAPP_APP_SECRET ? <span className="text-emerald-700">App Secret configurado</span> : <span className="text-amber-700">falta WHATSAPP_APP_SECRET en Coolify</span>}
             </p>
             <p className="mt-1">En Meta → tu app → WhatsApp → Configuración → Webhook:</p>
-            <p>URL de devolución de llamada: <span className="select-all font-mono">{(process.env.PUBLIC_URL || "https://nuevo.packatelas.mx").replace(/\/$/, "")}/api/whatsapp/webhook</span></p>
+            <p>URL de devolución de llamada: <span className="select-all font-mono">{(process.env.PUBLIC_URL || "https://portal.packatelas.mx").replace(/\/$/, "")}/api/whatsapp/webhook</span></p>
             <p>Token de verificación: <span className="select-all font-mono">{webhookVerifyToken() ?? "—"}</span></p>
             <p>Después suscribe el campo <span className="font-mono">messages</span>.</p>
             <p className="mt-2">

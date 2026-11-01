@@ -35,7 +35,7 @@ final class Api {
         String host = u.getHost();
         if (host == null) return false;
         String own = Uri.parse(base()).getHost();
-        return host.equalsIgnoreCase(own) || host.equalsIgnoreCase("admin.packatelas.mx") || host.equalsIgnoreCase("nuevo.packatelas.mx");
+        return host.equalsIgnoreCase(own) || host.equalsIgnoreCase("admin.packatelas.mx") || host.equalsIgnoreCase("nuevo.packatelas.mx") || host.equalsIgnoreCase("portal.packatelas.mx");
     }
 
     static SharedPreferences prefs(Context c) {

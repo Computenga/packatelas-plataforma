@@ -38,7 +38,7 @@ export default async function ArranquePage() {
     { label: "Personal", ok: preview.conservar.personal > 0, detail: `${preview.conservar.personal} empleados`, href: "/admin/personal" },
     { label: "Depósitos de Fondeadora (Gmail)", ok: fresh("gmail", 1), detail: health.gmail?.detail ?? "Sin datos", href: "/admin/salud" },
     { label: "Avisos por WhatsApp", ok: !!process.env.WHATSAPP_TOKEN, detail: process.env.WHATSAPP_TOKEN ? "Configurado" : "Sin configurar (se puede arrancar sin él)", href: "/admin/avisos" },
-    { label: "Dominio definitivo", ok: url.includes("admin.packatelas.mx"), detail: url || "PUBLIC_URL sin definir" },
+    { label: "Dominio definitivo", ok: url.includes("portal.packatelas.mx"), detail: url || "PUBLIC_URL sin definir" },
     { label: "Saldos iniciales cargados", ok: openings._count > 0, detail: openings._count ? `${openings._count} clientes · total $${Number(openings._sum.amount ?? 0).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "Aún no", href: "/admin/clientes/importar" },
     { label: "Pagos sin identificar", ok: unidentified === 0, detail: `${unidentified} por asignar`, href: "/admin/cobros" },
   ];
@@ -69,7 +69,7 @@ export default async function ArranquePage() {
           <div>
             <p className="font-medium">Un día antes</p>
             <ol className="mt-1 list-decimal space-y-1 pl-5">
-              <li>Repartidores: instalar la app (Android: nuevo.packatelas.mx/descargar), entrar con su usuario e iniciar y terminar un turno de prueba.</li>
+              <li>Repartidores: instalar la app (Android: portal.packatelas.mx/descargar), entrar con su usuario e iniciar y terminar un turno de prueba.</li>
               <li>Operador y despachador: repasar su sección del manual y escanear un paquete de prueba.</li>
               <li>Avisar a los clientes de su usuario del portal y de la nueva referencia de pago (Estado de cuenta).</li>
             </ol>
@@ -82,9 +82,9 @@ export default async function ArranquePage() {
               <li>Aquí abajo: <b>Borrar los datos de prueba</b> (una sola vez).</li>
               <li>Exportar del sistema anterior la lista de clientes con <b>ID y Saldo</b> (positivo = el cliente debe) y cargarla en <Link href="/admin/clientes/importar" className="text-brand hover:underline">Clientes → Importar</Link>. Comparar el total que muestra la Verificación con el del sistema anterior.</li>
               <li>Revisar Pagos sin identificar.</li>
-              <li>Dominio (lo hace soporte): en GoDaddy, registro A de <code>admin</code> → 74.208.245.157; en Coolify agregar <code>https://admin.packatelas.mx</code> sin quitar <code>nuevo.packatelas.mx</code>, y cambiar <code>PUBLIC_URL</code>. Volver a desplegar.</li>
-              <li>MercadoLibre (portal de desarrolladores): URL de redirección <code>https://admin.packatelas.mx/api/ml/callback</code> y notificaciones <code>https://admin.packatelas.mx/api/ml/notificaciones</code>.</li>
-              <li>La app Android sigue funcionando con los dos dominios; la nueva versión con admin.packatelas.mx puede salir después.</li>
+              <li>Dominio (lo hace soporte): en GoDaddy, registro A de <code>portal</code> → 74.208.245.157; en Coolify agregar <code>https://portal.packatelas.mx</code> sin quitar <code>nuevo.packatelas.mx</code>, y cambiar <code>PUBLIC_URL</code>. Volver a desplegar. (admin.packatelas.mx se queda con el sistema anterior, solo para consulta.)</li>
+              <li>MercadoLibre (portal de desarrolladores): URL de redirección <code>https://portal.packatelas.mx/api/ml/callback</code> y notificaciones <code>https://portal.packatelas.mx/api/ml/notificaciones</code>.</li>
+              <li>La app Android sigue funcionando con los dos dominios; la nueva versión con portal.packatelas.mx puede salir después.</li>
             </ol>
           </div>
           <div>

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 /** Página pública para instalar la app Android desde cualquier celular. */
 export default async function DescargarPage() {
-  const base = (process.env.PUBLIC_URL ?? "https://nuevo.packatelas.mx").replace(/\/$/, "");
+  const base = (process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/\/$/, "");
   const qr = await QRCode.toDataURL(`${base}/descargar`, { margin: 1, width: 360, color: { dark: "#0f1e4a", light: "#ffffff" } });
   return (
     <main className="min-h-dvh bg-slate-50 px-4 py-10">
