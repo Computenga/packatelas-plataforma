@@ -6,6 +6,7 @@ import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, hace, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { buildWhere, filtersToQuery, LIVE_STATUSES, PAGE_SIZE, readFilters, type OrderFilters } from "@/lib/order-filters";
 import { RecuperadosList } from "./recuperados";
+import { EnVivo } from "./en-vivo";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
 
@@ -24,13 +25,14 @@ const requestTime = () => Date.now();
 
 export default async function PedidosPage({ searchParams }: PageProps<"/admin/pedidos">) {
   const user = await requireUser(STAFF_ROLES);
-  const f = readFilters(await searchParams);
+  const sp = await searchParams;
+  const f = readFilters(sp);
   const where = buildWhere(f);
   const live = f.view === "vivo";
   const recovered = f.view === "recuperados";
 
   const [orders, total, clients, liveCounts] = await Promise.all([
-    recovered ? Promise.resolve([]) : prisma.order.findMany({
+    recovered || live ? Promise.resolve([]) : prisma.order.findMany({
       where,
       orderBy: live ? { createdAt: "asc" } : { createdAt: "desc" },
       skip: (f.page - 1) * PAGE_SIZE,
@@ -41,11 +43,9 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         events: live ? { where: { toStatus: { not: null } }, orderBy: { occurredAt: "desc" }, take: 1 } : false,
       },
     }),
-    recovered ? Promise.resolve(0) : prisma.order.count({ where }),
+    recovered || live ? Promise.resolve(0) : prisma.order.count({ where }),
     prisma.client.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-    live
-      ? prisma.order.groupBy({ by: ["status"], where: buildWhere({ ...f, status: "" }), _count: { _all: true } })
-      : Promise.resolve([]),
+    Promise.resolve([] as { status: OrderStatus; _count: { _all: number } }[]),
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = filtersToQuery(f, 1);
@@ -80,8 +80,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
           </>
         }
       >
-        {recovered ? "Envíos Flex de MercadoLibre por recoger" : <>{total.toLocaleString("es-MX")} pedido(s)</>}
-        {live && " sin cerrar · se actualiza cada minuto"}
+        {recovered ? "Envíos Flex de MercadoLibre por recoger" : live ? "Envíos en la calle durante el día: en tránsito, entregados y no entregados" : <>{total.toLocaleString("es-MX")} pedido(s)</>}
       </PageHeader>
 
       <nav className="mb-4 flex gap-1 border-b border-slate-200 text-sm" aria-label="Vistas">
@@ -99,7 +98,25 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
 
       {recovered && <RecuperadosList f={f} clients={clients} />}
 
-      {!recovered && (
+      {live && (
+        <>
+          <form className="mb-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-4 [&>*]:min-w-0">
+            <input type="hidden" name="vista" value="vivo" />
+            {typeof sp.dia === "string" && <input type="hidden" name="dia" value={sp.dia} />}
+            <input name="q" defaultValue={f.q} placeholder="Envío, destinatario, dirección, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
+            <select name="clientId" defaultValue={f.clientId} className="rounded-lg border border-slate-300 px-3 py-2">
+              <option value="">Todos los clientes</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button className="rounded-lg bg-brand px-4 py-2 text-white">Filtrar</button>
+          </form>
+          <EnVivo f={f} sp={sp} now={now} />
+        </>
+      )}
+
+      {!recovered && !live && (
         <>
       {live && liveCounts.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2 text-sm">
