@@ -17,3 +17,15 @@ export const MAP_STYLE: StyleSpecification = {
   },
   layers: [{ id: "base", type: "raster", source: "base" }],
 };
+
+type MapLib = typeof import("maplibre-gl");
+let workerSet = false;
+/** Carga maplibre con su worker servido desde /maplibre (ver scripts/copy-maplibre-worker.mjs). */
+export async function loadMapLibre(): Promise<MapLib> {
+  const lib = await import("maplibre-gl");
+  if (!workerSet) {
+    lib.setWorkerUrl("/maplibre/maplibre-gl-worker.mjs");
+    workerSet = true;
+  }
+  return lib;
+}

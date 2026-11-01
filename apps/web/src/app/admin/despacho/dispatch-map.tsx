@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { BoardDriver, BoardOrder } from "./board";
 
-import { MAP_STYLE as STYLE } from "@/lib/map-style";
+import { loadMapLibre, MAP_STYLE as STYLE } from "@/lib/map-style";
 
 type ML = typeof import("maplibre-gl");
 
@@ -31,7 +31,7 @@ export function DispatchMap({ orders, drivers, colorOf, selected, onToggle }: {
   useEffect(() => {
     let disposed = false;
     (async () => {
-      const lib = await import("maplibre-gl");
+      const lib = await loadMapLibre();
       if (disposed || !el.current) return;
       libRef.current = lib;
       const map = new lib.Map({ container: el.current, style: STYLE, center: [-99.1332, 19.4326], zoom: 10 });

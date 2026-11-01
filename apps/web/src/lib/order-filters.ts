@@ -23,7 +23,10 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
   const where: Prisma.OrderWhereInput = {};
   if (restrictClientId) where.clientId = restrictClientId;
   else if (f.clientId) where.clientId = f.clientId;
-  if (f.view === "vivo") where.status = { in: LIVE_STATUSES };
+  if (f.view === "vivo") {
+    where.status = { in: LIVE_STATUSES };
+    where.source = { not: "IMPORT" }; // el historial migrado no es operación en curso
+  }
   if (STATUSES.has(f.status as OrderStatus) && (!f.view || (f.view === "vivo" && LIVE_STATUSES.includes(f.status as OrderStatus)))) {
     where.status = f.status as OrderStatus;
   }

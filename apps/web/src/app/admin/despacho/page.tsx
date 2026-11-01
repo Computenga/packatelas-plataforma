@@ -12,7 +12,7 @@ export default async function DespachoPage() {
 
   const [orders, drivers, lost] = await Promise.all([
     prisma.order.findMany({
-      where: { kind: "DELIVERY", status: { in: ["CREATED", "RESCHEDULED", "FAILED", "ASSIGNED", "OUT_FOR_DELIVERY", "RETURNING"] } },
+      where: { kind: "DELIVERY", source: { not: "IMPORT" }, status: { in: ["CREATED", "RESCHEDULED", "FAILED", "ASSIGNED", "OUT_FOR_DELIVERY", "RETURNING"] } },
       orderBy: { createdAt: "asc" },
       take: 2000,
       include: { client: { select: { name: true } } },

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { MAP_STYLE as STYLE } from "@/lib/map-style";
+import { loadMapLibre, MAP_STYLE as STYLE } from "@/lib/map-style";
 
 /** Mapa del seguimiento: destino y, si va en camino, la última posición del repartidor. */
 export function TrackMap({ dest, driver }: { dest: { lat: number; lng: number } | null; driver: { lat: number; lng: number } | null }) {
@@ -12,7 +12,7 @@ export function TrackMap({ dest, driver }: { dest: { lat: number; lng: number } 
     let map: import("maplibre-gl").Map | null = null;
     let disposed = false;
     (async () => {
-      const lib = await import("maplibre-gl");
+      const lib = await loadMapLibre();
       if (disposed || !el.current) return;
       const center = driver ?? dest ?? { lat: 19.4326, lng: -99.1332 };
       map = new lib.Map({ container: el.current, style: STYLE, center: [center.lng, center.lat], zoom: 13, attributionControl: { compact: true } });

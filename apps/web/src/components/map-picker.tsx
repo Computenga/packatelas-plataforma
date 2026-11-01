@@ -4,7 +4,7 @@
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { MAP_STYLE as STYLE } from "@/lib/map-style";
+import { loadMapLibre, MAP_STYLE as STYLE } from "@/lib/map-style";
 const CDMX: [number, number] = [-99.1332, 19.4326];
 
 export function MapPicker({ lat, lng, onChange, className = "" }: {
@@ -24,7 +24,7 @@ export function MapPicker({ lat, lng, onChange, className = "" }: {
     let disposed = false;
     let cleanup = () => {};
     (async () => {
-      const { Map, Marker, NavigationControl } = await import("maplibre-gl");
+      const { Map, Marker, NavigationControl } = await loadMapLibre();
       if (disposed || !el.current) return;
       const has = lat != null && lng != null;
       const map = new Map({ container: el.current, style: STYLE, center: has ? [lng!, lat!] : CDMX, zoom: has ? 16 : 10 });
