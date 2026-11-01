@@ -81,7 +81,7 @@ export async function EnVivo({ f, sp, now }: { f: OrderFilters; sp: Sp; now: num
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
         <Link href={href({ cat: undefined })} className={`rounded-xl border bg-white p-3 ${!cat ? "border-brand ring-1 ring-brand" : "border-slate-200"}`}>
-          <p className="text-xs uppercase tracking-wide text-slate-500">En la calle hoy</p>
+          <p className="text-xs uppercase tracking-wide text-slate-500">{dia === today ? "En la calle hoy" : "En la calle ese día"}</p>
           <p className="text-2xl font-bold tabular-nums">{rows.length}</p>
           <p className="text-xs text-slate-500">{closed ? `Efectividad ${Math.round((count("entregado") / closed) * 100)}%` : "Sin cierres aún"}</p>
         </Link>
