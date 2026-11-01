@@ -1,44 +1,15 @@
 import Link from "next/link";
-import { liveBucket, liveOrderIds, mlStatusText, prisma, type LiveBucket } from "@packatelas/db";
+import { mlStatusText, type LiveBucket } from "@packatelas/db";
 import { fecha, hace, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
-import { buildWhere, type OrderFilters } from "@/lib/order-filters";
+import type { OrderFilters } from "@/lib/order-filters";
+import { BUCKETS, liveData, ymdMx } from "./en-vivo-data";
 import { Badge, Table, Td } from "@/components/ui";
 
-const TZ = "America/Mexico_City";
-const ymdMx = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
-const BUCKETS: { key: LiveBucket; label: string; tone: string }[] = [
-  { key: "transito", label: "En tránsito", tone: "text-sky-700" },
-  { key: "entregado", label: "Entregados", tone: "text-emerald-700" },
-  { key: "fallido", label: "No entregados", tone: "text-red-700" },
-  { key: "cancelado", label: "Cancelados", tone: "text-slate-500" },
-];
-/** Eventos que se muestran como "último movimiento". */
-const MOVES = ["assigned", "scanned_loaded", "delivered", "failed", "rescheduled", "return_required", "return_received", "ml_status", "flex_assigned", "flex_transfer", "unassigned"];
-
 type Sp = Record<string, string | string[] | undefined>;
-const str = (v: unknown) => (typeof v === "string" ? v : "");
 
 /** En vivo: los envíos que estuvieron en la calle en el día, con su avance. */
 export async function EnVivo({ f, sp, now }: { f: OrderFilters; sp: Sp; now: number }) {
-  const today = ymdMx(new Date(now));
-  const dia = /^\d{4}-\d{2}-\d{2}$/.test(str(sp.dia)) ? str(sp.dia) : today;
-  const cat = BUCKETS.find((b) => b.key === str(sp.cat))?.key;
-  const driverId = str(sp.rep);
-  const from = new Date(`${dia}T00:00:00-06:00`);
-  const to = new Date(from.getTime() + 86_400_000);
-
-  const ids = await liveOrderIds(prisma, from, to);
-  const base = buildWhere({ ...f, view: "", status: "", from: "", to: "", page: 1 });
-  const orders = await prisma.order.findMany({
-    where: { ...base, id: { in: ids } },
-    take: 2000,
-    include: {
-      client: { select: { name: true } },
-      driver: { select: { id: true, user: { select: { name: true } } } },
-      events: { where: { type: { in: MOVES } }, orderBy: { occurredAt: "desc" }, take: 1, select: { type: true, note: true, occurredAt: true } },
-    },
-  });
-  const rows = orders.map((o) => ({ ...o, bucket: liveBucket(o), last: o.events[0] }));
+  const { today, dia, cat, driverId, from, to, rows, list } = await liveData(f, sp, now);
   const count = (b: LiveBucket, list = rows) => list.filter((r) => r.bucket === b).length;
   const closed = count("entregado") + count("fallido");
 
@@ -51,10 +22,6 @@ export async function EnVivo({ f, sp, now }: { f: OrderFilters; sp: Sp; now: num
     byDriver.set(k, e);
   }
   const drivers = [...byDriver.values()].sort((a, b) => count("transito", b.rows) - count("transito", a.rows) || b.rows.length - a.rows.length);
-
-  const list = rows
-    .filter((r) => (!cat || r.bucket === cat) && (!driverId || (r.driver?.id ?? "-") === driverId))
-    .sort((a, b) => BUCKETS.findIndex((x) => x.key === a.bucket) - BUCKETS.findIndex((x) => x.key === b.bucket) || (b.last?.occurredAt.getTime() ?? 0) - (a.last?.occurredAt.getTime() ?? 0));
 
   const href = (p: Record<string, string | undefined>) => {
     const q = new URLSearchParams({ vista: "vivo" });

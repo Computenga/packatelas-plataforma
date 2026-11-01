@@ -49,6 +49,10 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
   ]);
   const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const qs = filtersToQuery(f, 1);
+  // En vivo también lleva el día, la columna y el repartidor elegidos.
+  const exportQs = live
+    ? new URLSearchParams(Object.entries(sp).filter((e): e is [string, string] => typeof e[1] === "string" && ["vista", "dia", "cat", "rep", "q", "clientId"].includes(e[0]))).toString()
+    : qs;
   const now = requestTime();
   const statusOptions = (live ? LIVE_STATUSES : f.view ? [] : (Object.keys(STATUS_LABEL) as OrderStatus[]));
   const tabHref = (view: OrderFilters["view"]) => {
@@ -68,7 +72,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         title="Pedidos"
         actions={
           <>
-            <ButtonLink href={`/admin/pedidos/exportar${qs ? `?${qs}` : ""}`} variant="secondary" prefetch={false}>
+            <ButtonLink href={`/admin/pedidos/exportar${exportQs ? `?${exportQs}` : ""}`} variant="secondary" prefetch={false}>
               Exportar CSV
             </ButtonLink>
             {user.role !== "DESPACHADOR" && (
