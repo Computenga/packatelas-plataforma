@@ -6,6 +6,7 @@ import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { buildWhere, filtersToQuery, PAGE_SIZE, readFilters } from "@/lib/order-filters";
 import { Badge } from "@/components/ui";
 import { Stat } from "@/components/stat";
+import { ClientOnboarding } from "@/components/client-onboarding";
 
 export const metadata: Metadata = { title: "Mis envíos" };
 
@@ -31,6 +32,7 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
 
   return (
     <div className="mx-auto max-w-4xl space-y-4">
+      <ClientOnboarding clientId={clientId} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{client.name}</h1>
         <div className="flex gap-2 text-sm">
