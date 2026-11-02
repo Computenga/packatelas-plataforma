@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { createApplication, findApplication, prisma, submitApplication } from "@packatelas/db";
+import { createApplication, findApplication, prisma, setApplicationAccess, submitApplication } from "@packatelas/db";
 
 export async function startApplication(fd: FormData) {
   // Freno contra abuso del formulario público: más de 40 altas nuevas en una hora es anormal.
@@ -44,4 +44,14 @@ export async function submitAction(token: string): Promise<AltaState> {
   const r = await submitApplication(prisma, app.id);
   if (!r.ok) return { error: `Falta: ${r.missing.join(", ")}` };
   redirect(`/alta/${token}?enviada=1`);
+}
+
+/** Repartidor: usuario y contraseña con los que entrará a la app cuando lo aprueben. */
+export async function saveAccessAction(token: string, _: AltaState, fd: FormData): Promise<AltaState> {
+  const app = await findApplication(prisma, token);
+  if (!app || app.status === "APROBADA" || app.status === "RECHAZADA") return { error: "Esta solicitud ya no se puede editar" };
+  const password = String(fd.get("password") ?? "");
+  if (password !== String(fd.get("password2") ?? "")) return { error: "Las contraseñas no coinciden" };
+  const r = await setApplicationAccess(prisma, app.id, String(fd.get("username") ?? ""), password);
+  return r.ok ? { ok: `Listo. Cuando te aprueben entras a la app con el usuario «${r.username}».` } : { error: r.error };
 }

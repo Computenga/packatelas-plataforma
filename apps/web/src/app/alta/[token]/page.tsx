@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { appsFor, docTypesFor, findApplication, HIRE_ROLES, latestByType, prisma } from "@packatelas/db";
 import { DocUploader } from "@/components/doc-uploader";
-import { DataForm, SubmitButton } from "./forms";
+import { AccessForm, DataForm, SubmitButton } from "./forms";
+import Link from "next/link";
 import { Isotipo } from "@/components/brand";
 
 export const metadata: Metadata = { title: "Mi alta", robots: { index: false } };
@@ -17,6 +18,7 @@ export default async function AltaPage({ params, searchParams }: PageProps<"/alt
   const latest = latestByType(app.documents);
   const closed = app.status === "APROBADA" || app.status === "RECHAZADA";
   const v = Object.fromEntries(Object.entries(app).map(([k, x]) => [k, typeof x === "string" ? x : null]));
+  const driver = app.role === "repartidor";
   const step = (n: number, t: string) => <h2 className="mb-3 flex items-center gap-2 font-semibold"><span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand text-xs text-white">{n}</span>{t}</h2>;
 
   return (
@@ -32,10 +34,17 @@ export default async function AltaPage({ params, searchParams }: PageProps<"/alt
 
         {(justSent || app.status === "ENVIADA") && (
           <div role="status" className="rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            Enviaste tu solicitud. RH revisará tus documentos; si alguno se rechaza verás aquí qué corregir.
+            Enviaste tu solicitud. {driver ? "Un administrador o despachador" : "RH"} revisará tus datos y documentos; si alguno se rechaza verás aquí qué corregir.{driver && " Cuando te aprueben, tu usuario de la app queda activo."}
           </div>
         )}
-        {app.status === "APROBADA" && <div className="rounded-xl bg-emerald-600 px-4 py-3 text-sm text-white">¡Listo! Ya eres parte del equipo. RH te dará tu usuario para entrar a la app.</div>}
+        {app.status === "APROBADA" && (
+          <div className="rounded-xl bg-emerald-600 px-4 py-3 text-sm text-white">
+            {driver && app.username ? (
+              <>¡Listo, ya te aprobaron! Descarga la app y entra con tu usuario <strong>{app.username}</strong> y la contraseña que elegiste.{" "}
+                <Link href="/descargar" className="font-semibold underline">Descargar la app</Link></>
+            ) : "¡Listo! Ya eres parte del equipo. RH te dará tu usuario para entrar a la app."}
+          </div>
+        )}
         {app.status === "RECHAZADA" && <div className="rounded-xl bg-amber-100 px-4 py-3 text-sm text-amber-900">Tu solicitud no continuó. Comunícate con RH.</div>}
 
         <section className="rounded-2xl border border-slate-200 bg-white p-5">{step(1, "Tus datos")}<DataForm token={token} v={v} locked={closed} /></section>
@@ -53,9 +62,16 @@ export default async function AltaPage({ params, searchParams }: PageProps<"/alt
           />
         </section>
 
+        {driver && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5">
+            {step(3, "Tu acceso a la app de repartidor")}
+            <AccessForm token={token} username={app.username} locked={closed} />
+          </section>
+        )}
+
         {apps.length > 0 && (
           <section className="rounded-2xl border border-slate-200 bg-white p-5">
-            {step(3, "Apps que vas a usar")}
+            {step(driver ? 4 : 3, "Apps que vas a usar")}
             <ul className="grid gap-2 sm:grid-cols-2">
               {apps.map((a) => (
                 <li key={a.key} className="flex items-center gap-3 rounded-lg border border-slate-200 p-3">
@@ -72,7 +88,7 @@ export default async function AltaPage({ params, searchParams }: PageProps<"/alt
         )}
 
         {app.status === "EN_PROCESO" && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-5">{step(apps.length ? 4 : 3, "Enviar")}<SubmitButton key={app.documents.map((d) => d.id).join()} token={token} /></section>
+          <section className="rounded-2xl border border-slate-200 bg-white p-5">{step((apps.length ? 4 : 3) + (driver ? 1 : 0), "Enviar")}<SubmitButton key={app.documents.map((d) => d.id).join()} token={token} /></section>
         )}
       </div>
     </main>

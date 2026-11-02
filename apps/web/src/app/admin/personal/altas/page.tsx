@@ -11,10 +11,11 @@ const fmt = (d: Date) => d.toLocaleDateString("es-MX", { timeZone: "America/Mexi
 
 /** Solicitudes de alta [A25]: primero las enviadas, luego las que siguen llenando. */
 export default async function AltasPage({ searchParams }: PageProps<"/admin/personal/altas">) {
-  await requireUser(["ADMIN"]);
+  const user = await requireUser(["ADMIN", "DESPACHADOR"]);
+  const onlyDrivers = user.role !== "ADMIN";
   const all = (await searchParams).ver === "todas";
   const apps = await prisma.hireApplication.findMany({
-    where: all ? {} : { status: { in: ["ENVIADA", "EN_PROCESO"] } },
+    where: { ...(all ? {} : { status: { in: ["ENVIADA", "EN_PROCESO"] } }), ...(onlyDrivers ? { role: "repartidor" } : {}) },
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
     take: 200,
     include: { _count: { select: { documents: true } }, documents: { select: { status: true } } },
@@ -24,9 +25,10 @@ export default async function AltasPage({ searchParams }: PageProps<"/admin/pers
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <PageHeader eyebrow="Personal" title="Altas" actions={<Link href={all ? "?" : "?ver=todas"} className="text-sm text-brand">{all ? "Solo abiertas" : "Ver todas"}</Link>}>
-        Manda el enlace a la persona; llena sus datos y sube sus documentos desde el celular. También puede entrar sola en <span className="font-mono">/alta</span>.
+        Manda el enlace a la persona; llena sus datos y sube sus documentos desde el celular. También puede registrarse sola en <span className="font-mono">portal.packatelas.mx/alta</span> (o desde «¿Quieres ser repartidor?» en el inicio de sesión).
+        Los repartidores eligen su usuario y contraseña; al aprobarlos quedan activos en la app.{onlyDrivers && " Como despachador ves y apruebas solo las altas de repartidores."}
       </PageHeader>
-      <Card title="Nuevo enlace de alta"><NewLink /></Card>
+      <Card title="Nuevo enlace de alta"><NewLink onlyDrivers={onlyDrivers} /></Card>
       <Table head={["Nombre", "Puesto", "Documentos", "Actualizada", "Estado"]} empty={apps.length ? undefined : "No hay solicitudes abiertas."}>
         {apps.map((a) => {
           const [label, tone] = STATUS[a.status];

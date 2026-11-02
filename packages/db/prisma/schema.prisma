@@ -1047,6 +1047,8 @@ model HireApplication {
   emergencyName     String?
   emergencyPhone    String?
   emergencyRelation String?
+  username          String? // repartidor: el usuario que eligió para la app (se crea al aprobar)
+  passwordHash      String? // se borra al crear su usuario
   notes             String?
   employeeId        String?    @unique
   resolvedById      String?

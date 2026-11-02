@@ -4,6 +4,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { Prisma, type PrismaClient, type DocStatus } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
+import { hashPassword } from "./password.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -73,6 +74,7 @@ export async function missingForSubmit(db: Db, appId: string) {
   if (!a.name || a.name.length < 5) missing.push("Nombre completo");
   if (!a.phone) missing.push("Teléfono");
   if (!a.curp) missing.push("CURP");
+  if (a.role === "repartidor" && (!a.username || !a.passwordHash)) missing.push("Usuario y contraseña para la app");
   const have = latestByType(a.documents);
   for (const t of await docTypesFor(db, a.role)) {
     if (!t.required) continue;
@@ -83,11 +85,31 @@ export async function missingForSubmit(db: Db, appId: string) {
   return missing;
 }
 
+/** Quién revisa: administradores y, si es repartidor, también despachadores. */
+async function reviewerIds(db: Db, role: string) {
+  const roles = role === "repartidor" ? ["ADMIN", "DESPACHADOR"] : ["ADMIN"];
+  return (await db.user.findMany({ where: { role: { in: roles as never }, active: true }, select: { id: true } })).map((u) => u.id);
+}
+
+const USERNAME_RE = /^[a-z0-9._-]{4,30}$/;
+
+/** El repartidor elige su usuario y contraseña de la app (se crean al aprobarlo). */
+export async function setApplicationAccess(prisma: PrismaClient, appId: string, usernameRaw: string, password: string) {
+  const username = usernameRaw.trim().toLowerCase();
+  if (!USERNAME_RE.test(username)) return { ok: false as const, error: "Usuario: 4 a 30 letras minúsculas, números, punto o guion, sin espacios" };
+  if (password.length < 8) return { ok: false as const, error: "La contraseña debe tener al menos 8 caracteres" };
+  const taken = (await prisma.user.findUnique({ where: { username }, select: { id: true } })) ||
+    (await prisma.hireApplication.findFirst({ where: { username, id: { not: appId }, status: { in: ["EN_PROCESO", "ENVIADA"] } }, select: { id: true } }));
+  if (taken) return { ok: false as const, error: "Ese usuario ya está ocupado, elige otro" };
+  await prisma.hireApplication.update({ where: { id: appId }, data: { username, passwordHash: await hashPassword(password) } });
+  return { ok: true as const, username };
+}
+
 export async function submitApplication(prisma: PrismaClient, appId: string) {
   const missing = await missingForSubmit(prisma, appId);
   if (missing.length) return { ok: false as const, missing };
   const a = await prisma.hireApplication.update({ where: { id: appId }, data: { status: "ENVIADA", submittedAt: new Date() } });
-  void adminUserIds(prisma).then((ids) => sendPush(prisma, ids, { title: "Nueva solicitud de alta", body: `${a.name ?? "Sin nombre"} (${HIRE_ROLES[a.role] ?? a.role}) envió sus documentos`, url: `/admin/personal/altas/${a.id}`, tag: `alta-${a.id}` }));
+  void reviewerIds(prisma, a.role).then((ids) => sendPush(prisma, ids, { title: "Nueva solicitud de alta", body: `${a.name ?? "Sin nombre"} (${HIRE_ROLES[a.role] ?? a.role}) envió sus documentos`, url: `/admin/personal/altas/${a.id}`, tag: `alta-${a.id}` }));
   return { ok: true as const };
 }
 
@@ -100,6 +122,8 @@ export async function approveApplication(prisma: PrismaClient, appId: string, in
     if (a.status === "APROBADA") return { ok: false as const, error: "Ya se aprobó" };
     if (!a.name) return { ok: false as const, error: "La solicitud no tiene nombre" };
     if (await tx.employee.findUnique({ where: { employeeNo: input.employeeNo } })) return { ok: false as const, error: `El número ${input.employeeNo} ya es de otro empleado` };
+    if (a.role === "repartidor" && a.username && (await tx.user.findUnique({ where: { username: a.username } })))
+      return { ok: false as const, error: `El usuario «${a.username}» ya existe; pídele que elija otro en su enlace de alta` };
     const pending = [...latestByType(a.documents).values()].filter((d) => d.status !== "APROBADO");
     if (pending.length) return { ok: false as const, error: `Faltan por aprobar: ${pending.map((d) => d.docType).join(", ")}` };
     const emp = await tx.employee.create({
@@ -111,9 +135,19 @@ export async function approveApplication(prisma: PrismaClient, appId: string, in
       },
     });
     await tx.employeeDocument.updateMany({ where: { applicationId: a.id }, data: { employeeId: emp.id } });
-    await tx.hireApplication.update({ where: { id: a.id }, data: { status: "APROBADA", employeeId: emp.id, resolvedById: actorUserId, resolvedAt: new Date() } });
-    await audit(tx, { actorUserId, action: "employee.hired", entity: "Employee", entityId: emp.id, summary: `Alta de ${emp.name} (#${emp.employeeNo}) desde solicitud` });
-    return { ok: true as const, employeeId: emp.id };
+    // Repartidor que se registró solo: su usuario de la app queda activo con la contraseña que eligió.
+    let username: string | null = null;
+    if (a.role === "repartidor" && a.username && a.passwordHash) {
+      const emailFree = a.email && !(await tx.user.findUnique({ where: { email: a.email.toLowerCase() } }));
+      const user = await tx.user.create({
+        data: { username: a.username, name: a.name, role: "REPARTIDOR", passwordHash: a.passwordHash, email: emailFree ? a.email!.toLowerCase() : null, driver: { create: { phone: a.phone } } },
+      });
+      await tx.employee.update({ where: { id: emp.id }, data: { userId: user.id } });
+      username = user.username;
+    }
+    await tx.hireApplication.update({ where: { id: a.id }, data: { status: "APROBADA", employeeId: emp.id, resolvedById: actorUserId, resolvedAt: new Date(), passwordHash: null } });
+    await audit(tx, { actorUserId, action: "employee.hired", entity: "Employee", entityId: emp.id, summary: `Alta de ${emp.name} (#${emp.employeeNo}) desde solicitud${username ? `; usuario de repartidor «${username}» activo` : ""}` });
+    return { ok: true as const, employeeId: emp.id, username };
   });
 }
 

@@ -4,14 +4,14 @@ import { useActionState } from "react";
 import { HIRE_ROLES } from "@packatelas/db/onboarding-roles";
 import { newLinkAction } from "./actions";
 
-export function NewLink() {
+export function NewLink({ onlyDrivers = false }: { onlyDrivers?: boolean }) {
   const [state, action, pending] = useActionState(newLinkAction, {});
   return (
     <form action={action} className="space-y-3">
       <div className="flex flex-wrap items-end gap-2">
         <label className="text-sm font-medium">Puesto
           <select name="role" className="mt-1 block rounded-lg border border-slate-300 px-3 py-2 text-sm">
-            {Object.entries(HIRE_ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(HIRE_ROLES).filter(([k]) => !onlyDrivers || k === "repartidor").map(([k, v]) => <option key={k} value={k}>{v}</option>)}
           </select>
         </label>
         <button disabled={pending} className="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white disabled:opacity-50">Crear enlace</button>

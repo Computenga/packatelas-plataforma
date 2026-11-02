@@ -33,6 +33,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           ¿Tienes una tienda y quieres enviar con nosotros? <Link href="/registro" className="text-brand hover:underline">Regístrate</Link>
           <br />
           ¿Solo un envío? <Link href="/enviar" className="text-brand hover:underline">Mándalo sin registrarte</Link>
+          <br />
+          ¿Quieres ser repartidor? <Link href="/alta" className="text-brand hover:underline">Regístrate aquí</Link>
         </p>
       </div>
     </main>
