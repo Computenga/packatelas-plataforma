@@ -17,14 +17,15 @@ type Props = {
   ready: string[];
   /** Repartidor y cliente en celular: navegación inferior. */
   mobileBottomNav?: boolean;
-  /** Ofrecer notificaciones push (personal interno). */
+  /** Ofrecer notificaciones push; texto opcional de la invitación. */
   push?: boolean;
+  pushText?: string;
   /** Sin navegación inferior: accesos fijos abajo en celular; el resto va en el menú ☰. */
   favorites?: string[];
   children: ReactNode;
 };
 
-export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, push = true, favorites = [], children }: Props) {
+export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomNav, push = true, pushText, favorites = [], children }: Props) {
   const hasFavs = !mobileBottomNav && favorites.some((h) => nav.some((n) => n.href === h) && ready.includes(h));
   return (
     <div className="flex min-h-dvh flex-col md:flex-row">
@@ -55,7 +56,7 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
 
       <main className={`min-w-0 flex-1 p-4 md:p-8 ${mobileBottomNav || hasFavs ? "pb-24 md:pb-8" : ""}`}>
         <AppUpdateBanner />
-        {push && <PushPrompt />}
+        {push && <PushPrompt text={pushText} />}
         {children}
       </main>
 

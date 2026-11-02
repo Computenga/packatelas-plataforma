@@ -36,6 +36,7 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{client.name}</h1>
         <div className="flex gap-2 text-sm">
+          <Link href="/cliente/avisos" className="rounded-lg border border-slate-300 bg-white px-3 py-2" title="Elige qué notificaciones recibir">🔔 Mis avisos</Link>
           <Link href="/cliente/carga" className="rounded-lg border border-slate-300 bg-white px-3 py-2">Cargar varios</Link>
           <Link href="/cliente/nuevo" className="rounded-lg bg-brand px-3 py-2 font-medium text-white">Nuevo envío</Link>
         </div>

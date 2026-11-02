@@ -6,12 +6,12 @@ export default async function ClienteLayout({ children }: LayoutProps<"/cliente"
   const user = await requireUser(["CLIENTE"]);
   return (
     <AppShell
-      push={false}
+      pushText="Activa las notificaciones: te avisamos al momento cuando entregamos, si algo no se pudo entregar, tus recolecciones y tus pagos. Elige cuáles en «Mis avisos»."
       title="Portal cliente"
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
       nav={CLIENT_NAV}
-      ready={["/cliente", "/cliente/recolecciones", "/cliente/devoluciones", "/cliente/cuenta", "/cliente/facturas", "/cliente/mercadolibre"]}
+      ready={["/cliente", "/cliente/recolecciones", "/cliente/devoluciones", "/cliente/cuenta", "/cliente/facturas", "/cliente/mercadolibre", "/cliente/avisos"]}
       mobileBottomNav
     >
       {children}

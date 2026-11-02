@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -238,6 +238,25 @@ function startCrm() {
   setInterval(run, 15 * 60_000);
 }
 
+/** Avisos push a las tiendas (lo que eligió cada una en «Mis avisos»), cada 20 s. */
+function startClientPush() {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const n = await processClientPush(prisma);
+      if (n) console.log(`[worker] Avisos a tiendas: ${n} enviados`);
+    } catch (e) {
+      console.error("[worker] Avisos a tiendas:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 20_000);
+  void run();
+}
+
 /** Inventario por repartidor: saca los entregados ya confirmados (ML + evidencia), cada 5 min. */
 function startCustody() {
   let busy = false;
@@ -293,6 +312,7 @@ async function main() {
   startHourlyJobs();
   startCustody();
   startCrm();
+  startClientPush();
   startMlSync();
   startNotifier();
   startBackups();

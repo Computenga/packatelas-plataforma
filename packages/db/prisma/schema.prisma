@@ -39,6 +39,7 @@ model User {
   sessions     Session[]
   lastLoginAt  DateTime?
   mustChangePassword Boolean @default(false) // contraseña temporal: la cambia al entrar
+  notifyPrefs  Json? // avisos push que quiere recibir (portal cliente: «Mis avisos»)
   appVersion   String? // versión de la app Android con la que entró por última vez
   appSeenAt    DateTime?
   createdAt    DateTime  @default(now())
@@ -370,6 +371,7 @@ model OrderEvent {
   evidence Evidence[]
 
   @@index([orderId, occurredAt])
+  @@index([recordedAt])
   @@index([type, occurredAt])
 }
 

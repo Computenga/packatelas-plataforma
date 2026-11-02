@@ -9,7 +9,7 @@ const toKey = (b64: string) => {
 };
 
 /** Invita a activar las notificaciones push en este dispositivo [P05]. */
-export function PushPrompt() {
+export function PushPrompt({ text = "Activa las notificaciones para enterarte al momento (pedidos asignados, nómina, documentos, fallas)." }: { text?: string }) {
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string>();
@@ -48,7 +48,7 @@ export function PushPrompt() {
   if (!show) return null;
   return (
     <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-      <span className="flex-1">Activa las notificaciones para enterarte al momento (pedidos asignados, nómina, documentos, fallas).</span>
+      <span className="flex-1">{text}</span>
       <button type="button" disabled={busy} onClick={() => subscribe()} className="rounded-lg bg-brand px-3 py-1.5 font-medium text-white disabled:opacity-50">Activar</button>
       <button type="button" onClick={() => { try { localStorage.setItem(DISMISS, "1"); } catch { /* */ } setShow(false); }} className="text-blue-700">Ahora no</button>
       {msg && <p role="alert" className="w-full text-xs text-red-700">{msg}</p>}
