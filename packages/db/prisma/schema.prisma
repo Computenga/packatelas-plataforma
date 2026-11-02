@@ -306,6 +306,15 @@ model Order {
   externalRef    String? // referencia del cliente al crear por API [I08]
   declaredValue  Decimal? @db.Decimal(12, 2)
 
+  // Detalle de la venta en ML [I14]: artículos [{title, variation, sku, quantity, unitPrice, currency}], total y paquete.
+  mlItems     Json?
+  mlSaleTotal Decimal? @db.Decimal(12, 2)
+  pkgWeightG  Int?
+  pkgLengthCm Float?
+  pkgWidthCm  Float?
+  pkgHeightCm Float?
+  mlDetailAt  DateTime? // cuándo se consultó (aunque viniera vacío)
+
   requestedDeliveryAt DateTime?
   deliveredAt         DateTime?
   attempts            Int       @default(0)

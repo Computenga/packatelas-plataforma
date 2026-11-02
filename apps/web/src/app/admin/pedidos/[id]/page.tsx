@@ -9,6 +9,7 @@ import { Badge, Button, Card, PageHeader } from "@/components/ui";
 import { cancelOrder, rescheduleAction, sendToWarehouseAction } from "../actions";
 import { ActionForm } from "@/components/action-form";
 import { trackingPath } from "@/lib/tracking";
+import { MlSaleCard } from "@/components/ml-sale";
 
 export const metadata: Metadata = { title: "Pedido" };
 
@@ -120,6 +121,7 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               <Row label="Entregado" value={order.deliveredAt ? fecha(order.deliveredAt) : null} />
             </dl>
           </Card>
+          <MlSaleCard order={order} />
           {order.evidence.length > 0 && (
             <Card title="Evidencia">
               <div className="grid grid-cols-2 gap-2">

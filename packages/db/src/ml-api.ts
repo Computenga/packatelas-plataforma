@@ -11,6 +11,7 @@ import { adminUserIds, sendPush } from "./push.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { captureShipment } from "./ml-flex.ts";
 import { applyFlexAssignment, currentFlexDriver } from "./flex-drivers.ts";
+import { fetchMlSaleDetail, saveMlSaleDetail } from "./ml-sale.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -231,6 +232,11 @@ export async function syncMlShipment(prisma: PrismaClient, shipmentId: bigint, f
       itemsSummary: order.itemsSummary ?? itemsSummary,
     },
   });
+  // Detalle de la venta (artículos, precio, peso y medidas) [I14]: una sola vez por pedido.
+  if (!order.mlDetailAt) {
+    const d = await fetchMlSaleDetail(token, { shipmentId, mlOrderId: order.mlOrderId ?? m.mlOrderId, packId: order.mlPackId }, fetchImpl).catch(() => null);
+    if (d) await saveMlSaleDetail(prisma, order.id, d).catch(() => false);
+  }
   // Entregado en ML + evidencia en la app → sale del inventario del repartidor.
   if (m.mlStatus === "delivered") await reconcileCustody(prisma, order.id).catch(() => false);
   // «No visitado»: falta grave, aviso urgente a todos los administradores.
@@ -302,4 +308,23 @@ export async function processMlJobs(prisma: PrismaClient, limit = 25, fetchImpl:
     }
   }
   return { done, failed, seen: jobs.length };
+}
+
+/** Completa el detalle de venta de pedidos ML recientes que aún no lo tienen [I14]. Pocos por vuelta. */
+export async function backfillMlSaleDetails(prisma: PrismaClient, limit = 15, fetchImpl: Fetch = fetch) {
+  const since = new Date(Date.now() - 45 * 86_400_000);
+  const orders = await prisma.order.findMany({
+    where: { mlShipmentId: { not: null }, mlDetailAt: null, mlAccountId: { not: null }, createdAt: { gte: since }, mlAccount: { status: "ACTIVE" } },
+    select: { id: true, mlShipmentId: true, mlOrderId: true, mlPackId: true, mlAccountId: true },
+    orderBy: { createdAt: "desc" },
+    take: limit,
+  });
+  let done = 0;
+  for (const o of orders) {
+    const token = await mlAccessToken(prisma, o.mlAccountId!, fetchImpl).catch(() => null);
+    if (!token) continue;
+    const d = await fetchMlSaleDetail(token, { shipmentId: o.mlShipmentId!, mlOrderId: o.mlOrderId, packId: o.mlPackId }, fetchImpl).catch(() => null);
+    if (d && (await saveMlSaleDetail(prisma, o.id, d).catch(() => false))) done++;
+  }
+  return { checked: orders.length, done };
 }

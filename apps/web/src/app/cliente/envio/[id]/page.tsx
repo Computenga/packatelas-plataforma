@@ -6,6 +6,7 @@ import { fecha, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Card } from "@/components/ui";
 import { CopyLink } from "@/components/copy-link";
 import { trackingPath } from "@/lib/tracking";
+import { MlSaleCard } from "@/components/ml-sale";
 
 export const metadata: Metadata = { title: "Envío" };
 
@@ -60,6 +61,7 @@ export default async function EnvioPage({ params, searchParams }: PageProps<"/cl
         <p className="text-sm">{order.recipientName ?? "—"}</p>
         <p className="text-sm text-slate-600">{[order.addressLine, order.neighborhood, order.city, order.zip].filter(Boolean).join(", ")}</p>
       </Card>
+      <MlSaleCard order={order} />
       <Card title="Seguimiento">
         <ol className="space-y-3">
           {order.events.map((e) => (

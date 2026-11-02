@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "Order" ADD COLUMN     "mlDetailAt" TIMESTAMP(3),
+ADD COLUMN     "mlItems" JSONB,
+ADD COLUMN     "mlSaleTotal" DECIMAL(12,2),
+ADD COLUMN     "pkgHeightCm" DOUBLE PRECISION,
+ADD COLUMN     "pkgLengthCm" DOUBLE PRECISION,
+ADD COLUMN     "pkgWeightG" INTEGER,
+ADD COLUMN     "pkgWidthCm" DOUBLE PRECISION;
+
