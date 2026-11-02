@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { packagesToReturn, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, startOfTodayMx } from "@/lib/format";
@@ -15,7 +16,7 @@ export default async function RepartidorHome() {
   }
   const today = startOfTodayMx();
   // Resumen del día [R12]: lo que cerró él hoy (aunque lo haya enviado sin señal).
-  const [toReturn, dayEvents, inRoute, pickupsDone] = await Promise.all([
+  const [toReturn, dayEvents, inRoute, pickupsDone, flexLinked] = await Promise.all([
     packagesToReturn(prisma, driver.id),
     prisma.orderEvent.groupBy({
       by: ["type"],
@@ -28,6 +29,7 @@ export default async function RepartidorHome() {
       _count: { _all: true },
       _sum: { collectedCount: true },
     }),
+    prisma.flexIdentity.count({ where: { driverId: driver.id } }),
   ]);
   const delivered = dayEvents.find((e) => e.type === "delivered")?._count._all ?? 0;
   const failedToday = dayEvents.find((e) => e.type === "failed")?._count._all ?? 0;
@@ -35,6 +37,11 @@ export default async function RepartidorHome() {
 
   return (
     <div>
+      {flexLinked === 0 && (
+        <Link href="/repartidor/perfil" className="mb-4 block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Vincula tu Mercado Libre Flex</strong> (una sola vez): escanea aquí un paquete que ya tomaste en Flex y se te asignarán solos. Toca para hacerlo →
+        </Link>
+      )}
       <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4">
         <div>
           <p className="font-semibold">Hola, {user.name.split(" ")[0]}</p>
