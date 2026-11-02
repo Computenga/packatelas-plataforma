@@ -78,6 +78,7 @@ export const DRIVER_NAV: NavItem[] = [
   { href: "/repartidor/escanear", label: "Escanear" },
   { href: "/repartidor/recolecciones", label: "Recolecciones" },
   { href: "/repartidor/moto", label: "Moto" },
+  { href: "/repartidor/perfil", label: "Perfil" },
 ];
 
 export const MECHANIC_NAV: NavItem[] = [

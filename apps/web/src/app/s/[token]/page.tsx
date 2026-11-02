@@ -52,14 +52,15 @@ const nowMs = () => Date.now();
 
 /** Página pública para el comprador final [C12]: sin datos personales completos ni fotos. */
 export default async function SeguimientoPage({ params }: PageProps<"/s/[token]">) {
-  const id = orderIdFromToken((await params).token);
+  const token = (await params).token;
+  const id = orderIdFromToken(token);
   if (!id) notFound();
   const order = await prisma.order.findUnique({
     where: { id },
     select: {
       code: true, kind: true, status: true, mlStatus: true, recipientName: true, neighborhood: true, city: true, lat: true, lng: true, deliveredAt: true, updatedAt: true,
       client: { select: { name: true } },
-      driver: { select: { lastLat: true, lastLng: true, lastLocationAt: true, user: { select: { name: true } } } },
+      driver: { select: { lastLat: true, lastLng: true, lastLocationAt: true, phone: true, photoKey: true, user: { select: { name: true } } } },
       events: {
         where: { type: { in: ["created", "scanned_loaded", "delivered", "failed", "rescheduled", "return_required", "ml_status", "assigned", "pickup_en_route", "picked_up", "pickup_failed"] } },
         orderBy: { occurredAt: "desc" },
@@ -120,6 +121,29 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
             ))}
           </ol>
         </section>
+
+        {pickup && order.driver && (status === "ASSIGNED" || status === "OUT_FOR_DELIVERY") && (
+          <section className="flex items-center gap-4 rounded-2xl bg-white p-4">
+            {order.driver.photoKey ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/s/${token}/foto`} alt={`Foto de ${order.driver.user.name}`} className="h-16 w-16 shrink-0 rounded-full border border-slate-200 object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-brand/10 text-xl font-bold text-brand">
+                {order.driver.user.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0 text-sm">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Tu repartidor</p>
+              <p className="font-semibold">{order.driver.user.name}</p>
+              {order.driver.phone && (
+                <p className="mt-1 flex flex-wrap gap-3">
+                  <a href={`tel:+52${order.driver.phone.replace(/\D/g, "").slice(-10)}`} className="font-medium text-brand">📞 {order.driver.phone}</a>
+                  <a href={`https://wa.me/52${order.driver.phone.replace(/\D/g, "").slice(-10)}`} target="_blank" rel="noreferrer" className="font-medium text-emerald-700">WhatsApp</a>
+                </p>
+              )}
+            </div>
+          </section>
+        )}
 
         {(live || (dest && status === "OUT_FOR_DELIVERY")) && (
           <section className="space-y-2">

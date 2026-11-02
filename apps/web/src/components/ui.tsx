@@ -20,7 +20,7 @@ export function PageHeader({ eyebrow, title, actions, children }: {
 }
 
 export function Card({ title, actions, children, className = "" }: {
-  title?: string;
+  title?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
   className?: string;

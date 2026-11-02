@@ -194,6 +194,7 @@ model Driver {
   phone          String?
   vehicleType    String? // moto, auto…
   plate          String?
+  photoKey       String? // foto de perfil (se ve en el rastreo de recolecciones)
   legacyCarrierId Int?     @unique // carrier de Shipday en el sistema anterior (migración)
   active         Boolean   @default(true)
   onDuty         Boolean   @default(false)

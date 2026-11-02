@@ -45,7 +45,17 @@ export default async function RepartidoresPage() {
         {active.map((d) => (
           <Card
             key={d.id}
-            title={d.user.name}
+            title={
+              <span className="flex items-center gap-2">
+                {d.photoKey ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/api/foto-repartidor/${d.id}`} alt="" className="h-8 w-8 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-[10px] text-slate-400" title="Sin foto de perfil">sin foto</span>
+                )}
+                {d.user.name}
+              </span>
+            }
             actions={d.onDuty ? <Badge tone="green">En turno</Badge> : <Badge>Fuera de turno</Badge>}
           >
             <p className="mb-3 text-xs text-slate-500">
