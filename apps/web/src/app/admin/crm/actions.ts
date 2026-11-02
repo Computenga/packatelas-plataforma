@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addLeadActivity, createLead, linkLeadClient, phoneKey, prisma, setLeadStage, LEAD_SOURCES, type LeadStage } from "@packatelas/db";
+import { addLeadActivity, canonicalMunicipio, createLead, linkLeadClient, phoneKey, prisma, setLeadStage, LEAD_SOURCES, type LeadStage } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -22,6 +22,7 @@ const leadSchema = z.object({
   phone: opt(30).refine((v) => !v || phoneKey(v), "Teléfono inválido (10 dígitos)"),
   email: z.string().trim().max(160).optional().transform((v) => v || null).refine((v) => !v || z.string().email().safeParse(v).success, "Correo inválido"),
   zone: z.enum(["cmx", "emx", ""]).optional().transform((v) => v || null),
+  municipality: opt(80),
   monthlyVolume: opt(40),
   salesChannels: opt(200),
   notes: opt(2000),
@@ -45,7 +46,11 @@ export async function updateLeadAction(leadId: string, _: ActionState, fd: FormD
   await requireUser(["ADMIN"]);
   const p = leadSchema.safeParse(Object.fromEntries(fd));
   if (!p.success) return { error: p.error.issues[0].message };
-  await prisma.lead.update({ where: { id: leadId }, data: { ...p.data, source: p.data.source as never, phoneKey: phoneKey(p.data.phone), email: p.data.email?.toLowerCase() ?? null } });
+  const muni = canonicalMunicipio(p.data.municipality);
+  await prisma.lead.update({
+    where: { id: leadId },
+    data: { ...p.data, municipality: muni?.name ?? null, zone: p.data.zone ?? muni?.zone ?? null, source: p.data.source as never, phoneKey: phoneKey(p.data.phone), email: p.data.email?.toLowerCase() ?? null },
+  });
   revalidatePath(`/admin/crm/${leadId}`);
   revalidatePath("/admin/crm");
   return { ok: "Datos guardados" };

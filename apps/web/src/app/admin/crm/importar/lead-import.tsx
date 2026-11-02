@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { LeadImportSummary } from "@packatelas/db";
 import { importLeadsAction } from "./actions";
 
-type Row = { at: string | null; businessName: string | null; legalName: string | null; contactName: string | null; phone: string | null; email: string | null; zone: "cmx" | "emx" | null; salesChannels: string | null; notes: string | null };
+type Row = { at: string | null; businessName: string | null; legalName: string | null; contactName: string | null; phone: string | null; email: string | null; zone: "cmx" | "emx" | null; municipality: string | null; salesChannels: string | null; notes: string | null };
 
 /** CSV con comillas y saltos de línea dentro de los campos. */
 function parseCsv(text: string): string[][] {
@@ -59,13 +59,17 @@ function toRows(table: string[][]): { rows: Row[]; mapped: string[] } {
     flex: find((x) => x.includes("flex")),
     street: find((x) => x === "calle"),
     colonia: find((x) => x === "colonia"),
-    city: find((x) => x.includes("alcaldia")),
+    city: find((x) => x.includes("alcaldia") || x.includes("municipio")),
   };
+  // El formulario trae dos columnas «Alcaldía / Municipio» (una por estado): se usa la que tenga dato.
+  const cityCols = h.map((x, i) => (x.includes("alcaldia") || x.includes("municipio") ? i : -1)).filter((i) => i >= 0);
   const v = (r: string[], i: number) => (i >= 0 ? (r[i] ?? "").trim() : "");
   const rows = body.map((r) => {
     const state = norm(v(r, col.state));
     const zone = !state ? null : /cdmx|ciudad de mexico|^df|distrito/.test(state) ? "cmx" : /mex|edomex/.test(state) ? "emx" : "cmx";
-    const addr = [v(r, col.street), v(r, col.colonia), v(r, col.city)].filter(Boolean).join(", ");
+    const cities = cityCols.map((i) => v(r, i)).filter(Boolean);
+    const city = cities.join(" | "); // el servidor elige la que sea una alcaldía o municipio reconocido
+    const addr = [v(r, col.street), v(r, col.colonia), ...cities].filter(Boolean).join(", ");
     const notes = [v(r, col.flex) && `¿Usa Flex?: ${v(r, col.flex)}`, addr && `Dirección: ${addr}`, v(r, col.legal) && `Razón social: ${v(r, col.legal)}`].filter(Boolean).join("\n");
     return {
       at: col.at >= 0 ? formDate(v(r, col.at)) : null,
@@ -75,6 +79,7 @@ function toRows(table: string[][]): { rows: Row[]; mapped: string[] } {
       phone: v(r, col.phone) || null,
       email: v(r, col.email) || null,
       zone: zone as Row["zone"],
+      municipality: city || null,
       salesChannels: v(r, col.shop) || null,
       notes: notes || null,
     };

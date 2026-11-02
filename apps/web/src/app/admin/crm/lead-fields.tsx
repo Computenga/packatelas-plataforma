@@ -1,4 +1,4 @@
-import { LEAD_SOURCES, type Lead } from "@packatelas/db";
+import { LEAD_SOURCES, MUNICIPIOS, type Lead } from "@packatelas/db";
 import { Field, Select, TextArea } from "@/components/ui";
 
 /** Campos del prospecto (alta y edición). */
@@ -15,6 +15,12 @@ export function LeadFields({ lead, owners }: { lead?: Partial<Lead>; owners?: { 
           <option value="cmx">CDMX</option>
           <option value="emx">Estado de México</option>
         </Select>
+        <Field label="Alcaldía o municipio" name="municipality" list="crm-municipios" defaultValue={lead?.municipality ?? ""} placeholder="ej. Cuauhtémoc, Ecatepec" />
+        <datalist id="crm-municipios">
+          {MUNICIPIOS.map((m) => (
+            <option key={m.name} value={m.name}>{m.zone === "cmx" ? "CDMX" : "Edomex"}</option>
+          ))}
+        </datalist>
         <Field label="Envíos al mes (aprox.)" name="monthlyVolume" defaultValue={lead?.monthlyVolume ?? ""} placeholder="ej. 50-100" />
         <Field label="Dónde vende" name="salesChannels" defaultValue={lead?.salesChannels ?? ""} placeholder="MercadoLibre, Tiendanube, redes…" />
         <Select label="Cómo llegó" name="source" defaultValue={lead?.source ?? "MANUAL"}>

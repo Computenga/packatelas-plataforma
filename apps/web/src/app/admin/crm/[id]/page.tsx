@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { clientMatchesForLead, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL } from "@packatelas/db";
+import { clientMatchesForLead, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -43,6 +43,11 @@ export default async function LeadPage({ params, searchParams }: PageProps<"/adm
     <div className="mx-auto max-w-6xl">
       <PageHeader eyebrow="CRM" title={lead.businessName} actions={<Link href="/admin/crm" className="text-sm text-brand hover:underline">← Volver al CRM</Link>}>
         <Badge tone={lead.stage === "PERDIDO" ? "red" : lead.stage === "ACTIVO" ? "green" : "blue"}>{STAGE_LABEL[lead.stage]}</Badge>{" "}
+        {(lead.zone || lead.municipality) && (
+          <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${lead.zone === "emx" ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700"}`}>
+            📍 {[lead.zone === "cmx" || lead.zone === "emx" ? ZONE_LABEL[lead.zone] : null, lead.municipality].filter(Boolean).join(" · ")}
+          </span>
+        )}{" "}
         <span className="text-slate-500">· {SOURCE_LABEL[lead.source]} · desde {fecha(lead.createdAt)}</span>
       </PageHeader>
       {sp.ya === "1" && <p className="mb-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">Ya existía un prospecto con ese teléfono o correo: abrimos ese y anotamos el nuevo registro en su historial.</p>}

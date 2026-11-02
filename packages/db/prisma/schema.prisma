@@ -1356,6 +1356,7 @@ model Lead {
   phoneKey      String? // últimos 10 dígitos, para no duplicar
   email         String?
   zone          String? // cmx | emx
+  municipality  String? // alcaldía o municipio (nombre canónico, ver municipios.ts)
   monthlyVolume String?
   salesChannels String?
   notes         String?
@@ -1375,6 +1376,7 @@ model Lead {
   @@index([stage, updatedAt])
   @@index([nextActionAt])
   @@index([phoneKey])
+  @@index([zone, municipality])
 }
 
 model LeadActivity {

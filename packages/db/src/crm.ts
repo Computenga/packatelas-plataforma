@@ -4,6 +4,7 @@
 import { Prisma, type LeadSource, type LeadStage, type PrismaClient } from "../generated/prisma/client.ts";
 import { enqueueNotification } from "./notifications.ts";
 import { adminUserIds, sendPush } from "./push.ts";
+import { canonicalMunicipio, municipioFromAddress } from "./municipios.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -46,6 +47,7 @@ export type LeadInput = {
   phone?: string | null;
   email?: string | null;
   zone?: string | null;
+  municipality?: string | null;
   monthlyVolume?: string | null;
   salesChannels?: string | null;
   notes?: string | null;
@@ -67,6 +69,8 @@ export async function addLeadActivity(db: Db, leadId: string, type: string, text
  */
 export async function createLead(db: Db, input: LeadInput, actorUserId?: string | null): Promise<{ id: string; created: boolean }> {
   const key = phoneKey(input.phone);
+  const muni = canonicalMunicipio(input.municipality);
+  const zone = input.zone || muni?.zone || null;
   const email = input.email?.trim().toLowerCase() || null;
   const or: Prisma.LeadWhereInput[] = [];
   if (key) or.push({ phoneKey: key });
@@ -81,7 +85,8 @@ export async function createLead(db: Db, input: LeadInput, actorUserId?: string 
         email: existing.email ?? email,
         phone: existing.phone ?? input.phone ?? undefined,
         phoneKey: existing.phoneKey ?? key,
-        zone: existing.zone ?? input.zone ?? undefined,
+        zone: existing.zone ?? zone ?? undefined,
+        municipality: existing.municipality ?? muni?.name ?? undefined,
         monthlyVolume: input.monthlyVolume || existing.monthlyVolume,
         salesChannels: input.salesChannels || existing.salesChannels,
       },
@@ -96,7 +101,8 @@ export async function createLead(db: Db, input: LeadInput, actorUserId?: string 
       phone: input.phone?.trim() || null,
       phoneKey: key,
       email,
-      zone: input.zone || null,
+      zone,
+      municipality: muni?.name ?? null,
       monthlyVolume: input.monthlyVolume?.trim() || null,
       salesChannels: input.salesChannels?.trim() || null,
       notes: input.notes?.trim() || null,
@@ -119,6 +125,7 @@ export async function leadFromSignup(prisma: PrismaClient, signupId: string) {
   if (!s) return null;
   const r = await createLead(prisma, {
     businessName: s.businessName, contactName: s.contactName, phone: s.phone, email: s.email, zone: s.zone,
+    municipality: municipioFromAddress(s.pickupAddress)?.name ?? null,
     monthlyVolume: s.monthlyVolume, salesChannels: s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
   });
   await enqueueNotification(prisma, {
@@ -211,6 +218,7 @@ export async function backfillLeadsFromSignups(prisma: PrismaClient) {
   for (const s of signups) {
     const r = await createLead(prisma, {
       businessName: s.businessName, contactName: s.contactName, phone: s.phone, email: s.email, zone: s.zone,
+      municipality: municipioFromAddress(s.pickupAddress)?.name ?? null,
       monthlyVolume: s.monthlyVolume, salesChannels: s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
       clientId: s.status === "APPROVED" ? s.clientId : null,
     });
@@ -270,6 +278,7 @@ export type LeadImportRow = {
   phone?: string | null;
   email?: string | null;
   zone?: string | null;
+  municipality?: string | null;
   salesChannels?: string | null;
   notes?: string | null;
 };
@@ -314,7 +323,10 @@ export async function importLeads(prisma: PrismaClient, rows: LeadImportRow[], a
   const recentFrom = opts.now.getTime() - opts.recentDays * 86400_000;
   const clientRecentFrom = opts.now.getTime() - 60 * 86400_000;
 
-  for (const r of rows.slice(0, LEAD_IMPORT_MAX)) {
+  for (const raw of rows.slice(0, LEAD_IMPORT_MAX)) {
+    // Varias columnas de alcaldía/municipio ("a | b"): la primera que se reconozca, o la última con dato.
+    const cands = (raw.municipality ?? "").split("|").map((x) => x.trim()).filter(Boolean);
+    const r = { ...raw, municipality: cands.find((c) => canonicalMunicipio(c)?.zone) ?? cands.at(-1) ?? null };
     const key = phoneKey(r.phone);
     const email = r.email?.trim().toLowerCase() || null;
     const name = (r.businessName || r.legalName || r.contactName || "").trim();
@@ -333,8 +345,19 @@ export async function importLeads(prisma: PrismaClient, rows: LeadImportRow[], a
       sum.old++;
       continue;
     }
+    // Ya estaba en el CRM: solo se completan los datos que le falten (sin ensuciar su historial).
+    const prev = await prisma.lead.findFirst({ where: { OR: [...(key ? [{ phoneKey: key }] : []), ...(email ? [{ email }] : [])] }, orderBy: { createdAt: "desc" } });
+    if (prev) {
+      const muni = canonicalMunicipio(r.municipality);
+      await prisma.lead.update({
+        where: { id: prev.id },
+        data: { municipality: prev.municipality ?? muni?.name ?? undefined, zone: prev.zone ?? r.zone ?? muni?.zone ?? undefined, salesChannels: prev.salesChannels ?? r.salesChannels ?? undefined },
+      });
+      sum.repeated++;
+      continue;
+    }
     const res = await createLead(prisma, {
-      businessName: name, contactName: r.contactName, phone: r.phone, email, zone: r.zone, salesChannels: r.salesChannels,
+      businessName: name, contactName: r.contactName, phone: r.phone, email, zone: r.zone, municipality: r.municipality, salesChannels: r.salesChannels,
       notes: r.notes, source: "PRERREGISTRO", clientId,
     }, actorUserId);
     if (!res.created) {

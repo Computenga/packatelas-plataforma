@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { coolingClients, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, type LeadStage, type Prisma } from "@packatelas/db";
+import { coolingClients, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL, type LeadStage, type Prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace, startOfTodayMx } from "@/lib/format";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
@@ -19,6 +19,9 @@ const waLink = (phone: string | null, text: string) => {
   const d = (phone ?? "").replace(/\D/g, "").slice(-10);
   return d.length === 10 ? `https://wa.me/52${d}?text=${encodeURIComponent(text)}` : null;
 };
+/** «CDMX · Cuauhtémoc» */
+const place = (zone?: string | null, muni?: string | null) =>
+  [zone === "cmx" || zone === "emx" ? ZONE_LABEL[zone] : null, muni].filter(Boolean).join(" · ");
 const initials = (name?: string | null) => (name ?? "").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">) {
@@ -27,14 +30,20 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
   const view = typeof sp.vista === "string" ? sp.vista : "";
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const mine = sp.mios === "1";
+  const zona = sp.zona === "cmx" || sp.zona === "emx" || sp.zona === "-" ? sp.zona : "";
+  const muni = typeof sp.mun === "string" ? sp.mun : "";
   const now = requestTime();
   const endToday = new Date(startOfTodayMx().getTime() + 86400_000);
   const monthStart = new Date(startOfTodayMx().getTime() - 30 * 86400_000);
 
-  const where: Prisma.LeadWhereInput = {
-    ...(q ? { OR: [{ businessName: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }] } : {}),
+  const base: Prisma.LeadWhereInput = {
+    ...(q ? { OR: [{ businessName: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }, { municipality: { contains: q, mode: "insensitive" } }] } : {}),
     ...(mine ? { ownerId: me.id } : {}),
+    ...(zona === "-" ? { zone: null } : zona ? { zone: zona } : {}),
   };
+  const where: Prisma.LeadWhereInput = { ...base, ...(muni === "-" ? { municipality: null } : muni ? { municipality: muni } : {}) };
+  // Para el filtro: alcaldías/municipios con prospectos abiertos (respetando zona y búsqueda).
+  const munis = await prisma.lead.groupBy({ by: ["municipality"], where: { ...base, stage: { not: "PERDIDO" } }, _count: { _all: true }, orderBy: { municipality: "asc" } });
 
   const [counts, newMonth, altaMonth, activeMonth, dueCount] = await Promise.all([
     prisma.lead.groupBy({ by: ["stage"], where, _count: { _all: true } }),
@@ -50,6 +59,8 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
     if (v) p.set("vista", v);
     if (q) p.set("q", q);
     if (mine) p.set("mios", "1");
+    if (zona) p.set("zona", zona);
+    if (muni) p.set("mun", muni);
     const s = p.toString();
     return `/admin/crm${s ? `?${s}` : ""}`;
   };
@@ -83,7 +94,21 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
       {view !== "enfriando" && (
         <form className="mb-4 flex flex-wrap gap-2 text-sm">
           {view && <input type="hidden" name="vista" value={view} />}
-          <input name="q" defaultValue={q} placeholder="Negocio, contacto, teléfono o correo" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2" />
+          <input name="q" defaultValue={q} placeholder="Negocio, contacto, teléfono, correo o alcaldía" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2" />
+          <select name="zona" defaultValue={zona} aria-label="Zona" className="rounded-lg border border-slate-300 bg-white px-2 py-2">
+            <option value="">CDMX y Edomex</option>
+            <option value="cmx">CDMX</option>
+            <option value="emx">Edomex</option>
+            <option value="-">Sin zona</option>
+          </select>
+          <select name="mun" defaultValue={muni} aria-label="Alcaldía o municipio" className="max-w-[14rem] rounded-lg border border-slate-300 bg-white px-2 py-2">
+            <option value="">Todas las alcaldías / municipios</option>
+            {munis.map((m) => (
+              <option key={m.municipality ?? "-"} value={m.municipality ?? "-"}>
+                {m.municipality ?? "Sin alcaldía / municipio"} ({m._count._all})
+              </option>
+            ))}
+          </select>
           <label className="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3">
             <input type="checkbox" name="mios" value="1" defaultChecked={mine} className="accent-brand" /> Solo míos
           </label>
@@ -109,7 +134,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 const cardSelect = {
-  id: true, businessName: true, contactName: true, phone: true, source: true, stage: true, stageAt: true, monthlyVolume: true,
+  id: true, businessName: true, contactName: true, phone: true, source: true, stage: true, stageAt: true, monthlyVolume: true, zone: true, municipality: true,
   nextAction: true, nextActionAt: true, owner: { select: { name: true } },
 } satisfies Prisma.LeadSelect;
 
@@ -161,6 +186,11 @@ function LeadCard({ l, now, endToday }: { l: Prisma.LeadGetPayload<{ select: typ
       <span className="block truncate text-xs text-slate-500">
         {[l.contactName, l.monthlyVolume && `${l.monthlyVolume} envíos/mes`].filter(Boolean).join(" · ") || SOURCE_LABEL[l.source]}
       </span>
+      {(l.zone || l.municipality) && (
+        <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${l.zone === "emx" ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700"}`}>
+          📍 {place(l.zone, l.municipality)}
+        </span>
+      )}
       {l.nextActionAt && (
         <span className={`mt-1.5 block text-xs ${overdue ? "font-medium text-amber-700" : "text-slate-500"}`}>
           {overdue ? "⏰ " : ""}
@@ -180,7 +210,7 @@ async function Today({ where, now, endToday }: { where: Prisma.LeadWhereInput; n
     take: 200,
   });
   return (
-    <Table head={["Prospecto", "Qué sigue", "Desde", "Etapa", "Responsable", ""]} empty={leads.length ? undefined : "Nada pendiente para hoy 🎉"}>
+    <Table head={["Prospecto", "Zona", "Qué sigue", "Desde", "Etapa", "Responsable", ""]} empty={leads.length ? undefined : "Nada pendiente para hoy 🎉"}>
       {leads.map((l) => {
         const wa = waLink(l.phone, `Hola ${l.contactName?.split(/\s+/)[0] ?? ""}, te escribo de Packatelas sobre ${l.businessName}.`);
         return (
@@ -189,6 +219,7 @@ async function Today({ where, now, endToday }: { where: Prisma.LeadWhereInput; n
               <Link href={`/admin/crm/${l.id}`} className="font-medium text-brand hover:underline">{l.businessName}</Link>
               <span className="block text-xs text-slate-500">{l.contactName ?? "—"}</span>
             </Td>
+            <Td className="text-xs">{place(l.zone, l.municipality) || "—"}</Td>
             <Td>{l.nextAction ?? "Seguimiento"}</Td>
             <Td className="text-xs text-slate-600">{l.nextActionAt && l.nextActionAt.getTime() < now ? `hace ${hace(l.nextActionAt, now)}` : "hoy"}</Td>
             <Td><Badge tone="blue">{STAGE_LABEL[l.stage]}</Badge></Td>
@@ -203,7 +234,7 @@ async function Today({ where, now, endToday }: { where: Prisma.LeadWhereInput; n
 
 async function Lost({ where }: { where: Prisma.LeadWhereInput }) {
   const [leads, reasons] = await Promise.all([
-    prisma.lead.findMany({ where: { ...where, stage: "PERDIDO" }, select: { id: true, businessName: true, contactName: true, lostReason: true, stageAt: true, source: true }, orderBy: { stageAt: "desc" }, take: 200 }),
+    prisma.lead.findMany({ where: { ...where, stage: "PERDIDO" }, select: { id: true, businessName: true, contactName: true, lostReason: true, stageAt: true, source: true, zone: true, municipality: true }, orderBy: { stageAt: "desc" }, take: 200 }),
     prisma.lead.groupBy({ by: ["lostReason"], where: { ...where, stage: "PERDIDO" }, _count: { _all: true }, orderBy: { _count: { lostReason: "desc" } }, take: 8 }),
   ]);
   return (
@@ -217,13 +248,14 @@ async function Lost({ where }: { where: Prisma.LeadWhereInput }) {
           ))}
         </div>
       )}
-      <Table head={["Prospecto", "Motivo", "Origen", "Cuándo"]} empty={leads.length ? undefined : "Sin prospectos perdidos"}>
+      <Table head={["Prospecto", "Zona", "Motivo", "Origen", "Cuándo"]} empty={leads.length ? undefined : "Sin prospectos perdidos"}>
         {leads.map((l) => (
           <tr key={l.id} className="hover:bg-slate-50">
             <Td>
               <Link href={`/admin/crm/${l.id}`} className="font-medium text-brand hover:underline">{l.businessName}</Link>
               <span className="block text-xs text-slate-500">{l.contactName ?? "—"}</span>
             </Td>
+            <Td className="text-xs">{place(l.zone, l.municipality) || "—"}</Td>
             <Td className="max-w-xs truncate">{l.lostReason ?? "—"}</Td>
             <Td>{SOURCE_LABEL[l.source]}</Td>
             <Td className="text-xs text-slate-600">{fecha(l.stageAt)}</Td>

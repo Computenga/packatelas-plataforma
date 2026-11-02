@@ -114,7 +114,7 @@ describe("importar prerregistros", () => {
     const p1 = `58${tag}4`.padEnd(10, "5").slice(0, 10);
     const p2 = `59${tag}6`.padEnd(10, "6").slice(0, 10);
     const s = await importLeads(prisma, [
-      { at: now.toISOString(), businessName: `Imp CRM ${tag} 1`, contactName: "Uno", phone: p1 },
+      { at: now.toISOString(), businessName: `Imp CRM ${tag} 1`, contactName: "Uno", phone: p1, municipality: "IZTAPALAPA" },
       { at: new Date(now.getTime() - 90 * 86400_000).toISOString(), businessName: `Imp CRM ${tag} 2`, phone: p2 },
       { at: now.toISOString(), businessName: `Imp CRM ${tag} 1 otra vez`, phone: `+52${p1}` },
       { businessName: `Imp CRM ${tag} 3` },
@@ -123,6 +123,8 @@ describe("importar prerregistros", () => {
     expect(await prisma.lead.count({ where: { businessName: `Imp CRM ${tag} 2` } })).toBe(0);
     const recent = await prisma.lead.findFirstOrThrow({ where: { businessName: `Imp CRM ${tag} 1` } });
     expect(recent.source).toBe("PRERREGISTRO");
+    expect(recent.municipality).toBe("Iztapalapa");
+    expect(recent.zone).toBe("cmx");
     // Por nombre del negocio: reconoce a un cliente existente aunque no tenga teléfono ni correo.
     const c = await prisma.client.findFirstOrThrow({ select: { name: true } });
     const s2 = await importLeads(prisma, [{ at: new Date(now.getTime() - 90 * 86400_000).toISOString(), businessName: c.name.split(" - ")[0] + " ", phone: `60${tag}8`.padEnd(10, "8").slice(0, 10) }]);
