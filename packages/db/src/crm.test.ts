@@ -119,9 +119,13 @@ describe("importar prerregistros", () => {
       { at: now.toISOString(), businessName: `Imp CRM ${tag} 1 otra vez`, phone: `+52${p1}` },
       { businessName: `Imp CRM ${tag} 3` },
     ]);
-    expect(s).toMatchObject({ created: 1, lost: 1, repeated: 1, skipped: 1 });
-    const old = await prisma.lead.findFirstOrThrow({ where: { businessName: `Imp CRM ${tag} 2` } });
-    expect(old.stage).toBe("PERDIDO");
-    expect(old.source).toBe("PRERREGISTRO");
+    expect(s).toMatchObject({ created: 1, old: 1, repeated: 1, skipped: 1 });
+    expect(await prisma.lead.count({ where: { businessName: `Imp CRM ${tag} 2` } })).toBe(0);
+    const recent = await prisma.lead.findFirstOrThrow({ where: { businessName: `Imp CRM ${tag} 1` } });
+    expect(recent.source).toBe("PRERREGISTRO");
+    // Por nombre del negocio: reconoce a un cliente existente aunque no tenga teléfono ni correo.
+    const c = await prisma.client.findFirstOrThrow({ select: { name: true } });
+    const s2 = await importLeads(prisma, [{ at: new Date(now.getTime() - 90 * 86400_000).toISOString(), businessName: c.name.split(" - ")[0] + " ", phone: `60${tag}8`.padEnd(10, "8").slice(0, 10) }]);
+    expect(s2.alreadyClients + s2.old).toBe(1);
   });
 });

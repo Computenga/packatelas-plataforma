@@ -16,7 +16,7 @@ export default async function ImportarLeadsPage() {
       <Card>
         <LeadImport />
         <p className="mt-4 text-xs text-slate-500">
-          Quien ya es cliente y se registró hace más de 60 días no entra. Si se registró hace menos, entra ligado a su cliente y avanza solo. Si el mismo teléfono o correo ya está en el CRM, no se duplica. Puedes subir el mismo archivo otra vez sin problema.
+          Se reconoce a quien ya es cliente por teléfono, correo o nombre del negocio: si se registró hace más de 60 días no entra; si se registró hace menos, entra ligado a su cliente y avanza solo. Si el mismo teléfono o correo ya está en el CRM, no se duplica. Puedes subir el mismo archivo otra vez sin problema.
         </p>
       </Card>
     </div>

@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/auth";
 
 // Textos largos se recortan en vez de rechazar el archivo completo.
 const s = (max: number) => z.string().nullish().transform((v) => (v ?? "").trim().slice(0, max) || null);
-const row = z.object({ at: s(40), businessName: s(200), contactName: s(200), phone: s(40), email: s(200), zone: z.enum(["cmx", "emx"]).nullish(), salesChannels: s(300), notes: s(1000) });
+const row = z.object({ at: s(40), businessName: s(200), legalName: s(200), contactName: s(200), phone: s(40), email: s(200), zone: z.enum(["cmx", "emx"]).nullish(), salesChannels: s(300), notes: s(1000) });
 
 export async function importLeadsAction(rows: unknown, recentDays: number): Promise<{ error?: string; summary?: LeadImportSummary }> {
   const user = await requireUser(["ADMIN"]);

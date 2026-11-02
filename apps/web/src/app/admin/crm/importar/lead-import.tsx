@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import type { LeadImportSummary } from "@packatelas/db";
 import { importLeadsAction } from "./actions";
 
-type Row = { at: string | null; businessName: string | null; contactName: string | null; phone: string | null; email: string | null; zone: "cmx" | "emx" | null; salesChannels: string | null; notes: string | null };
+type Row = { at: string | null; businessName: string | null; legalName: string | null; contactName: string | null; phone: string | null; email: string | null; zone: "cmx" | "emx" | null; salesChannels: string | null; notes: string | null };
 
 /** CSV con comillas y saltos de línea dentro de los campos. */
 function parseCsv(text: string): string[][] {
@@ -70,6 +70,7 @@ function toRows(table: string[][]): { rows: Row[]; mapped: string[] } {
     return {
       at: col.at >= 0 ? formDate(v(r, col.at)) : null,
       businessName: v(r, col.businessName) || v(r, col.legal) || null,
+      legalName: v(r, col.legal) || null,
       contactName: v(r, col.contactName) || null,
       phone: v(r, col.phone) || null,
       email: v(r, col.email) || null,
@@ -107,7 +108,7 @@ export function LeadImport() {
           <label className="flex items-center gap-2">
             Los registros de hace más de
             <input type="number" min={1} max={365} value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-20 rounded-lg border border-slate-300 px-2 py-1" />
-            días entran como «Perdido» (se pueden reactivar).
+            días que no son clientes no entran (ya nadie los va a seguir).
           </label>
           <button
             type="button"
@@ -122,8 +123,8 @@ export function LeadImport() {
       {result?.error && <p className="rounded-lg bg-red-50 px-3 py-2 text-red-700">{result.error}</p>}
       {result?.summary && (
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-800">
-          Listo: {result.summary.created} prospectos nuevos, {result.summary.linked} ligados a clientes recientes, {result.summary.lost} viejos como «Perdido»,{" "}
-          {result.summary.repeated} repetidos, {result.summary.alreadyClients} que ya eran clientes (no entran) y {result.summary.skipped} sin teléfono ni correo.
+          Listo: {result.summary.created} prospectos nuevos, {result.summary.linked} ligados a clientes recientes, {result.summary.repeated} que ya estaban en el CRM,{" "}
+          {result.summary.alreadyClients} que ya eran clientes, {result.summary.old} registros viejos que no entraron y {result.summary.skipped} sin teléfono ni correo.
         </p>
       )}
     </div>
