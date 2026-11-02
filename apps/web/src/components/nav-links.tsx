@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "@/lib/roles";
+import { NAV_DOT, NAV_ICONS, NavIcon } from "./nav-icons";
+
+/** Nombres cortos para que quepan abajo en el celular. */
+const SHORT: Record<string, string> = { "/repartidor/recolecciones": "Recolectas", "/mecanico/documentos": "Docs" };
 
 const styles = {
   side: {
@@ -19,7 +23,7 @@ const styles = {
   },
   bottom: {
     list: "grid auto-cols-fr grid-flow-col",
-    item: "flex flex-col items-center py-3 text-xs",
+    item: "flex flex-col items-center gap-0.5 px-0.5 pt-2 pb-1.5 text-[11px] leading-tight",
     active: "font-semibold text-brand",
     idle: "text-slate-500",
   },
@@ -47,7 +51,14 @@ export function NavLinks({ nav, ready, variant }: { nav: NavItem[]; ready: strin
         return (
           <li key={item.href}>
             <Link href={item.href} className={`${s.item} ${active ? s.active : s.idle}`}>
-              {item.label}
+              {variant === "bottom" ? (
+                <>
+                  <NavIcon>{NAV_ICONS[item.href] ?? NAV_DOT}</NavIcon>
+                  <span className="max-w-full truncate">{SHORT[item.href] ?? item.label}</span>
+                </>
+              ) : (
+                item.label
+              )}
             </Link>
           </li>
         );

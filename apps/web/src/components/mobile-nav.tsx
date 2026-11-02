@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState } from "react";
 import { logout } from "@/app/login/actions";
 import type { NavItem } from "@/lib/roles";
 import { Isotipo } from "./brand";
@@ -18,33 +18,7 @@ type Props = {
   favorites: string[];
 };
 
-const ICONS: Record<string, ReactNode> = {
-  "/admin": <path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z" />,
-  "/admin/escanear": (
-    <>
-      <path d="M3 7V4h3M14 4h3v3M17 13v3h-3M6 16H3v-3" />
-      <path d="M6 10h8" />
-    </>
-  ),
-  "/admin/flotilla": (
-    <>
-      <circle cx="5" cy="13.5" r="2.5" />
-      <circle cx="15" cy="13.5" r="2.5" />
-      <path d="M5 13.5 8 8h4l3 5.5M10.5 8 9 5H7M12 8l1-2h2" />
-    </>
-  ),
-  "/admin/despacho": <path d="M3 6h9v8H3zM12 9h3l2 2.5V14h-5M6 16.5a1.5 1.5 0 1 0 0-.01M14 16.5a1.5 1.5 0 1 0 0-.01" />,
-  "/admin/pedidos": <path d="M4 6.5 10 3.5l6 3v7l-6 3-6-3zM4 6.5l6 3 6-3M10 9.5v7" />,
-};
-const DOT = <circle cx="10" cy="10" r="3" />;
-
-function Icon({ children }: { children: ReactNode }) {
-  return (
-    <svg aria-hidden viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
-      {children}
-    </svg>
-  );
-}
+import { NAV_ICONS as ICONS, NAV_DOT as DOT, NavIcon as Icon } from "./nav-icons";
 
 export function MobileNav({ title, userName, roleLabel, nav, ready, favorites }: Props) {
   const [open, setOpen] = useState(false);
