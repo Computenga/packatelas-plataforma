@@ -126,8 +126,9 @@ export default async function SaludPage({ searchParams }: PageProps<"/admin/salu
           {gdrive.connected ? (
             <span className="mt-1 block text-xs text-slate-500">
               Drive: {gdrive.email}
-              {gdrive.at ? ` · desde ${fecha(new Date(gdrive.at))}` : ""} ·{" "}
-              <a href="/api/drive/conectar" className="text-brand hover:underline">cambiar cuenta</a>
+              {gdrive.at ? ` · desde ${fecha(new Date(gdrive.at))}` : ""}
+              <a href="/api/drive/conectar" className="mt-2 block w-fit rounded-lg border border-brand px-3 py-1.5 text-sm font-medium text-brand">Volver a conectar Google Drive</a>
+              <span className="mt-1 block">Hazlo una vez para dar también el permiso de lectura de hojas (unificación de RH, checador y flotilla).</span>
             </span>
           ) : (
             <a href="/api/drive/conectar" className="mt-2 inline-block rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white">Conectar Google Drive</a>
