@@ -276,13 +276,13 @@ export type LeadImportSummary = { created: number; linked: number; lost: number;
 export const LEAD_IMPORT_MAX = 3000;
 
 /**
- * Reglas: lo que ya es cliente desde hace más de 60 días no entra (ya no es prospecto); lo que es
- * cliente reciente entra ligado y avanza solo; lo demás entra como prospecto, y si el registro tiene
+ * Reglas: si ya es cliente y se registró hace más de 60 días no entra (ya no es prospecto); si se
+ * registró hace menos entra ligado a su cliente y avanza solo; lo demás entra como prospecto, y si el registro tiene
  * más de `recentDays` días entra como «Perdido» (se puede reactivar) para no llenar el embudo de viejos.
  */
 export async function importLeads(prisma: PrismaClient, rows: LeadImportRow[], actorUserId?: string | null, opts = { recentDays: 30, now: new Date() }): Promise<LeadImportSummary> {
   const sum: LeadImportSummary = { created: 0, linked: 0, lost: 0, repeated: 0, alreadyClients: 0, skipped: 0 };
-  const clients = await prisma.client.findMany({ select: { id: true, phone: true, email: true, createdAt: true } });
+  const clients = await prisma.client.findMany({ select: { id: true, phone: true, email: true } });
   const byPhone = new Map<string, (typeof clients)[number]>();
   const byEmail = new Map<string, (typeof clients)[number]>();
   for (const c of clients) {
@@ -304,7 +304,8 @@ export async function importLeads(prisma: PrismaClient, rows: LeadImportRow[], a
     }
     const at = r.at && !Number.isNaN(Date.parse(r.at)) ? new Date(r.at) : opts.now;
     const client = (key && byPhone.get(key)) || (email && byEmail.get(email)) || null;
-    if (client && (client.createdAt.getTime() < clientRecentFrom || linkedClients.has(client.id))) {
+    // Se usa la fecha del registro (no la del cliente en la plataforma: todos se migraron hace poco).
+    if (client && (at.getTime() < clientRecentFrom || linkedClients.has(client.id))) {
       sum.alreadyClients++;
       continue;
     }
