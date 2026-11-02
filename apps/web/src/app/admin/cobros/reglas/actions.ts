@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { prisma, refreshBlockedPickups, setCreditMode, setCreditRules } from "@packatelas/db";
+import { prisma, refreshBlockedPickups, setBankInfo, setCreditMode, setCreditRules } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -25,4 +25,14 @@ export async function setModeAction(mode: "PREPAID" | "WEEKLY_CREDIT", _: Action
   revalidatePath("/admin/cobros/reglas");
   revalidatePath("/admin/cobros");
   return { ok: `${n} cliente(s) en ${mode === "WEEKLY_CREDIT" ? "crédito semanal" : "prepago"}` };
+}
+
+export async function saveBankAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const clabe = String(fd.get("clabe") ?? "").replace(/\D/g, "");
+  if (clabe && clabe.length !== 18) return { error: "La CLABE debe tener 18 dígitos" };
+  await setBankInfo(prisma, { bank: String(fd.get("bank") ?? ""), holder: String(fd.get("holder") ?? ""), clabe, note: String(fd.get("note") ?? "") });
+  revalidatePath("/admin/cobros/reglas");
+  revalidatePath("/cliente/cuenta");
+  return { ok: "Datos bancarios guardados" };
 }

@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { accountStates, getCreditRules, prisma, weeklyVolumes } from "@packatelas/db";
+import { accountStates, getBankInfo, getCreditRules, prisma, weeklyVolumes } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader } from "@/components/ui";
 import { CobrosTabs } from "../tabs";
 import { ModeTable } from "./mode-table";
-import { saveRulesAction } from "./actions";
+import { saveBankAction, saveRulesAction } from "./actions";
+import { Field } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Crédito" };
 
@@ -16,6 +17,7 @@ const DAYS = ["", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado
 export default async function ReglasCreditoPage({ searchParams }: PageProps<"/admin/cobros/reglas">) {
   await requireUser(["ADMIN"]);
   const show = (await searchParams).ver === "todos" ? "todos" : "activos";
+  const bank = await getBankInfo(prisma);
   const [rules, volumes, states, clients] = await Promise.all([
     getCreditRules(prisma),
     weeklyVolumes(prisma),
@@ -86,6 +88,17 @@ export default async function ReglasCreditoPage({ searchParams }: PageProps<"/ad
             <Badge tone="blue">Califica</Badge> = en prepago con {rules.minWeeklyShipments}+ envíos en 7 días.{" "}
             <Badge tone="amber">Debajo</Badge> = en crédito con menos de {rules.minWeeklyShipments}. Solo es sugerencia: tú decides.
           </p>
+        </Card>
+        <Card title="Datos bancarios para las tiendas">
+          <p className="mb-3 text-sm text-slate-600">Se muestran en «Estado de cuenta» del portal junto con la referencia de cada tienda.</p>
+          <ActionForm action={saveBankAction} submitLabel="Guardar datos bancarios">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Banco" name="bank" defaultValue={bank.bank} placeholder="Fondeadora" />
+              <Field label="Beneficiario" name="holder" defaultValue={bank.holder} placeholder="Comercializadora Computenga" />
+              <Field label="CLABE (18 dígitos)" name="clabe" defaultValue={bank.clabe} inputMode="numeric" />
+              <Field label="Nota (opcional)" name="note" defaultValue={bank.note} placeholder="Los pagos se aplican en minutos" />
+            </div>
+          </ActionForm>
         </Card>
       </div>
     </div>

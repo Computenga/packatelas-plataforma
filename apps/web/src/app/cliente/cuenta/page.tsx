@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { accountState, getClientBalance, getCreditRules, getMpSettings, mpConfigured, prisma } from "@packatelas/db";
+import { accountState, getBankInfo, getClientBalance, getCreditRules, getMpSettings, mpConfigured, prisma } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { fecha, mxn } from "@/lib/format";
 import { Card } from "@/components/ui";
@@ -15,6 +15,7 @@ const TYPE_LABEL = { CHARGE: "Envío", PAYMENT: "Pago recibido", FEE: "Comisión
 export default async function CuentaPage({ searchParams }: PageProps<"/cliente/cuenta">) {
   const { clientId } = await requireClient();
   const pago = (await searchParams).pago;
+  const bank = await getBankInfo(prisma);
   const [client, balance, state, rules, entries, mp] = await Promise.all([
     prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true, creditLimit: true, creditMode: true } }),
     getClientBalance(prisma, clientId),
@@ -58,7 +59,17 @@ export default async function CuentaPage({ searchParams }: PageProps<"/cliente/c
       <Card title="Cómo pagar">
         <p className="text-sm text-slate-700">Haz tu transferencia y escribe esta referencia en el concepto para que se aplique a tu cuenta:</p>
         <p className="my-3 rounded-lg bg-slate-100 py-3 text-center font-mono text-2xl font-bold tracking-wider">{client.paymentReference}</p>
-        <p className="text-xs text-slate-500">Los datos bancarios te los comparte Packatelas. Los pagos se reflejan aquí al confirmarse.</p>
+        {bank.clabe ? (
+          <dl className="grid grid-cols-[110px_1fr] gap-x-3 gap-y-1 rounded-lg border border-slate-200 p-3 text-sm">
+            {bank.bank && (<><dt className="text-slate-500">Banco</dt><dd className="font-medium">{bank.bank}</dd></>)}
+            {bank.holder && (<><dt className="text-slate-500">Beneficiario</dt><dd className="font-medium">{bank.holder}</dd></>)}
+            <dt className="text-slate-500">CLABE</dt><dd className="select-all font-mono font-semibold tracking-wide">{bank.clabe}</dd>
+            <dt className="text-slate-500">Concepto</dt><dd className="select-all font-mono font-semibold">{client.paymentReference}</dd>
+          </dl>
+        ) : (
+          <p className="text-xs text-slate-500">Los datos bancarios te los comparte Packatelas.</p>
+        )}
+        <p className="mt-2 text-xs text-slate-500">{bank.note || "Los pagos se reflejan aquí al confirmarse."} También puedes pagar con tarjeta abajo.</p>
       </Card>
 
       {cardOn && (

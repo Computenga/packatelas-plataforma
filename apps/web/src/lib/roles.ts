@@ -67,11 +67,16 @@ export function adminNavFor(role: Role): NavItem[] {
 export const CLIENT_NAV: NavItem[] = [
   { href: "/cliente", label: "Mis envíos" },
   { href: "/cliente/recolecciones", label: "Recolecciones" },
+  { href: "/cliente/cuenta", label: "Estado de cuenta y pagos" },
+  { href: "/cliente/facturas", label: "Facturas y datos fiscales" },
+  { href: "/cliente/mercadolibre", label: "Conectar Mercado Libre" },
+  { href: "/cliente/negocio", label: "Direcciones y accesos" },
   { href: "/cliente/devoluciones", label: "Devoluciones" },
-  { href: "/cliente/cuenta", label: "Estado de cuenta" },
-  { href: "/cliente/facturas", label: "Facturas" },
-  { href: "/cliente/mercadolibre", label: "Cuentas ML" },
+  { href: "/cliente/avisos", label: "Mis avisos" },
 ];
+
+/** Accesos fijos abajo en el celular para las tiendas; el resto está en el menú ☰. */
+export const CLIENT_FAVORITES = ["/cliente", "/cliente/recolecciones", "/cliente/cuenta"];
 
 export const DRIVER_NAV: NavItem[] = [
   { href: "/repartidor", label: "Mi ruta" },
