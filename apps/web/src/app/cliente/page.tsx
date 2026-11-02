@@ -7,6 +7,7 @@ import { buildWhere, filtersToQuery, PAGE_SIZE, readFilters } from "@/lib/order-
 import { Badge } from "@/components/ui";
 import { Stat } from "@/components/stat";
 import { ClientOnboarding } from "@/components/client-onboarding";
+import { ClientTour } from "@/components/client-tour";
 
 export const metadata: Metadata = { title: "Mis envíos" };
 
@@ -19,6 +20,7 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
   const f = readFilters(await searchParams);
   const where = { ...buildWhere(f, clientId), kind: "DELIVERY" as const }; // siempre restringido a su propio cliente
 
+  const tourDone = (await prisma.user.findUnique({ where: { id: user.id }, select: { tourSeenAt: true } }))?.tourSeenAt;
   const [client, inProgress, deliveredCount, balance, orders, total] = await Promise.all([
     prisma.client.findUniqueOrThrow({ where: { id: clientId }, select: { name: true, paymentReference: true } }),
     prisma.order.count({ where: { clientId, kind: "DELIVERY", status: { in: ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY"] } } }),
@@ -33,6 +35,9 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
   return (
     <div className="mx-auto max-w-4xl space-y-4">
       <ClientOnboarding clientId={clientId} />
+      <div className="text-right">
+        <ClientTour open={!tourDone} />
+      </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold">{client.name}</h1>
         <div className="flex gap-2 text-sm">

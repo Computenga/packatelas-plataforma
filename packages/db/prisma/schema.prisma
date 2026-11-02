@@ -39,6 +39,7 @@ model User {
   sessions     Session[]
   lastLoginAt  DateTime?
   mustChangePassword Boolean @default(false) // contraseña temporal: la cambia al entrar
+  tourSeenAt   DateTime? // vio el recorrido del portal nuevo
   notifyPrefs  Json? // avisos push que quiere recibir (portal cliente: «Mis avisos»)
   appVersion   String? // versión de la app Android con la que entró por última vez
   appSeenAt    DateTime?
