@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { clientMatchesForLead, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL } from "@packatelas/db";
+import { clientMatchesForLead, prisma, storeLinks, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -76,6 +76,18 @@ export default async function LeadPage({ params, searchParams }: PageProps<"/adm
               )}
               {lead.email && <a href={`mailto:${lead.email}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2">{lead.email}</a>}
               {!digits && !lead.email && <span className="text-slate-500">Sin teléfono ni correo: agrégalos abajo.</span>}
+            </div>
+            <div className="mt-3 text-sm">
+              <span className="text-slate-500">Dónde vende: </span>
+              {storeLinks(lead.salesChannels).length > 0 ? (
+                storeLinks(lead.salesChannels).map((l) => (
+                  <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className="mr-3 font-medium text-brand hover:underline">{l.label} ↗</a>
+                ))
+              ) : (
+                <span className="text-amber-700">
+                  {lead.salesChannels ? `«${lead.salesChannels}» (sin link)` : "sin link"} · pídele el link de su tienda y ponlo en Datos para validar que vende
+                </span>
+              )}
             </div>
             {lead.nextActionAt && (
               <p className={`mt-3 text-sm ${overdue ? "font-medium text-amber-700" : "text-slate-600"}`}>

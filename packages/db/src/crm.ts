@@ -5,6 +5,7 @@ import { Prisma, type LeadSource, type LeadStage, type PrismaClient } from "../g
 import { enqueueNotification } from "./notifications.ts";
 import { adminUserIds, sendPush } from "./push.ts";
 import { canonicalMunicipio, municipioFromAddress } from "./municipios.ts";
+import { normalizeStoreUrl } from "./store-links.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -88,7 +89,7 @@ export async function createLead(db: Db, input: LeadInput, actorUserId?: string 
         zone: existing.zone ?? zone ?? undefined,
         municipality: existing.municipality ?? muni?.name ?? undefined,
         monthlyVolume: input.monthlyVolume || existing.monthlyVolume,
-        salesChannels: input.salesChannels || existing.salesChannels,
+        salesChannels: normalizeStoreUrl(existing.salesChannels) ? existing.salesChannels : input.salesChannels || existing.salesChannels,
       },
     });
     await addLeadActivity(db, existing.id, "sistema", `Volvió a registrarse (${SOURCE_LABEL[input.source ?? "MANUAL"]}): ${input.businessName}`, actorUserId);
@@ -126,7 +127,8 @@ export async function leadFromSignup(prisma: PrismaClient, signupId: string) {
   const r = await createLead(prisma, {
     businessName: s.businessName, contactName: s.contactName, phone: s.phone, email: s.email, zone: s.zone,
     municipality: municipioFromAddress(s.pickupAddress)?.name ?? null,
-    monthlyVolume: s.monthlyVolume, salesChannels: s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
+    monthlyVolume: s.monthlyVolume, salesChannels: s.storeUrl ?? s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
+    notes: s.salesChannels ? `Vende en: ${s.salesChannels}` : null,
   });
   await enqueueNotification(prisma, {
     event: "bienvenida_registro", to: s.phone, params: [s.contactName.split(/\s+/)[0] || s.contactName, s.businessName],
@@ -219,7 +221,7 @@ export async function backfillLeadsFromSignups(prisma: PrismaClient) {
     const r = await createLead(prisma, {
       businessName: s.businessName, contactName: s.contactName, phone: s.phone, email: s.email, zone: s.zone,
       municipality: municipioFromAddress(s.pickupAddress)?.name ?? null,
-      monthlyVolume: s.monthlyVolume, salesChannels: s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
+      monthlyVolume: s.monthlyVolume, salesChannels: s.storeUrl ?? s.salesChannels, source: "REGISTRO_WEB", signupId: s.id,
       clientId: s.status === "APPROVED" ? s.clientId : null,
     });
     if (s.status === "REJECTED") await setLeadStage(prisma, r.id, "PERDIDO", null, { lostReason: s.reviewNote || "Solicitud rechazada" }).catch(() => false);

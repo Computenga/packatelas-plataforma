@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { prisma } from "@packatelas/db";
+import { prisma, storeLinks } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -36,6 +36,13 @@ export default async function SolicitudesPage() {
               <dd>{s.zone === "emx" ? "Edomex" : "CDMX"} · {s.pickupAddress}{s.pickupReference && <span className="text-slate-500"> ({s.pickupReference})</span>}</dd>
               <dt className="text-slate-500">Envíos al mes</dt><dd>{s.monthlyVolume ?? "—"}</dd>
               <dt className="text-slate-500">Vende en</dt><dd>{s.salesChannels || "—"}</dd>
+              <dt className="text-slate-500">Tienda</dt>
+              <dd>
+                {storeLinks(s.storeUrl).map((l) => (
+                  <a key={l.href} href={l.href} target="_blank" rel="noreferrer" className="mr-2 text-brand hover:underline">{l.label} ↗</a>
+                ))}
+                {!s.storeUrl && "—"}
+              </dd>
               <dt className="text-slate-500">Facturación</dt><dd>{s.rfc ? `${s.rfc} · ${s.legalName ?? ""}` : "—"}</dd>
               <dt className="text-slate-500">Usuario</dt><dd className="font-mono text-xs">{s.username}</dd>
             </dl>

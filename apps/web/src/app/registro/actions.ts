@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { leadFromSignup, prisma, submitSignup } from "@packatelas/db";
+import { leadFromSignup, normalizeStoreUrl, prisma, submitSignup } from "@packatelas/db";
 
 export type SignupState = { error?: string; values?: Record<string, string> };
 
@@ -21,6 +21,7 @@ const schema = z
     pickupReference: opt(200),
     monthlyVolume: opt(40),
     salesChannels: opt(200),
+    storeUrl: z.string().trim().max(300).refine((v) => !!normalizeStoreUrl(v), "Escribe el link de tu tienda (Mercado Libre, página web o red social donde vendes)"),
     rfc: z.string().trim().toUpperCase().regex(/^([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})?$/, "RFC inválido").optional(),
     legalName: opt(200),
     taxRegime: opt(120),

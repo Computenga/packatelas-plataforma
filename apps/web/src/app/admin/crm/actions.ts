@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addLeadActivity, canonicalMunicipio, createLead, linkLeadClient, phoneKey, prisma, setLeadStage, LEAD_SOURCES, type LeadStage } from "@packatelas/db";
+import { addLeadActivity, canonicalMunicipio, createLead, normalizeStoreUrl, linkLeadClient, phoneKey, prisma, setLeadStage, LEAD_SOURCES, type LeadStage } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -24,7 +24,9 @@ const leadSchema = z.object({
   zone: z.enum(["cmx", "emx", ""]).optional().transform((v) => v || null),
   municipality: opt(80),
   monthlyVolume: opt(40),
-  salesChannels: opt(200),
+  salesChannels: z.string().trim().max(500).optional().transform((v) => v || null)
+    .refine((v) => !v || !!normalizeStoreUrl(v), "«Dónde vende» debe ser un link (ej. mercadolibre.com.mx/tienda/…, su página o Instagram)")
+    .transform((v) => normalizeStoreUrl(v)),
   notes: opt(2000),
   source: z.enum(LEAD_SOURCES.map((s) => s.key) as [string, ...string[]]).default("MANUAL"),
   ownerId: opt(40),

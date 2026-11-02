@@ -3,6 +3,7 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { leadSignupApproved, setLeadStage } from "./crm.ts";
+import { normalizeStoreUrl } from "./store-links.ts";
 import { hashPassword } from "./password.ts";
 import { ID_PREFIXES, referenceFromPublicId, type IdPrefix } from "./public-id.ts";
 
@@ -27,6 +28,7 @@ export type SignupInput = {
   pickupReference?: string;
   monthlyVolume?: string;
   salesChannels?: string;
+  storeUrl?: string;
   rfc?: string;
   legalName?: string;
   taxRegime?: string;
@@ -69,6 +71,7 @@ export async function submitSignup(prisma: PrismaClient, input: SignupInput): Pr
       pickupReference: input.pickupReference?.trim() || null,
       monthlyVolume: input.monthlyVolume?.trim() || null,
       salesChannels: input.salesChannels?.trim() || null,
+      storeUrl: normalizeStoreUrl(input.storeUrl),
       rfc: input.rfc?.trim().toUpperCase() || null,
       legalName: input.legalName?.trim() || null,
       taxRegime: input.taxRegime?.trim() || null,

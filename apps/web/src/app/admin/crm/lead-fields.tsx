@@ -22,7 +22,8 @@ export function LeadFields({ lead, owners }: { lead?: Partial<Lead>; owners?: { 
           ))}
         </datalist>
         <Field label="Envíos al mes (aprox.)" name="monthlyVolume" defaultValue={lead?.monthlyVolume ?? ""} placeholder="ej. 50-100" />
-        <Field label="Dónde vende" name="salesChannels" defaultValue={lead?.salesChannels ?? ""} placeholder="MercadoLibre, Tiendanube, redes…" />
+        <Field label="Dónde vende (link)" name="salesChannels" inputMode="url" defaultValue={lead?.salesChannels ?? ""} placeholder="mercadolibre.com.mx/tienda/… o su página / Instagram"
+          hint="Link a su tienda para validar que vende. Puedes poner varios separados por espacio." />
         <Select label="Cómo llegó" name="source" defaultValue={lead?.source ?? "MANUAL"}>
           {LEAD_SOURCES.map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>

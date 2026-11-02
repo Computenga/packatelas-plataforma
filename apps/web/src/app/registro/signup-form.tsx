@@ -42,6 +42,8 @@ export function SignupForm() {
             ))}
           </div>
         </div>
+        <F label="Link de tu tienda" name="storeUrl" v={v} required inputMode="url" placeholder="mercadolibre.com.mx/tienda/… o tu página / Instagram"
+          hint="Tu tienda en Mercado Libre, tu página web o tu perfil de redes donde vendes." />
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Envíos aproximados al mes</span>
           <select name="monthlyVolume" defaultValue={v?.monthlyVolume ?? ""} className={input}>

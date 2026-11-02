@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { coolingClients, prisma, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL, type LeadStage, type Prisma } from "@packatelas/db";
+import { coolingClients, prisma, storeLinks, LEAD_STAGES, SOURCE_LABEL, STAGE_LABEL, ZONE_LABEL, type LeadStage, type Prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace, startOfTodayMx } from "@/lib/format";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
@@ -134,7 +134,7 @@ function Stat({ label, value }: { label: string; value: number }) {
 }
 
 const cardSelect = {
-  id: true, businessName: true, contactName: true, phone: true, source: true, stage: true, stageAt: true, monthlyVolume: true, zone: true, municipality: true,
+  id: true, businessName: true, contactName: true, phone: true, source: true, stage: true, stageAt: true, monthlyVolume: true, zone: true, municipality: true, salesChannels: true,
   nextAction: true, nextActionAt: true, owner: { select: { name: true } },
 } satisfies Prisma.LeadSelect;
 
@@ -186,6 +186,7 @@ function LeadCard({ l, now, endToday }: { l: Prisma.LeadGetPayload<{ select: typ
       <span className="block truncate text-xs text-slate-500">
         {[l.contactName, l.monthlyVolume && `${l.monthlyVolume} envíos/mes`].filter(Boolean).join(" · ") || SOURCE_LABEL[l.source]}
       </span>
+      {!storeLinks(l.salesChannels).length && <span className="mr-1 mt-1 inline-block rounded bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-700">sin link de tienda</span>}
       {(l.zone || l.municipality) && (
         <span className={`mt-1 inline-block rounded px-1.5 py-0.5 text-[11px] font-medium ${l.zone === "emx" ? "bg-violet-50 text-violet-700" : "bg-sky-50 text-sky-700"}`}>
           📍 {place(l.zone, l.municipality)}
@@ -210,7 +211,7 @@ async function Today({ where, now, endToday }: { where: Prisma.LeadWhereInput; n
     take: 200,
   });
   return (
-    <Table head={["Prospecto", "Zona", "Qué sigue", "Desde", "Etapa", "Responsable", ""]} empty={leads.length ? undefined : "Nada pendiente para hoy 🎉"}>
+    <Table head={["Prospecto", "Zona", "Tienda", "Qué sigue", "Desde", "Etapa", "Responsable", ""]} empty={leads.length ? undefined : "Nada pendiente para hoy 🎉"}>
       {leads.map((l) => {
         const wa = waLink(l.phone, `Hola ${l.contactName?.split(/\s+/)[0] ?? ""}, te escribo de Packatelas sobre ${l.businessName}.`);
         return (
@@ -220,6 +221,13 @@ async function Today({ where, now, endToday }: { where: Prisma.LeadWhereInput; n
               <span className="block text-xs text-slate-500">{l.contactName ?? "—"}</span>
             </Td>
             <Td className="text-xs">{place(l.zone, l.municipality) || "—"}</Td>
+            <Td className="max-w-[12rem] truncate text-xs">
+              {storeLinks(l.salesChannels)[0] ? (
+                <a href={storeLinks(l.salesChannels)[0].href} target="_blank" rel="noreferrer" className="text-brand hover:underline">{storeLinks(l.salesChannels)[0].label} ↗</a>
+              ) : (
+                <span className="text-amber-700">sin link</span>
+              )}
+            </Td>
             <Td>{l.nextAction ?? "Seguimiento"}</Td>
             <Td className="text-xs text-slate-600">{l.nextActionAt && l.nextActionAt.getTime() < now ? `hace ${hace(l.nextActionAt, now)}` : "hoy"}</Td>
             <Td><Badge tone="blue">{STAGE_LABEL[l.stage]}</Badge></Td>

@@ -671,6 +671,7 @@ model ClientSignup {
   pickupReference String?
   monthlyVolume   String?
   salesChannels   String? // MercadoLibre, Tiendanube, redes…
+  storeUrl        String? // enlace a su tienda (para validar que vende)
   rfc             String?
   legalName       String?
   taxRegime       String?
@@ -1358,7 +1359,7 @@ model Lead {
   zone          String? // cmx | emx
   municipality  String? // alcaldía o municipio (nombre canónico, ver municipios.ts)
   monthlyVolume String?
-  salesChannels String?
+  salesChannels String? // "Dónde vende": enlace(s) a su tienda
   notes         String?
   ownerId       String?
   owner         User?      @relation("LeadOwner", fields: [ownerId], references: [id])
