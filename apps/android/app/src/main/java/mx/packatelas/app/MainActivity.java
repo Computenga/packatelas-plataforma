@@ -58,21 +58,33 @@ public class MainActivity extends Activity {
         cleanOldPhotos();
 
         web = new WebView(this);
-        setContentView(web);
-        // Android 15 dibuja la app detrás de las barras del sistema: se deja espacio para que la barra
-        // de navegación (botones o gestos) no tape el menú inferior ni la barra de estado el encabezado.
-        web.setOnApplyWindowInsetsListener((v, insets) -> {
+        // Android 15 dibuja la app detrás de las barras del sistema. El WebView ignora su propio padding
+        // (dibuja debajo), así que va dentro de un contenedor que sí deja el espacio de la barra de estado
+        // arriba y de la barra de navegación (botones o gestos) abajo.
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(0xFF0F1E4A);
+        root.addView(web, new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
             int top, bottom, left, right;
             if (android.os.Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets b = insets.getInsets(android.view.WindowInsets.Type.systemBars() | android.view.WindowInsets.Type.displayCutout());
+                android.graphics.Insets b = insets.getInsets(android.view.WindowInsets.Type.systemBars()
+                        | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
                 top = b.top; bottom = b.bottom; left = b.left; right = b.right;
             } else {
                 top = insets.getSystemWindowInsetTop(); bottom = insets.getSystemWindowInsetBottom();
                 left = insets.getSystemWindowInsetLeft(); right = insets.getSystemWindowInsetRight();
             }
             v.setPadding(left, top, right, bottom);
-            return insets;
+            return android.os.Build.VERSION.SDK_INT >= 30 ? android.view.WindowInsets.CONSUMED : insets.consumeSystemWindowInsets();
         });
+        root.requestApplyInsets();
+        // Íconos claros sobre la franja azul de arriba y de abajo.
+        if (android.os.Build.VERSION.SDK_INT >= 30 && getWindow().getInsetsController() != null) {
+            getWindow().getInsetsController().setSystemBarsAppearance(0,
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+        }
         web.setBackgroundColor(0xFF0F1E4A);
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
