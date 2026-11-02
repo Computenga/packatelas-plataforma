@@ -45,7 +45,13 @@ export default async function FallasPage() {
             {f.photos.length > 0 && (
               <div className="mt-2 flex gap-2">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                {f.photos.map((k) => <a key={k} href={photo(k)} target="_blank" rel="noreferrer"><img src={photo(k)} alt="Foto de la falla" className="h-20 w-20 rounded-lg object-cover" /></a>)}
+                {f.photos.map((k) =>
+                  /^https?:/.test(k) ? (
+                    <a key={k} href={k} target="_blank" rel="noreferrer" className="flex h-20 w-20 items-center justify-center rounded-lg border border-slate-200 text-center text-xs text-brand">Foto en Drive ↗</a>
+                  ) : (
+                    <a key={k} href={photo(k)} target="_blank" rel="noreferrer"><img src={photo(k)} alt="Foto de la falla" className="h-20 w-20 rounded-lg object-cover" /></a>
+                  ),
+                )}
               </div>
             )}
             {f.status === "ABIERTA" ? (

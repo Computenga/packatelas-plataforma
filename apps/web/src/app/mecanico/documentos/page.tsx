@@ -39,7 +39,7 @@ export default async function DocumentosPage() {
                   return (
                     <td key={k} className="px-3 py-2">
                       <Expiry d={d?.expiresAt ?? null} t={t} />
-                      {d?.evidenceKey && <a href={`/api/fleet/photo/${d.evidenceKey}`} target="_blank" rel="noreferrer" className="ml-1 text-xs text-brand">ver</a>}
+                      {d?.evidenceKey && <a href={/^https?:/.test(d.evidenceKey) ? d.evidenceKey : `/api/fleet/photo/${d.evidenceKey}`} target="_blank" rel="noreferrer" className="ml-1 text-xs text-brand">ver</a>}
                     </td>
                   );
                 })}

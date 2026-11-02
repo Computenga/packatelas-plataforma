@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { syncLegacy, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -344,8 +344,27 @@ function startBuyerMessages() {
   setInterval(run, 5 * 60_000);
 }
 
+/** Copia de las hojas del checador y la flotilla actuales (solo lectura) [A37]. */
+function startLegacySync() {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const r = await syncLegacy(prisma);
+      if (r.results.estado !== "apagada") await reportHealth(prisma, "unificacion", r.ok, r.ok ? "Copia de hojas al día" : r.errors.join(" · ").slice(0, 300));
+    } catch (e) {
+      console.error("[worker] Unificación:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 10 * 60_000);
+}
+
 async function main() {
   startHourlyJobs();
+  startLegacySync();
   startBuyerMessages();
   startMlSaleDetails();
   startCustody();

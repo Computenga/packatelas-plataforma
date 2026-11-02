@@ -23,33 +23,33 @@ enum Role {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  username     String    @unique
-  email        String?   @unique
-  name         String
-  passwordHash String
-  role         Role
-  active       Boolean   @default(true)
-  totpSecret   String? // 2FA para administradores [P09], cifrado
-  totpLastStep Int? // último intervalo usado: el mismo código no sirve dos veces
-  clientId     String? // solo para rol CLIENTE
-  client       Client?   @relation(fields: [clientId], references: [id])
-  driver       Driver?
-  employee     Employee?
-  sessions     Session[]
-  lastLoginAt  DateTime?
-  mustChangePassword Boolean @default(false) // contraseña temporal: la cambia al entrar
-  tourSeenAt   DateTime? // vio el recorrido del portal nuevo
-  notifyPrefs  Json? // avisos push que quiere recibir (portal cliente: «Mis avisos»)
-  appVersion   String? // versión de la app Android con la que entró por última vez
-  appSeenAt    DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  username           String    @unique
+  email              String?   @unique
+  name               String
+  passwordHash       String
+  role               Role
+  active             Boolean   @default(true)
+  totpSecret         String? // 2FA para administradores [P09], cifrado
+  totpLastStep       Int? // último intervalo usado: el mismo código no sirve dos veces
+  clientId           String? // solo para rol CLIENTE
+  client             Client?   @relation(fields: [clientId], references: [id])
+  driver             Driver?
+  employee           Employee?
+  sessions           Session[]
+  lastLoginAt        DateTime?
+  mustChangePassword Boolean   @default(false) // contraseña temporal: la cambia al entrar
+  tourSeenAt         DateTime? // vio el recorrido del portal nuevo
+  notifyPrefs        Json? // avisos push que quiere recibir (portal cliente: «Mis avisos»)
+  appVersion         String? // versión de la app Android con la que entró por última vez
+  appSeenAt          DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   auditLogs         AuditLog[]
   orderEvents       OrderEvent[]
   pushSubscriptions PushSubscription[]
-  leads             Lead[]            @relation("LeadOwner")
+  leads             Lead[]             @relation("LeadOwner")
 
   @@index([clientId])
 }
@@ -89,12 +89,12 @@ model Client {
   paymentReference String  @unique // referencia para transferencias [C09]
 
   // Datos fiscales [C01, I10]
-  rfc         String?
-  legalName   String?
-  taxRegime   String?
-  taxZip      String?
-  cfdiUse     String?
-  autoInvoice Boolean @default(false)
+  rfc               String?
+  legalName         String?
+  taxRegime         String?
+  taxZip            String?
+  cfdiUse           String?
+  autoInvoice       Boolean @default(false)
   billingCustomerId String? // id del cliente en Facturapi (con prefijo test:/live:) [I05]
 
   // Tarifas y cobro [F01, F07]
@@ -109,20 +109,20 @@ model Client {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  branches   Branch[]
-  mlAccounts MlAccount[]
+  users         User[]
+  branches      Branch[]
+  mlAccounts    MlAccount[]
   flexShipments MlFlexShipment[]
-  orders     Order[]
-  pickups    Pickup[]
-  ledger     LedgerEntry[]
-  payments   Payment[]
-  invoices   Invoice[]
-  apiKeys    ApiKey[]
-  webhook    WebhookEndpoint?
-  stores     StoreConnector[]
-  mpCheckouts MpCheckout[]
-  tickets          Ticket[]
+  orders        Order[]
+  pickups       Pickup[]
+  ledger        LedgerEntry[]
+  payments      Payment[]
+  invoices      Invoice[]
+  apiKeys       ApiKey[]
+  webhook       WebhookEndpoint?
+  stores        StoreConnector[]
+  mpCheckouts   MpCheckout[]
+  tickets       Ticket[]
 }
 
 model Branch {
@@ -169,8 +169,8 @@ model MlAccount {
   connectedAt     DateTime        @default(now())
   updatedAt       DateTime        @updatedAt
 
-  routes MlAccountRoute[]
-  orders Order[]
+  routes        MlAccountRoute[]
+  orders        Order[]
   flexShipments MlFlexShipment[]
 
   @@index([clientId])
@@ -191,22 +191,22 @@ model MlAccountRoute {
 // ───────────────────────── Repartidores [A14, A05, R10] ─────────────────────────
 
 model Driver {
-  id             String    @id @default(cuid())
-  userId         String    @unique
-  user           User      @relation(fields: [userId], references: [id])
-  phone          String?
-  vehicleType    String? // moto, auto…
-  plate          String?
-  photoKey       String? // foto de perfil (se ve en el rastreo de recolecciones)
-  legacyCarrierId Int?     @unique // carrier de Shipday en el sistema anterior (migración)
-  active         Boolean   @default(true)
-  onDuty         Boolean   @default(false)
-  shiftStartedAt DateTime?
-  lastLat        Float?
-  lastLng        Float?
-  lastLocationAt DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id])
+  phone           String?
+  vehicleType     String? // moto, auto…
+  plate           String?
+  photoKey        String? // foto de perfil (se ve en el rastreo de recolecciones)
+  legacyCarrierId Int?      @unique // carrier de Shipday en el sistema anterior (migración)
+  active          Boolean   @default(true)
+  onDuty          Boolean   @default(false)
+  shiftStartedAt  DateTime?
+  lastLat         Float?
+  lastLng         Float?
+  lastLocationAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   flexIdentities FlexIdentity[]
   custodies      DriverCustody[]
@@ -309,7 +309,7 @@ model Order {
 
   // Detalle de la venta en ML [I14]: artículos [{title, variation, sku, quantity, unitPrice, currency}], total y paquete.
   mlItems     Json?
-  mlSaleTotal Decimal? @db.Decimal(12, 2)
+  mlSaleTotal Decimal?  @db.Decimal(12, 2)
   pkgWeightG  Int?
   pkgLengthCm Float?
   pkgWidthCm  Float?
@@ -329,15 +329,15 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  custodies  DriverCustody[]
-  events     OrderEvent[]
-  evidence   Evidence[]
-  flexShipment MlFlexShipment?
-  routeStops RouteStop[]
-  return     ReturnCustody?
+  custodies     DriverCustody[]
+  events        OrderEvent[]
+  evidence      Evidence[]
+  flexShipment  MlFlexShipment?
+  routeStops    RouteStop[]
+  return        ReturnCustody?
   guestShipment GuestShipment?
-  tickets    Ticket[]
-  ledger     LedgerEntry[]
+  tickets       Ticket[]
+  ledger        LedgerEntry[]
 
   @@unique([clientId, externalRef])
   @@index([clientId, createdAt])
@@ -619,28 +619,28 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id        String        @id @default(cuid())
-  clientId  String
-  client    Client        @relation(fields: [clientId], references: [id])
-  paymentId String?
-  payment   Payment?      @relation(fields: [paymentId], references: [id])
-  status    InvoiceStatus @default(PENDING)
-  uuid      String?       @unique // folio fiscal
-  providerUid String?     @unique // UID del CFDI en factura.com
-  series    String?
-  folio     String?
-  paymentForm String?     // forma de pago SAT (03 transferencia, 04 tarjeta…)
-  sandbox   Boolean       @default(false) // timbrado en el entorno de pruebas de factura.com
-  requestedBy String?     // auto | cliente | admin
+  id           String        @id @default(cuid())
+  clientId     String
+  client       Client        @relation(fields: [clientId], references: [id])
+  paymentId    String?
+  payment      Payment?      @relation(fields: [paymentId], references: [id])
+  status       InvoiceStatus @default(PENDING)
+  uuid         String?       @unique // folio fiscal
+  providerUid  String?       @unique // UID del CFDI en factura.com
+  series       String?
+  folio        String?
+  paymentForm  String? // forma de pago SAT (03 transferencia, 04 tarjeta…)
+  sandbox      Boolean       @default(false) // timbrado en el entorno de pruebas de factura.com
+  requestedBy  String? // auto | cliente | admin
   cancelReason String?
-  cancelledAt DateTime?
-  total     Decimal       @db.Decimal(12, 2)
-  pdfKey    String?
-  xmlKey    String?
-  error     String?
-  issuedAt  DateTime?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  cancelledAt  DateTime?
+  total        Decimal       @db.Decimal(12, 2)
+  pdfKey       String?
+  xmlKey       String?
+  error        String?
+  issuedAt     DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   @@index([clientId])
 }
@@ -738,7 +738,6 @@ model Notification {
   statusAt   DateTime? // último aviso de entrega de WhatsApp
 
   @@index([externalId])
-
   @@index([status, createdAt])
   @@index([clientId])
 }
@@ -879,6 +878,7 @@ enum CheckKind {
 
 model VehicleCheck {
   id          String    @id @default(cuid())
+  legacyId    String?   @unique // ID en la hoja de la app de flotilla actual (CH-/CG-/F-/R-) [A37]
   kind        CheckKind
   vehicleId   String
   vehicle     Vehicle   @relation(fields: [vehicleId], references: [id])
@@ -901,6 +901,7 @@ model VehicleCheck {
 
 model FuelLoad {
   id         String        @id @default(cuid())
+  legacyId   String?       @unique // ID en la hoja de la app de flotilla actual (CH-/CG-/F-/R-) [A37]
   checkId    String?
   check      VehicleCheck? @relation(fields: [checkId], references: [id])
   vehicleId  String
@@ -923,6 +924,7 @@ enum FaultStatus {
 
 model Fault {
   id            String        @id @default(cuid())
+  legacyId      String?       @unique // ID en la hoja de la app de flotilla actual (CH-/CG-/F-/R-) [A37]
   kind          String        @default("reportada") // reportada | no_reportada (hallada antes de ruta)
   checkId       String?
   check         VehicleCheck? @relation(fields: [checkId], references: [id])
@@ -945,6 +947,7 @@ model Fault {
 
 model Repair {
   id             String    @id @default(cuid())
+  legacyId       String?   @unique // ID en la hoja de la app de flotilla actual (CH-/CG-/F-/R-) [A37]
   faultId        String?   @unique
   fault          Fault?    @relation(fields: [faultId], references: [id])
   vehicleId      String
@@ -1214,19 +1217,19 @@ enum StorePlatform {
 }
 
 model StoreConnector {
-  id          String        @id @default(cuid())
-  clientId    String
-  client      Client        @relation(fields: [clientId], references: [id])
-  platform    StorePlatform
-  name        String
-  secret      String // cifrado; Woo: lo generamos; Shopify: lo pega el cliente
-  branchId    String?
-  active      Boolean       @default(true)
-  received    Int           @default(0)
-  created     Int           @default(0)
-  lastAt      DateTime?
-  lastResult  String?
-  createdAt   DateTime      @default(now())
+  id         String        @id @default(cuid())
+  clientId   String
+  client     Client        @relation(fields: [clientId], references: [id])
+  platform   StorePlatform
+  name       String
+  secret     String // cifrado; Woo: lo generamos; Shopify: lo pega el cliente
+  branchId   String?
+  active     Boolean       @default(true)
+  received   Int           @default(0)
+  created    Int           @default(0)
+  lastAt     DateTime?
+  lastResult String?
+  createdAt  DateTime      @default(now())
 
   @@index([clientId])
 }
@@ -1254,24 +1257,24 @@ enum MpCheckoutStatus {
 }
 
 model MpCheckout {
-  id           String           @id @default(cuid())
-  clientId     String
-  client       Client           @relation(fields: [clientId], references: [id])
-  amount       Decimal          @db.Decimal(12, 2) // lo que se abona al saldo
-  fee          Decimal          @db.Decimal(12, 2) // comisión que paga el cliente
-  total        Decimal          @db.Decimal(12, 2) // lo que se cobra en Mercado Pago
-  preferenceId String?          @unique
-  mpPaymentId  String?          @unique
-  status       MpCheckoutStatus @default(PENDING)
-  detail       String?
-  paymentId    String?          @unique // Payment creado al aprobarse
-  createdById  String?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  clientId      String
+  client        Client           @relation(fields: [clientId], references: [id])
+  amount        Decimal          @db.Decimal(12, 2) // lo que se abona al saldo
+  fee           Decimal          @db.Decimal(12, 2) // comisión que paga el cliente
+  total         Decimal          @db.Decimal(12, 2) // lo que se cobra en Mercado Pago
+  preferenceId  String?          @unique
+  mpPaymentId   String?          @unique
+  status        MpCheckoutStatus @default(PENDING)
+  detail        String?
+  paymentId     String?          @unique // Payment creado al aprobarse
+  createdById   String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  guestShipment GuestShipment?
 
   @@index([status, createdAt])
   @@index([clientId, createdAt])
-  guestShipment GuestShipment?
 }
 
 // Envíos de MercadoLibre de las cuentas de los clientes [Recuperados]: se traen de la API (avisos y
@@ -1325,19 +1328,19 @@ enum MlCourierReportStatus {
 }
 
 model MlCourierReport {
-  id         String                @id @default(cuid())
-  shipmentId BigInt                @unique
-  status     MlCourierReportStatus @default(PENDING)
-  source     String // scan | prueba
-  attempts   Int                   @default(0)
-  httpStatus Int?
-  response   String?
-  lastError  String?
-  runAfter   DateTime              @default(now())
-  sentAt     DateTime?
+  id          String                @id @default(cuid())
+  shipmentId  BigInt                @unique
+  status      MlCourierReportStatus @default(PENDING)
+  source      String // scan | prueba
+  attempts    Int                   @default(0)
+  httpStatus  Int?
+  response    String?
+  lastError   String?
+  runAfter    DateTime              @default(now())
+  sentAt      DateTime?
   createdById String?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   @@index([status, runAfter])
 }
@@ -1366,9 +1369,9 @@ enum LeadSource {
 }
 
 model Lead {
-  id            String     @id @default(cuid())
-  stage         LeadStage  @default(NUEVO)
-  source        LeadSource @default(MANUAL)
+  id            String         @id @default(cuid())
+  stage         LeadStage      @default(NUEVO)
+  source        LeadSource     @default(MANUAL)
   businessName  String
   contactName   String?
   phone         String?
@@ -1380,16 +1383,16 @@ model Lead {
   salesChannels String? // "Dónde vende": enlace(s) a su tienda
   notes         String?
   ownerId       String?
-  owner         User?      @relation("LeadOwner", fields: [ownerId], references: [id])
+  owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id])
   nextAction    String? // qué sigue ("llamar", "mandar tarifas"…)
   nextActionAt  DateTime?
   lostReason    String?
-  signupId      String?    @unique
-  clientId      String?    @unique
-  stageAt       DateTime   @default(now())
+  signupId      String?        @unique
+  clientId      String?        @unique
+  stageAt       DateTime       @default(now())
   lastContactAt DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   activities    LeadActivity[]
 
   @@index([stage, updatedAt])
@@ -1419,23 +1422,23 @@ enum TicketStatus {
 }
 
 model Ticket {
-  id            String       @id @default(cuid())
-  number        Int          @unique @default(autoincrement()) // folio S-00001
+  id            String          @id @default(cuid())
+  number        Int             @unique @default(autoincrement()) // folio S-00001
   clientId      String
-  client        Client       @relation(fields: [clientId], references: [id])
+  client        Client          @relation(fields: [clientId], references: [id])
   createdById   String
   category      String
   subject       String
-  status        TicketStatus @default(OPEN)
+  status        TicketStatus    @default(OPEN)
   orderId       String?
-  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  order         Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
   assignedToId  String?
-  lastMessageAt DateTime     @default(now())
+  lastMessageAt DateTime        @default(now())
   staffSeenAt   DateTime?
   clientSeenAt  DateTime?
   resolvedAt    DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
   messages      TicketMessage[]
 
   @@index([status, lastMessageAt])
