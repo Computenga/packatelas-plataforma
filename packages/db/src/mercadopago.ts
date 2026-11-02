@@ -5,6 +5,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
+import { fulfillGuestShipment } from "./guest.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -76,7 +77,7 @@ export function quote(s: Pick<MpSettings, "tiers">, paid: number) {
   return { amount: r2(total - fee), fee, total };
 }
 
-async function mp<T>(path: string, init: RequestInit = {}, fetchImpl: Fetch = fetch): Promise<T> {
+export async function mp<T>(path: string, init: RequestInit = {}, fetchImpl: Fetch = fetch): Promise<T> {
   const token = process.env.MP_ACCESS_TOKEN?.trim();
   if (!token) throw new Error("Mercado Pago no está configurado");
   const res = await fetchImpl(`${API}${path}`, {
@@ -158,7 +159,7 @@ export async function syncMpPayment(prisma: PrismaClient, mpPaymentId: string, f
   if (!c) return { status: "ignored" as const };
   const id = String(p.id);
 
-  return prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT id FROM "MpCheckout" WHERE id = ${c.id} FOR UPDATE`;
     const cur = await tx.mpCheckout.findUniqueOrThrow({ where: { id: c.id } });
     if (p.status === "approved") {
@@ -197,6 +198,9 @@ export async function syncMpPayment(prisma: PrismaClient, mpPaymentId: string, f
     if (cur.status === "PENDING") await tx.mpCheckout.update({ where: { id: cur.id }, data: { mpPaymentId: id, detail: p.status_detail ?? p.status } });
     return { status: "pending" as const };
   });
+  // Envío sin registro [P14]: con el pago aprobado se crean su recolección y su envío.
+  if (result.status === "applied" || result.status === "duplicate") await fulfillGuestShipment(prisma, c.id).catch((e) => console.error("[guest]", e));
+  return result;
 }
 
 /** Conciliación (por si un aviso no llegó): revisa pagos abiertos de las últimas 48 h. */

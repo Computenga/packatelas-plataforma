@@ -30,6 +30,7 @@ export * from "./ledger.ts";
 export * from "./ml-sale.ts";
 export * from "./insurance.ts";
 export * from "./helpdesk.ts";
+export * from "./guest.ts";
 export * from "./password.ts";
 export * from "./scan.ts";
 export * from "./orders.ts";

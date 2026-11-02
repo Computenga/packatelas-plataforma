@@ -31,6 +31,8 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         </div>
         <p className="mt-6 text-center text-sm text-slate-500">
           ¿Tienes una tienda y quieres enviar con nosotros? <Link href="/registro" className="text-brand hover:underline">Regístrate</Link>
+          <br />
+          ¿Solo un envío? <Link href="/enviar" className="text-brand hover:underline">Mándalo sin registrarte</Link>
         </p>
       </div>
     </main>
