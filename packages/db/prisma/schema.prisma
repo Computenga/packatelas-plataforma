@@ -122,6 +122,7 @@ model Client {
   webhook    WebhookEndpoint?
   stores     StoreConnector[]
   mpCheckouts MpCheckout[]
+  tickets          Ticket[]
 }
 
 model Branch {
@@ -334,6 +335,7 @@ model Order {
   flexShipment MlFlexShipment?
   routeStops RouteStop[]
   return     ReturnCustody?
+  tickets    Ticket[]
   ledger     LedgerEntry[]
 
   @@unique([clientId, externalRef])
@@ -1404,4 +1406,50 @@ model LeadActivity {
   createdAt DateTime @default(now())
 
   @@index([leadId, createdAt])
+}
+
+// ───────────────────────── Ayuda y soporte para tiendas [A35] ─────────────────────────
+enum TicketStatus {
+  OPEN // nuevo, nadie lo ha tomado
+  IN_PROGRESS
+  WAITING_CLIENT // el equipo respondió y espera a la tienda
+  RESOLVED
+}
+
+model Ticket {
+  id            String       @id @default(cuid())
+  number        Int          @unique @default(autoincrement()) // folio S-00001
+  clientId      String
+  client        Client       @relation(fields: [clientId], references: [id])
+  createdById   String
+  category      String
+  subject       String
+  status        TicketStatus @default(OPEN)
+  orderId       String?
+  order         Order?       @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  assignedToId  String?
+  lastMessageAt DateTime     @default(now())
+  staffSeenAt   DateTime?
+  clientSeenAt  DateTime?
+  resolvedAt    DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  messages      TicketMessage[]
+
+  @@index([status, lastMessageAt])
+  @@index([clientId, lastMessageAt])
+}
+
+model TicketMessage {
+  id            String   @id @default(cuid())
+  ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId      String?
+  fromStaff     Boolean
+  internal      Boolean  @default(false) // nota del equipo que la tienda no ve
+  text          String
+  attachmentKey String?
+  createdAt     DateTime @default(now())
+
+  @@index([ticketId, createdAt])
 }

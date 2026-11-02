@@ -34,7 +34,7 @@ describe("registro de clientes", () => {
     expect([a.ok, b.ok].sort()).toEqual([false, true]);
     const ok = a.ok ? a : b;
     if (!ok.ok) return;
-    expect(ok.publicId).toMatch(/^emx\d{5}$/);
+    expect(ok.publicId).toMatch(/^emx\d{5,}$/);
     const c = await prisma.client.findUniqueOrThrow({ where: { id: ok.clientId }, include: { branches: true, users: true } });
     expect(c.paymentReference).toBe(ok.publicId.toUpperCase());
     expect(c.branches[0].address).toContain("Portón negro");

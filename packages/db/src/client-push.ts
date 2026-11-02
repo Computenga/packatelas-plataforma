@@ -4,9 +4,10 @@
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { sendPush, type PushMessage } from "./push.ts";
 
-export type ClientPushEvent = "recibido" | "en_ruta" | "entregado" | "no_entregado" | "regresa" | "recoleccion" | "pago" | "saldo" | "factura" | "ml_cuenta" | "resumen";
+export type ClientPushEvent = "recibido" | "en_ruta" | "entregado" | "no_entregado" | "regresa" | "recoleccion" | "pago" | "saldo" | "factura" | "ml_cuenta" | "resumen" | "soporte";
 
 export const CLIENT_PUSH_EVENTS: { key: ClientPushEvent; label: string; hint: string; default: boolean }[] = [
+  { key: "soporte", label: "Ayuda y soporte", hint: "Cuando respondemos o resolvemos uno de tus reportes", default: true },
   { key: "entregado", label: "Entregado", hint: "Cuando entregamos un envío (con la foto de evidencia)", default: true },
   { key: "no_entregado", label: "No entregado", hint: "Si no se pudo entregar y por qué", default: true },
   { key: "regresa", label: "Regresa a tu tienda", hint: "Cuando un envío va de regreso contigo", default: true },

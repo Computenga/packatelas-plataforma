@@ -41,6 +41,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/devoluciones", label: "Devoluciones", roles: ["ADMIN", "OPERADOR", "DESPACHADOR"] },
   { href: "/admin/clientes", label: "Clientes", roles: ["ADMIN"] },
   { href: "/admin/crm", label: "CRM", roles: ["ADMIN"] },
+  { href: "/admin/soporte", label: "Soporte", roles: STAFF_ROLES },
   { href: "/admin/repartidores", label: "Repartidores", roles: ["ADMIN", "DESPACHADOR"] },
   { href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
   { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },
@@ -73,6 +74,7 @@ export const CLIENT_NAV: NavItem[] = [
   { href: "/cliente/negocio", label: "Direcciones y accesos" },
   { href: "/cliente/devoluciones", label: "Devoluciones" },
   { href: "/cliente/avisos", label: "Mis avisos" },
+  { href: "/cliente/soporte", label: "Ayuda y soporte" },
 ];
 
 /** Accesos fijos abajo en el celular para las tiendas; el resto está en el menú ☰. */

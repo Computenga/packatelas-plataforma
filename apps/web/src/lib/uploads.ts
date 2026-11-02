@@ -5,9 +5,9 @@ import path from "node:path";
 
 // Fotos de evidencia en disco (volumen del servidor). Cambiar a Object Storage solo toca este archivo.
 const root = () => path.resolve(/* turbopackIgnore: true */ process.env.UPLOAD_DIR || "./uploads");
-const KEY = /^(evidence|fleet|docs|profile)\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$/;
+const KEY = /^(evidence|fleet|docs|profile|support)\/\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|pdf)$/;
 
-export async function saveEvidence(data: Buffer, ext: "jpg" | "png" | "webp" | "pdf", prefix: "evidence" | "fleet" | "docs" | "profile" = "evidence"): Promise<string> {
+export async function saveEvidence(data: Buffer, ext: "jpg" | "png" | "webp" | "pdf", prefix: "evidence" | "fleet" | "docs" | "profile" | "support" = "evidence"): Promise<string> {
   const now = new Date();
   const key = `${prefix}/${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, "0")}/${randomUUID()}.${ext}`;
   const file = path.join(root(), key);

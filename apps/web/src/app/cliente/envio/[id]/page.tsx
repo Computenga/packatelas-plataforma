@@ -56,6 +56,7 @@ export default async function EnvioPage({ params, searchParams }: PageProps<"/cl
       )}
       <div className="flex flex-wrap justify-end gap-2">
         <CopyLink path={trackingPath(order.id)} label="Enlace para tu comprador" text={`Sigue tu envío ${order.code}:`} />
+        <a href={`/cliente/soporte?envio=${encodeURIComponent(order.code)}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Reportar un problema</a>
         {own && <a href={`/etiqueta/${order.id}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">Imprimir etiqueta</a>}
       </div>
       <Card title="Destino">

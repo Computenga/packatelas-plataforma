@@ -123,8 +123,8 @@ describe("recolecciones como pedido", () => {
     await assignPickup(prisma, p1.id, driverA.id);
     await assignPickup(prisma, p2.id, driverA.id);
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o1.id } })).status).toBe("ASSIGNED");
-    const asg = await prisma.notification.findMany({ where: { clientId, event: "recoleccion_asignada" } });
-    expect(asg.map((n) => n.to).sort()).toEqual(["525511112222", "525533334444"]);
+    // «Recolección asignada» ya no sale por WhatsApp (solo creada y en camino).
+    expect(await prisma.notification.count({ where: { clientId, event: "recoleccion_asignada" } })).toBe(0);
     expect(await prisma.notification.count({ where: { clientId, event: "recoleccion_en_camino" } })).toBe(0);
 
     expect(await startPickupRoute(prisma, p1.id, driverA.id, { trackingUrl: url })).toBe(true);

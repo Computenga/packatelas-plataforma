@@ -100,7 +100,7 @@ const SLIDES: Slide[] = [
     steps: [
       "Empieza por conectar tu Mercado Libre: es lo más importante.",
       "Puedes volver a ver esta guía cuando quieras en «Ver guía del portal», en Mis envíos.",
-      "¿Dudas? Escríbenos por WhatsApp al +52 56 1123 2342.",
+      "¿Dudas o algún problema? Menú → Ayuda y soporte: levanta un reporte y te respondemos ahí. También por WhatsApp al +52 56 1123 2342.",
     ],
     link: { href: "/cliente/mercadolibre", label: "Conectar mi Mercado Libre" },
   },
