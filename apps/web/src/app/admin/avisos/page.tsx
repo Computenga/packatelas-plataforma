@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getNotifySettings, NOTIFY_EVENTS, prisma, readHealth, type NotifyEvent } from "@packatelas/db";
+import { buyerMessagePreview, getBuyerMessageSettings, getNotifySettings, NOTIFY_EVENTS, prisma, readHealth, type NotifyEvent } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, subscribeWebhookAction, testSendAction } from "./actions";
+import { saveBuyerMessageAction, registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, subscribeWebhookAction, testSendAction } from "./actions";
 import { phoneStatus, templateStatuses, webhookSubscriptions, webhookVerifyToken } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
@@ -26,12 +26,16 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
   await requireUser(["ADMIN"]);
   const sp = await searchParams;
   const status = (["PENDING", "SENT", "DELIVERED", "READ", "FAILED", "SKIPPED"] as const).find((s) => s === sp.estado);
-  const [settings, log, counts, health] = await Promise.all([
+  const [settings, log, counts, health, bm, bmSent] = await Promise.all([
     getNotifySettings(prisma),
     prisma.notification.findMany({ where: status ? { status } : undefined, orderBy: { createdAt: "desc" }, take: 200 }),
     prisma.notification.groupBy({ by: ["status"], where: { createdAt: { gte: daysAgo(7) } }, _count: { _all: true } }),
     readHealth(prisma),
+    getBuyerMessageSettings(prisma),
+    prisma.orderEvent.groupBy({ by: ["note"], where: { type: "ml_buyer_message", recordedAt: { gte: daysAgo(7) } }, _count: { _all: true } }),
   ]);
+  const bmOk = bmSent.filter((r) => r.note?.startsWith("Aviso al comprador en")).reduce((n, r) => n + r._count._all, 0);
+  const bmNo = bmSent.reduce((n, r) => n + r._count._all, 0) - bmOk;
   const templates = await templateStatuses();
   // Las credenciales viven en el proceso en segundo plano; él reporta si las tiene.
   const configured = !!health.whatsapp && !health.whatsapp.detail?.startsWith("Sin credenciales");
@@ -50,6 +54,32 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
       )}
 
       <PhoneCard />
+
+      <Card title="Aviso al comprador por Mercado Libre (Flex)">
+        <p className="text-sm text-slate-600">
+          Cuando el paquete Flex se asigna a ruta, Mercado Libre le manda al comprador, en el chat de su compra, la plantilla oficial de promesa de entrega:
+          <span className="mt-1 block rounded-lg bg-slate-50 px-3 py-2 font-medium text-slate-800">«{buyerMessagePreview(bm)}»</span>
+          Es texto de Mercado Libre (motivo DELIVERY_PROMISE): sin links ni datos de contacto, así que no cuenta como desviar al comprador. Una vez por venta.
+          La hora de inicio se ajusta sola si ya es más tarde. Requiere que la app de ML tenga el permiso de «Comunicaciones post venta».
+        </p>
+        <p className="mt-2 text-xs text-slate-500">Últimos 7 días: {bmOk} enviados · {bmNo} no enviados (ver el historial del pedido).</p>
+        <ActionForm action={saveBuyerMessageAction} submitLabel="Guardar" className="mt-3">
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="enabled" defaultChecked={bm.enabled} className="h-4 w-4 accent-brand" /> Mandar el aviso
+          </label>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <label>Entre las <input name="fromHour" type="number" min={7} max={22} defaultValue={bm.fromHour} className="w-16 rounded-lg border border-slate-300 px-2 py-1" /></label>
+            <label>y las <input name="toHour" type="number" min={8} max={23} defaultValue={bm.toHour} className="w-16 rounded-lg border border-slate-300 px-2 py-1" /> hs</label>
+            <label>
+              Cuándo:{" "}
+              <select name="trigger" defaultValue={bm.trigger} className="rounded-lg border border-slate-300 bg-white px-2 py-1">
+                <option value="ASSIGNED">Al asignarse a un repartidor</option>
+                <option value="OUT_FOR_DELIVERY">Al salir a ruta</option>
+              </select>
+            </label>
+          </div>
+        </ActionForm>
+      </Card>
 
       <Card title="Plantillas en Meta">
         {!templates ? (

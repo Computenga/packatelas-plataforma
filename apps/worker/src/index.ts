@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -326,8 +326,27 @@ function startMlSaleDetails() {
   setInterval(run, 2 * 60_000);
 }
 
+/** Aviso al comprador por la mensajería de ML (plantilla DELIVERY_PROMISE, solo Flex) [I13]. */
+function startBuyerMessages() {
+  let busy = false;
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const r = await processBuyerMessages(prisma);
+      if (r.sent) console.log(`[worker] Aviso ML al comprador: ${r.sent} de ${r.checked}`);
+    } catch (e) {
+      console.error("[worker] Aviso ML al comprador:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  setInterval(run, 5 * 60_000);
+}
+
 async function main() {
   startHourlyJobs();
+  startBuyerMessages();
   startMlSaleDetails();
   startCustody();
   startCrm();

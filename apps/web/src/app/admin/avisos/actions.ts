@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { NOTIFY_EVENTS, prisma, setNotifySettings, type NotifyEvent } from "@packatelas/db";
+import { NOTIFY_EVENTS, prisma, saveBuyerMessageSettings, setNotifySettings, type NotifyEvent } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -63,4 +63,17 @@ export async function subscribeWebhookAction(_: ActionState): Promise<ActionStat
   const r = await subscribeWebhook();
   revalidatePath("/admin/avisos");
   return r.ok ? { ok: "Cuenta conectada al webhook" } : { error: r.error ?? "No se pudo" };
+}
+
+/** Aviso al comprador por la mensajería de Mercado Libre (plantilla DELIVERY_PROMISE) [I13]. */
+export async function saveBuyerMessageAction(_: ActionState, fd: FormData): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const trigger = fd.get("trigger") === "OUT_FOR_DELIVERY" ? "OUT_FOR_DELIVERY" : "ASSIGNED";
+  try {
+    await saveBuyerMessageSettings(prisma, { enabled: fd.get("enabled") === "on", fromHour: Number(fd.get("fromHour")), toHour: Number(fd.get("toHour")), trigger });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo guardar" };
+  }
+  revalidatePath("/admin/avisos");
+  return { ok: "Guardado" };
 }
