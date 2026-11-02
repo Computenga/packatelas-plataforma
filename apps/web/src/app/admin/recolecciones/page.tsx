@@ -96,7 +96,7 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
                 <option key={b.id} value={b.id}>{b.client.name} · {b.name}</option>
               ))}
             </Select>
-            <Field label="Fecha" name="date" type="date" defaultValue={date} min={today} required />
+            <Field label="Fecha" name="date" type="date" defaultValue={date} min={today} required hint="Las tiendas no pueden pedir para el mismo día después de las 12:00 ni en domingo; desde aquí sí puedes." />
             <Field label="Paquetes aprox." name="expectedCount" type="number" min="1" />
           </div>
           <Field label="Nota" name="note" />

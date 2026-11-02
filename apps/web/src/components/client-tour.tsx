@@ -25,7 +25,7 @@ const SLIDES: { icon: string; title: string; body: string; link?: { href: string
   {
     icon: "🛵",
     title: "Recolecciones con seguimiento en vivo",
-    body: "Pide tu recolección y recibe su folio por WhatsApp. Cuando el repartidor va en camino te llega un enlace para verlo en el mapa, con su nombre, foto y teléfono.",
+    body: "Pide tu recolección y recibe su folio por WhatsApp. Cuando el repartidor va en camino te llega un enlace para verlo en el mapa, con su nombre, foto y teléfono. Importante: recolectamos de lunes a sábado y lo que pidas después de las 12:00 pm se agenda para el siguiente día hábil.",
     link: { href: "/cliente/recolecciones", label: "Ver recolecciones" },
   },
   {

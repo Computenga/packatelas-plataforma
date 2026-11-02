@@ -64,6 +64,38 @@ export async function ensurePickupOrder(db: Db, pickupId: string) {
   }
 }
 
+// ── Horario de recolecciones: de lunes a sábado; lo que se pide después de las 12:00 pasa al
+// siguiente día hábil. ──
+export const PICKUP_CUTOFF_HOUR = 12;
+export const PICKUP_RULE_TEXT = "Las recolecciones que pidas después de las 12:00 pm se agendan para el siguiente día hábil. Recolectamos de lunes a sábado.";
+
+const addDays = (ymd: string, n: number) => new Date(dateOnly(ymd).getTime() + n * 86400_000).toISOString().slice(0, 10);
+/** Domingo no se recolecta. */
+export const isPickupDay = (ymd: string) => isoWeekday(ymd) !== 7;
+export const nextPickupDay = (ymd: string) => {
+  let d = addDays(ymd, 1);
+  while (!isPickupDay(d)) d = addDays(d, 1);
+  return d;
+};
+
+/** Primer día que se puede pedir ahora mismo (hora de la Ciudad de México). */
+export function earliestPickupDate(now = new Date()) {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(now);
+  const hour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hourCycle: "h23" }).format(now));
+  return isPickupDay(ymd) && hour < PICKUP_CUTOFF_HOUR ? ymd : nextPickupDay(ymd);
+}
+
+/** Fecha que realmente le toca a una solicitud (nunca antes del primer día posible ni en domingo). */
+export function pickupDateFor(requested: string, now = new Date()): { ymd: string; moved: boolean } {
+  const min = earliestPickupDate(now);
+  let ymd = requested < min ? min : requested;
+  if (!isPickupDay(ymd)) ymd = nextPickupDay(ymd);
+  return { ymd, moved: ymd !== requested };
+}
+
+/** «lunes 3 de noviembre» */
+export const pickupDayLabel = (ymd: string) => DAY_MX.format(dateOnly(ymd));
+
 /** Fecha YYYY-MM-DD → Date a medianoche UTC, como se guarda en columnas @db.Date. */
 export const dateOnly = (ymd: string) => new Date(`${ymd}T00:00:00Z`);
 
@@ -79,6 +111,7 @@ export const todayMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Ameri
  * exención, la recolección nace bloqueada.
  */
 export async function generateAutoPickups(prisma: PrismaClient, ymd: string): Promise<number> {
+  if (!isPickupDay(ymd)) return 0; // domingo no se recolecta
   const weekday = isoWeekday(ymd);
   const date = dateOnly(ymd);
   return prisma.$transaction(async (tx) => {

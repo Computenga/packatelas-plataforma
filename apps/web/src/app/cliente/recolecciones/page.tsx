@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { prisma } from "@packatelas/db";
+import { earliestPickupDate, pickupDayLabel, prisma, PICKUP_RULE_TEXT } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { PICKUP_LABEL, soloFecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
@@ -11,6 +11,7 @@ export const metadata: Metadata = { title: "Recolecciones" };
 export default async function ClienteRecolecciones() {
   const { clientId } = await requireClient();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
+  const earliest = earliestPickupDate();
   const [branches, pickups] = await Promise.all([
     prisma.branch.findMany({ where: { clientId, active: true }, orderBy: { name: "asc" } }),
     prisma.pickup.findMany({ where: { clientId }, include: { branch: { select: { name: true } } }, orderBy: { scheduledFor: "desc" }, take: 60 }),
@@ -19,6 +20,13 @@ export default async function ClienteRecolecciones() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <h1 className="text-xl font-bold">Recolecciones</h1>
+      <div role="note" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <p className="font-semibold">🕛 Horario de recolecciones</p>
+        <p>{PICKUP_RULE_TEXT}</p>
+        <p className="mt-1">
+          Si la pides ahora, lo más pronto es el <strong>{pickupDayLabel(earliest)}</strong>{earliest === today ? " (hoy)" : ""}.
+        </p>
+      </div>
       <Card title="Solicitar recolección">
         <ActionForm action={requestPickupAction} submitLabel="Solicitar" resetOnSuccess>
           <Select label="Sucursal" name="branchId" required defaultValue={branches[0]?.id}>
@@ -27,7 +35,7 @@ export default async function ClienteRecolecciones() {
             ))}
           </Select>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Fecha" name="date" type="date" min={today} defaultValue={today} required />
+            <Field label="Fecha" name="date" type="date" min={earliest} defaultValue={earliest} required hint="Lunes a sábado" />
             <Field label="Paquetes aprox." name="expectedCount" type="number" min="1" />
           </div>
           <Field label="Nota para el repartidor" name="note" />
