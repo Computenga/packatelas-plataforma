@@ -29,7 +29,7 @@ describe("formato", () => {
     expect(waPhone("1234")).toBeNull();
   });
   it("arma el texto de la plantilla", () => {
-    expect(renderPreview("entregado", ["Ana", "Tienda", "PK-1"])).toBe("Hola Ana, entregamos tu pedido de Tienda (PK-1). ¡Gracias!");
+    expect(renderPreview("entregado", ["Ana", "Tienda", "PK-1"])).toBe("Hola Ana, entregamos tu pedido de Tienda (PK-1). ¡Gracias por tu compra!");
   });
 });
 

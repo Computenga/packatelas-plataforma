@@ -19,7 +19,7 @@ export default async function SolicitudesPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <PageHeader eyebrow="Clientes" title="Solicitudes de registro">
-        Tiendas que se registraron en <Link href="/registro" className="text-brand hover:underline" target="_blank">/registro</Link>. Al aprobar se crea el cliente con su ID, la sucursal y su acceso al portal.
+        Tiendas que se registraron en <Link href="/registro" className="text-brand hover:underline" target="_blank">/registro</Link>. Al aprobar se crea el cliente con su ID, la sucursal y su acceso al portal. El seguimiento de cada registro está en el <Link href="/admin/crm" className="text-brand hover:underline">CRM</Link>.
       </PageHeader>
 
       {pending.length === 0 && <Card><p className="text-sm text-slate-500">No hay solicitudes pendientes.</p></Card>}

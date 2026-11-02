@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { prisma, submitSignup } from "@packatelas/db";
+import { leadFromSignup, prisma, submitSignup } from "@packatelas/db";
 
 export type SignupState = { error?: string; values?: Record<string, string> };
 
@@ -48,5 +48,7 @@ export async function signup(_: SignupState, fd: FormData): Promise<SignupState>
   const ip = (await headers()).get("x-forwarded-for")?.split(",")[0]?.trim();
   const r = await submitSignup(prisma, { ...d, ip });
   if (!r.ok) return { error: r.error, values };
+  // Al CRM, con aviso a los administradores. Si algo falla aquí, el registro ya quedó guardado.
+  await leadFromSignup(prisma, r.id).catch((e) => console.error("[crm] registro", e));
   redirect("/registro/enviado");
 }

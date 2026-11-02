@@ -2,6 +2,7 @@
 // se crean el cliente (ID cmx/emx), su sucursal de recolección y su usuario del portal.
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
+import { leadSignupApproved, setLeadStage } from "./crm.ts";
 import { hashPassword } from "./password.ts";
 import { ID_PREFIXES, referenceFromPublicId, type IdPrefix } from "./public-id.ts";
 
@@ -138,6 +139,7 @@ export async function approveSignup(
       where: { id: signup.id },
       data: { status: "APPROVED", clientId: client.id, reviewedById: actorUserId, reviewedAt: new Date(), reviewNote: input.note?.slice(0, 300) },
     });
+    await leadSignupApproved(tx, signup.id, client.id, actorUserId);
     await audit(tx, {
       actorUserId,
       action: "client.signup_approved",
@@ -154,6 +156,10 @@ export async function rejectSignup(prisma: PrismaClient, signupId: string, note:
     where: { id: signupId, status: "PENDING" },
     data: { status: "REJECTED", reviewedById: actorUserId, reviewedAt: new Date(), reviewNote: note.slice(0, 300) || null },
   });
-  if (r.count) await audit(prisma, { actorUserId, action: "client.signup_rejected", entity: "ClientSignup", entityId: signupId, summary: `Registro rechazado${note ? `: ${note}` : ""}` });
+  if (r.count) {
+    await audit(prisma, { actorUserId, action: "client.signup_rejected", entity: "ClientSignup", entityId: signupId, summary: `Registro rechazado${note ? `: ${note}` : ""}` });
+    const lead = await prisma.lead.findUnique({ where: { signupId }, select: { id: true } });
+    if (lead) await setLeadStage(prisma, lead.id, "PERDIDO", actorUserId, { lostReason: note || "Solicitud rechazada" }).catch(() => false);
+  }
   return r.count > 0;
 }

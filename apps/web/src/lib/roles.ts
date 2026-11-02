@@ -40,6 +40,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/recolecciones", label: "Recolecciones", roles: ["ADMIN", "DESPACHADOR"] },
   { href: "/admin/devoluciones", label: "Devoluciones", roles: ["ADMIN", "OPERADOR", "DESPACHADOR"] },
   { href: "/admin/clientes", label: "Clientes", roles: ["ADMIN"] },
+  { href: "/admin/crm", label: "CRM", roles: ["ADMIN"] },
   { href: "/admin/repartidores", label: "Repartidores", roles: ["ADMIN", "DESPACHADOR"] },
   { href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
   { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },

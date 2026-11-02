@@ -6,7 +6,7 @@ import { audit } from "./orders.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago";
+export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago" | "bienvenida_registro";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
 export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[] }> = {
@@ -18,6 +18,7 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   recoleccion_asignada: { label: "Recolección asignada", audience: "Tienda", template: "pk_recoleccion_asignada", text: "Hola {{1}}, tu recolección del {{2}} en {{3}} quedó asignada a {{4}}. Te mandaremos el enlace para seguirlo en vivo cuando vaya en camino a tu dirección.", example: ["Tienda Ejemplo", "sábado 31 de octubre", "Sucursal Centro", "Juan"] },
   recoleccion_en_camino: { label: "Recolección en camino", audience: "Tienda", template: "pk_recoleccion_en_camino", text: "Hola {{1}}, {{2}} ya va en camino a {{3}} para recoger tus paquetes. Síguelo en tiempo real aquí: {{4}} Ten listos tus envíos, por favor.", example: ["Tienda Ejemplo", "Juan", "Sucursal Centro", "https://nuevo.packatelas.mx/s/abc"] },
   recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
+  bienvenida_registro: { label: "Bienvenida a quien se registra", audience: "Tienda", template: "pk_bienvenida_registro", text: "Hola {{1}}, recibimos el registro de {{2}} en Packatelas. En breve te contactamos para terminar tu alta y agendar tu primera recolección. ¡Gracias por elegirnos!", example: ["Ana", "Tienda Ejemplo"] },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
 
@@ -30,7 +31,7 @@ export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") 
 export type NotifySettings = { enabled: Record<NotifyEvent, boolean>; reminderWeekday: number; reminderHour: number };
 const KEY = "notify.settings";
 export const DEFAULT_NOTIFY: NotifySettings = {
-  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: true, recoleccion_asignada: true, recoleccion_en_camino: true, recoleccion_bloqueada: true, recordatorio_pago: true },
+  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: true, recoleccion_asignada: true, recoleccion_en_camino: true, recoleccion_bloqueada: true, recordatorio_pago: true, bienvenida_registro: false },
   reminderWeekday: 6, // sábado
   reminderHour: 10,
 };

@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -200,6 +200,44 @@ function startFlexTracking() {
   setInterval(run, 5 * 60_000);
 }
 
+/**
+ * CRM: avanza solos a los prospectos que ya son clientes (conectó ML, primer envío, activo) cada
+ * 15 min, y a las 9:00 avisa a cada responsable sus seguimientos del día.
+ */
+function startCrm() {
+  let busy = false;
+  let remindedOn = "";
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+  const hour = new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hourCycle: "h23" });
+  const run = async () => {
+    if (busy) return;
+    busy = true;
+    try {
+      const moved = await advanceLeads(prisma);
+      if (moved) console.log(`[worker] CRM: ${moved} prospecto(s) avanzaron de etapa`);
+      const now = new Date();
+      const today = ymd.format(now);
+      if (!remindedOn) remindedOn = String((await prisma.setting.findUnique({ where: { key: "crm.remindedOn" } }))?.value ?? "-");
+      if (remindedOn !== today && Number(hour.format(now)) >= 9) {
+        remindedOn = today;
+        // Guardado en la base: un reinicio del worker no repite el aviso del día.
+        await prisma.setting.upsert({ where: { key: "crm.remindedOn" }, update: { value: today }, create: { key: "crm.remindedOn", value: today } });
+        const n = await remindFollowUps(prisma, now);
+        if (n) console.log(`[worker] CRM: ${n} seguimiento(s) de hoy avisados`);
+      }
+    } catch (e) {
+      console.error("[worker] CRM:", e instanceof Error ? e.message : e);
+    } finally {
+      busy = false;
+    }
+  };
+  void backfillLeadsFromSignups(prisma)
+    .then((n) => n && console.log(`[worker] CRM: ${n} solicitud(es) de registro anteriores agregadas`))
+    .catch((e) => console.error("[worker] CRM (registros anteriores):", e instanceof Error ? e.message : e))
+    .finally(() => void run());
+  setInterval(run, 15 * 60_000);
+}
+
 /** Inventario por repartidor: saca los entregados ya confirmados (ML + evidencia), cada 5 min. */
 function startCustody() {
   let busy = false;
@@ -254,6 +292,7 @@ function startMp() {
 async function main() {
   startHourlyJobs();
   startCustody();
+  startCrm();
   startMlSync();
   startNotifier();
   startBackups();
