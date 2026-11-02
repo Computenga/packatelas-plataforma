@@ -39,6 +39,7 @@ export function parseClock(raw: string | null | undefined): string | null {
 export function normalizePunchKind(raw: string | null | undefined): string | undefined {
   const s = deaccent(raw ?? "");
   if (!s) return undefined;
+  if (/acceso|puerta/.test(s)) return "acceso"; // huella para abrir la puerta: no cuenta para asistencia
   if (/regres|vuelta|in.*comida|fin.*comida/.test(s)) return "regreso_comida";
   if (/comid|comer|lunch|break/.test(s)) return "salida_comida";
   if (/entrada|check.?in|^in$|^0$/.test(s)) return "entrada";

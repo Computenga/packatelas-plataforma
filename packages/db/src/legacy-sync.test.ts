@@ -57,5 +57,15 @@ describe("unificación con las hojas actuales [A37]", () => {
     expect(r2.results.fallas).toBe("0 nuevas, 1 con estatus actualizado");
     expect(r2.results.justificadas).toBe("0 nuevas");
     expect(await prisma.punch.count({ where: { employeeId: ana.id } })).toBe(1);
+
+    // Corrección en la hoja (hora −14 h y tipo puerta): se actualiza la misma checada, sin duplicar.
+    sheets["Checadas!A:L"][1][2] = "08:13:51";
+    sheets["Checadas!A:L"][1][5] = "ACCESO (puerta)";
+    const r3 = await syncLegacy(prisma, read, { force: true });
+    expect(r3.results.checadas).toContain("1 corregidas");
+    const p = await prisma.punch.findFirstOrThrow({ where: { employeeId: ana.id } });
+    expect(p.at.toISOString()).toBe("2026-10-09T14:13:51.000Z");
+    expect(p.kind).toBe("acceso");
+    expect(await prisma.punch.count({ where: { employeeId: ana.id } })).toBe(1);
   });
 });

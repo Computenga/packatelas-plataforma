@@ -121,7 +121,7 @@ async function syncChecador(prisma: PrismaClient, read: SheetReader, sheetId: st
 
   const punches = parsePunches(await read(sheetId, "Checadas!A:L"), normalizePunchKind);
   const r = await importPunches(prisma, punches.rows, "hoja");
-  out.checadas = `${r.added} nuevas` + (r.unknownEmployees.length ? ` · sin empleado: ${r.unknownEmployees.slice(0, 8).join(", ")}` : "");
+  out.checadas = `${r.added} nuevas${r.updated ? `, ${r.updated} corregidas` : ""}` + (r.unknownEmployees.length ? ` · sin empleado: ${r.unknownEmployees.slice(0, 8).join(", ")}` : "");
 
   // Justificadas: fecha + empleado (vacío = todos) + motivo; se agregan las que no existan.
   const just = asRecords(await read(sheetId, "Justificadas!A:D"));

@@ -78,10 +78,12 @@ export function computeAttendance(
   for (const date of eachDay(from, to)) {
     if (date > today) break;
     const wd = weekday(date);
-    const ps = byDay.get(date) ?? [];
+    const all = byDay.get(date) ?? [];
+    // Los accesos de puerta se muestran pero no cuentan como entrada ni comida.
+    const ps = all.filter((p) => p.kind !== "acceso");
     const base: AttendanceDay = {
       date, weekday: wd, status: "a_tiempo", expected: emp.entryTime, entry: null, lateMinutes: 0, lunchOut: null, lunchIn: null,
-      lunchMinutes: null, extraLunch: 0, punches: ps.map((p) => hmMx(p.at)),
+      lunchMinutes: null, extraLunch: 0, punches: all.map((p) => hmMx(p.at) + (p.kind === "acceso" ? " (puerta)" : "")),
     };
     if ((hire && date < hire) || (end && date > end)) { days.push({ ...base, status: "fuera" }); continue; }
     if (!emp.workdays.includes(wd)) { days.push({ ...base, status: "descanso" }); continue; }
@@ -184,8 +186,23 @@ export async function importPunches(prisma: PrismaClient, rows: PunchImportRow[]
     if (!employeeId) { unknown.add(r.employeeNo); return []; }
     return [{ employeeId, at: r.at, kind: r.kind, device: r.device, method: r.method, externalId: r.externalId || null, source }];
   });
-  const r = await prisma.punch.createMany({ data, skipDuplicates: true });
-  return { added: r.count, duplicates: data.length - r.count, unknownEmployees: [...unknown].sort((a, b) => a - b) };
+  // Checadas que ya existían (mismo UUID) pero se corrigieron en la hoja (hora o tipo): se actualizan.
+  const ext = data.filter((d) => d.externalId).map((d) => d.externalId!);
+  const known = new Map((ext.length ? await prisma.punch.findMany({ where: { externalId: { in: ext } }, select: { id: true, externalId: true, at: true, kind: true, employeeId: true } }) : []).map((p) => [p.externalId!, p]));
+  let updated = 0;
+  for (const d of data) {
+    const cur = d.externalId ? known.get(d.externalId) : undefined;
+    if (!cur) continue;
+    if (cur.at.getTime() === d.at.getTime() && (cur.kind ?? null) === (d.kind ?? null) && cur.employeeId === d.employeeId) continue;
+    try {
+      await prisma.punch.update({ where: { id: cur.id }, data: { at: d.at, kind: d.kind ?? null, employeeId: d.employeeId, method: d.method } });
+      updated++;
+    } catch {
+      // Ya hay otra checada de ese empleado a esa misma hora: se deja la existente.
+    }
+  }
+  const r = await prisma.punch.createMany({ data: data.filter((d) => !(d.externalId && known.has(d.externalId))), skipDuplicates: true });
+  return { added: r.count, updated, duplicates: data.length - r.count - updated, unknownEmployees: [...unknown].sort((a, b) => a - b) };
 }
 
 export async function addJustification(prisma: PrismaClient, j: { date: string; employeeId?: string | null; reason: string; note?: string }, actorUserId?: string) {
