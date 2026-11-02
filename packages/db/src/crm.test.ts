@@ -106,3 +106,22 @@ describe("CRM de prospectos", () => {
     expect(Array.isArray(rows)).toBe(true);
   });
 });
+
+describe("importar prerregistros", () => {
+  it("separa recientes, viejos, repetidos y sin datos", async () => {
+    const { importLeads } = await import("./index.ts");
+    const now = new Date();
+    const p1 = `58${tag}4`.padEnd(10, "5").slice(0, 10);
+    const p2 = `59${tag}6`.padEnd(10, "6").slice(0, 10);
+    const s = await importLeads(prisma, [
+      { at: now.toISOString(), businessName: `Imp CRM ${tag} 1`, contactName: "Uno", phone: p1 },
+      { at: new Date(now.getTime() - 90 * 86400_000).toISOString(), businessName: `Imp CRM ${tag} 2`, phone: p2 },
+      { at: now.toISOString(), businessName: `Imp CRM ${tag} 1 otra vez`, phone: `+52${p1}` },
+      { businessName: `Imp CRM ${tag} 3` },
+    ]);
+    expect(s).toMatchObject({ created: 1, lost: 1, repeated: 1, skipped: 1 });
+    const old = await prisma.lead.findFirstOrThrow({ where: { businessName: `Imp CRM ${tag} 2` } });
+    expect(old.stage).toBe("PERDIDO");
+    expect(old.source).toBe("PRERREGISTRO");
+  });
+});

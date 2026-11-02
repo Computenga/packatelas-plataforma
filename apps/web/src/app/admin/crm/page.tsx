@@ -56,7 +56,7 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageHeader eyebrow="Clientes" title="CRM" actions={<ButtonLink href="/admin/crm/nuevo">Nuevo prospecto</ButtonLink>}>
+      <PageHeader eyebrow="Clientes" title="CRM" actions={<><ButtonLink href="/admin/crm/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/crm/nuevo">Nuevo prospecto</ButtonLink></>}>
         Prospectos desde que se interesan hasta que envían con regularidad. De «Dado de alta» en adelante avanza solo.
       </PageHeader>
 

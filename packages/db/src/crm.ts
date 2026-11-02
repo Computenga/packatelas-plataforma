@@ -260,3 +260,70 @@ export async function remindFollowUps(prisma: PrismaClient, now = new Date()) {
   }
   return due.length;
 }
+
+// ── Importar prerregistros (formulario de Google u hoja de cálculo) ──
+export type LeadImportRow = {
+  at?: string | null; // ISO
+  businessName?: string | null;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  zone?: string | null;
+  salesChannels?: string | null;
+  notes?: string | null;
+};
+export type LeadImportSummary = { created: number; linked: number; lost: number; repeated: number; alreadyClients: number; skipped: number };
+export const LEAD_IMPORT_MAX = 3000;
+
+/**
+ * Reglas: lo que ya es cliente desde hace más de 60 días no entra (ya no es prospecto); lo que es
+ * cliente reciente entra ligado y avanza solo; lo demás entra como prospecto, y si el registro tiene
+ * más de `recentDays` días entra como «Perdido» (se puede reactivar) para no llenar el embudo de viejos.
+ */
+export async function importLeads(prisma: PrismaClient, rows: LeadImportRow[], actorUserId?: string | null, opts = { recentDays: 30, now: new Date() }): Promise<LeadImportSummary> {
+  const sum: LeadImportSummary = { created: 0, linked: 0, lost: 0, repeated: 0, alreadyClients: 0, skipped: 0 };
+  const clients = await prisma.client.findMany({ select: { id: true, phone: true, email: true, createdAt: true } });
+  const byPhone = new Map<string, (typeof clients)[number]>();
+  const byEmail = new Map<string, (typeof clients)[number]>();
+  for (const c of clients) {
+    const k = phoneKey(c.phone);
+    if (k) byPhone.set(k, c);
+    if (c.email) byEmail.set(c.email.trim().toLowerCase(), c);
+  }
+  const linkedClients = new Set((await prisma.lead.findMany({ where: { clientId: { not: null } }, select: { clientId: true } })).map((l) => l.clientId!));
+  const recentFrom = opts.now.getTime() - opts.recentDays * 86400_000;
+  const clientRecentFrom = opts.now.getTime() - 60 * 86400_000;
+
+  for (const r of rows.slice(0, LEAD_IMPORT_MAX)) {
+    const key = phoneKey(r.phone);
+    const email = r.email?.trim().toLowerCase() || null;
+    const name = (r.businessName || r.contactName || "").trim();
+    if ((!key && !email) || !name) {
+      sum.skipped++;
+      continue;
+    }
+    const at = r.at && !Number.isNaN(Date.parse(r.at)) ? new Date(r.at) : opts.now;
+    const client = (key && byPhone.get(key)) || (email && byEmail.get(email)) || null;
+    if (client && (client.createdAt.getTime() < clientRecentFrom || linkedClients.has(client.id))) {
+      sum.alreadyClients++;
+      continue;
+    }
+    const res = await createLead(prisma, {
+      businessName: name, contactName: r.contactName, phone: r.phone, email, zone: r.zone, salesChannels: r.salesChannels,
+      notes: r.notes, source: "PRERREGISTRO", clientId: client?.id ?? null,
+    }, actorUserId);
+    if (!res.created) {
+      sum.repeated++;
+      continue;
+    }
+    await prisma.lead.update({ where: { id: res.id }, data: { createdAt: at, stageAt: at } });
+    if (client) {
+      linkedClients.add(client.id);
+      sum.linked++;
+    } else if (at.getTime() < recentFrom) {
+      await setLeadStage(prisma, res.id, "PERDIDO", actorUserId, { lostReason: "Prerregistro anterior sin alta (importado)" });
+      sum.lost++;
+    } else sum.created++;
+  }
+  return sum;
+}
