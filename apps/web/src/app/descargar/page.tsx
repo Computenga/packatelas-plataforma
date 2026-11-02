@@ -27,6 +27,7 @@ export default async function DescargarPage() {
             <li>2. Abre el archivo <strong>packatelas.apk</strong> desde la notificación o desde Descargas.</li>
             <li>3. Si aparece «Instalar apps desconocidas», da permiso a Chrome (o a Archivos) y regresa.</li>
             <li>4. Toca «Instalar» y abre la app. Entra con tu usuario y contraseña de siempre.</li>
+            <li>¿Eres repartidor nuevo? Abre la app y toca «¿Quieres ser repartidor? Regístrate aquí»: llenas tus datos, subes tus documentos y eliges tu usuario. Cuando te aprueben, entras con él.</li>
           </ol>
           <p className="mt-4 text-xs text-slate-500">Si ya tienes la app, se actualiza encima sin perder nada.</p>
         </div>
