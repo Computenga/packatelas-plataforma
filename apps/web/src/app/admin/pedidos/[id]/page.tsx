@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { prisma } from "@packatelas/db";
+import { INSURANCE_REASONS, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
-import { cancelOrder, rescheduleAction, sendToWarehouseAction } from "../actions";
+import { cancelOrder, insuranceAction, rescheduleAction, sendToWarehouseAction } from "../actions";
 import { ActionForm } from "@/components/action-form";
 import { trackingPath } from "@/lib/tracking";
 import { MlSaleCard } from "@/components/ml-sale";
@@ -22,7 +22,7 @@ const EVENT_LABEL: Record<string, string> = {
   failed: "Entrega fallida", cancelled: "Cancelado", scanned_loaded: "Cargado por repartidor",
   unassigned: "Regresado a por asignar", return_required: "Llevar a bodega", rescheduled: "Reprogramado",
   return_received: "Recibido en bodega", returned_to_seller: "Devuelto al vendedor",
-  flex_assigned: "Tomado en Flex", ml_status: "MercadoLibre",
+  flex_assigned: "Tomado en Flex", ml_status: "MercadoLibre", insurance: "Seguro aplicado",
 };
 
 const CAN_SEND_BACK = ["FAILED", "RESCHEDULED", "ASSIGNED", "OUT_FOR_DELIVERY"];
@@ -45,6 +45,8 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
   });
   if (!order) notFound();
   const charge = order.ledger.find((l) => l.type === "CHARGE");
+  const insurance = order.ledger.find((l) => l.type === "INSURANCE");
+  const suggested = order.declaredValue ?? order.mlSaleTotal;
   const canAct = ["ADMIN", "OPERADOR", "DESPACHADOR"].includes(user.role);
   const canSendBack = canAct && CAN_SEND_BACK.includes(order.status);
   const canReschedule = canAct && CAN_RESCHEDULE.includes(order.status);
@@ -163,6 +165,34 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
                 </ActionForm>
               )}
             </Card>
+          )}
+          {insurance ? (
+            <Card title="Seguro">
+              <p className="text-sm">
+                <span className="font-semibold text-emerald-700">{mxn(insurance.amount.abs())}</span> abonados el {fecha(insurance.createdAt)}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">{insurance.description}</p>
+            </Card>
+          ) : (
+            user.role === "ADMIN" && (
+              <Card title="Aplicar seguro">
+                <ActionForm action={insuranceAction.bind(null, order.id)} submitLabel="Aplicar seguro">
+                  <p className="text-xs text-slate-500">Por pérdida o daño: el monto se abona al saldo de {order.client.name} y le llega un aviso. Solo una vez por envío.</p>
+                  <label className="block text-sm">
+                    <span className="text-slate-600">Monto a reembolsar</span>
+                    <input name="amount" inputMode="decimal" required placeholder="0.00" defaultValue={suggested ? Number(suggested).toFixed(2) : ""} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2" />
+                    {suggested && <span className="mt-1 block text-xs text-slate-500">Sugerido: {order.declaredValue ? "valor declarado" : "total de la venta en ML"}</span>}
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-slate-600">Motivo</span>
+                    <select name="reason" required className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2">
+                      {INSURANCE_REASONS.map((r) => <option key={r.key} value={r.key}>{r.label}</option>)}
+                    </select>
+                  </label>
+                  <textarea name="note" required minLength={5} maxLength={200} rows={2} placeholder="Qué pasó (p. ej. paquete extraviado en ruta del 2 de nov.)" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                </ActionForm>
+              </Card>
+            )
           )}
           {canCancel && (
             <form action={cancelOrder.bind(null, order.id)}>

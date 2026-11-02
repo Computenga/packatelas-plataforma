@@ -10,7 +10,7 @@ import { adjustmentAction, exemptionAction, paymentAction } from "../actions";
 
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
-const TYPE_LABEL = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste" } as const;
+const TYPE_LABEL = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro" } as const;
 
 export default async function EstadoCuentaPage({ params, searchParams }: PageProps<"/admin/cobros/[id]">) {
   await requireUser(["ADMIN"]);
@@ -48,7 +48,7 @@ export default async function EstadoCuentaPage({ params, searchParams }: PagePro
             {entries.map((e) => (
               <tr key={e.id}>
                 <Td className="text-slate-600">{fecha(e.createdAt)}</Td>
-                <Td><Badge tone={e.type === "PAYMENT" ? "green" : e.type === "ADJUSTMENT" ? "amber" : "gray"}>{TYPE_LABEL[e.type]}</Badge></Td>
+                <Td><Badge tone={e.type === "PAYMENT" || e.type === "INSURANCE" ? "green" : e.type === "ADJUSTMENT" ? "amber" : "gray"}>{TYPE_LABEL[e.type]}</Badge></Td>
                 <Td className="whitespace-normal">
                   {e.order ? <Link href={`/admin/pedidos/${e.order.id}`} className="font-mono text-xs text-brand hover:underline">{e.order.code}</Link> : e.description}
                 </Td>

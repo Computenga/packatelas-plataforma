@@ -543,6 +543,7 @@ enum LedgerType {
   PAYMENT // abono (transferencia, Mercado Pago, manual)
   FEE // comisión por pago con tarjeta [I09]
   ADJUSTMENT // corrección
+  INSURANCE // seguro por pérdida o daño: abono fijado por un admin [A36]
 }
 
 model LedgerEntry {

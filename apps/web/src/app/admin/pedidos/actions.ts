@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addOrderEvent, audit, createManualOrder, prisma, rescheduleOrder, sendToWarehouse } from "@packatelas/db";
+import { addOrderEvent, applyInsurance, audit, createManualOrder, prisma, rescheduleOrder, sendToWarehouse } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 import { orderFields, toManualInput } from "@/lib/order-schema";
@@ -78,4 +78,17 @@ export async function bulkFailureAction(orderIds: string[], action: "warehouse" 
   const skipped = list.length - n;
   const what = action === "warehouse" ? "para regresar a bodega" : "reprogramado(s)";
   return n ? { ok: `${n} pedido(s) ${what}${skipped ? ` · ${skipped} no aplicaban` : ""}` } : { error: "Ninguno de los seleccionados aplica" };
+}
+
+/** Seguro por pérdida o daño [A36]: abona al saldo de la tienda el monto que fija el admin. */
+export async function insuranceAction(orderId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const amount = Number(String(fd.get("amount") ?? "").replace(/[$,\s]/g, ""));
+  try {
+    await applyInsurance(prisma, { orderId, amount, reason: String(fd.get("reason") ?? "") as never, note: String(fd.get("note") ?? "") }, user.id);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo aplicar el seguro" };
+  }
+  revalidatePath(`/admin/pedidos/${orderId}`);
+  return { ok: "Seguro aplicado: el abono ya está en el saldo de la tienda" };
 }

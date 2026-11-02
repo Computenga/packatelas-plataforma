@@ -10,7 +10,7 @@ import { PayCard } from "./pay-card";
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
 const DAYS = ["", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
-const TYPE_LABEL = { CHARGE: "Envío", PAYMENT: "Pago recibido", FEE: "Comisión", ADJUSTMENT: "Ajuste" } as const;
+const TYPE_LABEL = { CHARGE: "Envío", PAYMENT: "Pago recibido", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro" } as const;
 
 export default async function CuentaPage({ searchParams }: PageProps<"/cliente/cuenta">) {
   const { clientId } = await requireClient();

@@ -21,6 +21,7 @@ const EVENT_LABEL: Record<string, string> = {
   rescheduled: "Entrega reprogramada",
   return_received: "Recibido en el almacén de Packatelas",
   returned_to_seller: "Devuelto a tu tienda",
+  insurance: "Seguro aplicado: abonado a tu saldo",
 };
 
 export default async function EnvioPage({ params, searchParams }: PageProps<"/cliente/envio/[id]">) {

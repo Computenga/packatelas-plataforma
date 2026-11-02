@@ -33,10 +33,11 @@ export default async function CobrosPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader eyebrow="Facturación" title="Cobros">Saldos por cliente, abonos y ajustes. Saldo positivo = el cliente debe.</PageHeader>
       <CobrosTabs active="saldos" />
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <Stat label="Cargos" value={mxn(sum("CHARGE") + sum("FEE"))} />
         <Stat label="Abonos" value={mxn(-sum("PAYMENT"))} tone="green" />
         <Stat label="Ajustes" value={mxn(sum("ADJUSTMENT"))} tone="amber" />
+        <Stat label="Seguros" value={mxn(-sum("INSURANCE"))} tone="amber" />
         <Stat label="Por cobrar" value={mxn(owed)} tone="red" />
       </div>
 
