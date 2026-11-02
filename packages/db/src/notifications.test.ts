@@ -72,6 +72,9 @@ describe("cola de avisos", () => {
     await prisma.ledgerEntry.create({ data: { clientId, type: "ADJUSTMENT", amount: 350, description: "deuda prueba" } });
     const s = await getNotifySettings(prisma);
     expect(s.reminderWeekday).toBe(6);
+    // Apagado por defecto (política de avisos): para probarlo se prende y al final se regresa.
+    const { setNotifySettings } = await import("./notifications.ts");
+    await setNotifySettings(prisma, { ...s, enabled: { ...s.enabled, recordatorio_pago: true } });
     const friday = new Date("2026-10-30T12:00:00-06:00");
     const saturdayEarly = new Date("2026-10-31T08:00:00-06:00");
     const saturday = new Date("2026-10-31T10:30:00-06:00");
@@ -81,6 +84,7 @@ describe("cola de avisos", () => {
     const r = await prisma.notification.findFirst({ where: { clientId, event: "recordatorio_pago" } });
     expect(r?.preview).toMatch(/^Hola Rosa, tu saldo con Packatelas es de \$/);
     expect(r?.to).toBe("525512345678");
+    await setNotifySettings(prisma, s);
   });
 });
 

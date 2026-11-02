@@ -48,6 +48,15 @@ export async function ensurePickupOrder(db: Db, pickupId: string) {
       toStatus: "CREATED",
       note: `Recolección del ${DAY_MX.format(p.scheduledFor)} en ${p.branch.name} → ${WAREHOUSE_ADDRESS}`,
     });
+    // A la tienda: su recolección quedó registrada, con folio.
+    await enqueueNotification(db, {
+      event: "recoleccion_creada",
+      to: order.recipientPhone,
+      orderId: order.id,
+      clientId: p.clientId,
+      params: [firstName(p.client.contactName) || p.client.name, order.code, DAY_MX.format(p.scheduledFor), p.branch.name],
+      dedupeKey: `recoleccion_creada:${order.id}`,
+    }).catch(() => false);
     return order;
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return db.order.findUniqueOrThrow({ where: { pickupId } });

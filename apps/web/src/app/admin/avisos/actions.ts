@@ -41,16 +41,16 @@ export async function registerPhoneAction(_: ActionState, fd: FormData): Promise
   return r.ok ? { ok: "Número registrado en la API de WhatsApp" } : { error: r.error ?? "No se pudo registrar" };
 }
 
-/** Manda una plantilla de prueba (la de recolección asignada) al número que se indique. */
+/** Manda una plantilla de prueba (recolección en camino, ya aprobada) al número que se indique. */
 export async function testSendAction(_: ActionState, fd: FormData): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
   const to = String(fd.get("to") ?? "");
   const { enqueueNotification, waPhone } = await import("@packatelas/db");
   if (!waPhone(to)) return { error: "Escribe un celular de 10 dígitos" };
   const ok = await enqueueNotification(prisma, {
-    event: "recoleccion_asignada",
+    event: "recoleccion_en_camino",
     to,
-    params: [user.name.split(" ")[0] || "Hola", "hoy", "Bodega Packatelas", "Prueba"],
+    params: [user.name.split(" ")[0] || "Hola", "Prueba", "Bodega Packatelas", `${(process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/\/$/, "")}/descargar`],
     dedupeKey: `prueba:${Date.now()}`,
   });
   revalidatePath("/admin/avisos");

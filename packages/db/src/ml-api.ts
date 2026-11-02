@@ -2,6 +2,7 @@
 // - OAuth por cuenta de vendedor: el cliente autoriza con su cuenta ML y guardamos los tokens cifrados.
 // - Al escanear (o al llegar una notificación) se trae el envío: destinatario, dirección, pin y estado ML.
 // Todo lo de red pasa por `fetchImpl` para poder probarlo sin internet.
+import { alertNotVisited, isNotVisited } from "./faltas.ts";
 import { reconcileCustody } from "./custody.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
@@ -232,6 +233,8 @@ export async function syncMlShipment(prisma: PrismaClient, shipmentId: bigint, f
   });
   // Entregado en ML + evidencia en la app → sale del inventario del repartidor.
   if (m.mlStatus === "delivered") await reconcileCustody(prisma, order.id).catch(() => false);
+  // «No visitado»: falta grave, aviso urgente a todos los administradores.
+  if (isNotVisited(m.mlStatus, m.mlSubstatus)) await alertNotVisited(prisma, shipmentId, { orderId: order.id }).catch(() => false);
   return { status: "synced" as const };
 }
 

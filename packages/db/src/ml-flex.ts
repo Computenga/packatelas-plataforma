@@ -7,6 +7,7 @@
 // security_digit). La API de ML entrega la etiqueta con hash_code en null, así que el QR válido se
 // toma de la lectura del escáner (bodega o repartidor) de la etiqueta que imprimió el vendedor.
 // Nunca se genera una guía con el hash vacío.
+import { alertNotVisited, isNotVisited } from "./faltas.ts";
 import { inflateRawSync } from "node:zlib";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
 import { mapMlShipment, mlAccessToken } from "./ml-api.ts";
@@ -256,6 +257,7 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
     ...(order ? { orderId: order.id, scannedAt: prev?.scannedAt ?? order.createdAt } : {}),
   };
   await prisma.mlFlexShipment.upsert({ where: { shipmentId }, create: { shipmentId, ...data }, update: data });
+  if (isNotVisited(m.mlStatus, m.mlSubstatus)) await alertNotVisited(prisma, shipmentId, { orderId: order?.id }).catch(() => false);
   if (order && qrRaw && !order.mlQrRaw) await prisma.order.update({ where: { id: order.id }, data: { mlQrRaw: qrRaw } });
   return type;
 }
