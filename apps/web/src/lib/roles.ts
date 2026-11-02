@@ -42,6 +42,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { href: "/admin/clientes", label: "Clientes", roles: ["ADMIN"] },
   { href: "/admin/crm", label: "CRM", roles: ["ADMIN"] },
   { href: "/admin/soporte", label: "Soporte", roles: STAFF_ROLES },
+  { href: "/admin/tienda", label: "Tienda de insumos", roles: STAFF_ROLES },
   { href: "/admin/repartidores", label: "Repartidores", roles: ["ADMIN", "DESPACHADOR"] },
   { href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
   { href: "/admin/usuarios", label: "Usuarios", roles: ["ADMIN"] },
@@ -75,6 +76,7 @@ export const CLIENT_NAV: NavItem[] = [
   { href: "/cliente/negocio", label: "Direcciones y accesos" },
   { href: "/cliente/devoluciones", label: "Devoluciones" },
   { href: "/cliente/avisos", label: "Mis avisos" },
+  { href: "/cliente/tienda", label: "Tienda de insumos" },
   { href: "/cliente/soporte", label: "Ayuda y soporte" },
 ];
 

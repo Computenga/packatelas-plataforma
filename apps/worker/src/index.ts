@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { syncLegacy, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { syncStoreCatalog, syncLegacy, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -362,8 +362,24 @@ function startLegacySync() {
   setInterval(run, 10 * 60_000);
 }
 
+/** Catálogo de la tienda de insumos desde WooCommerce, cada hora [P17]. */
+function startStoreCatalog() {
+  const run = async () => {
+    try {
+      const r = await syncStoreCatalog(prisma);
+      await reportHealth(prisma, "tienda", true, `Catálogo: ${r.products} productos`);
+    } catch (e) {
+      console.error("[worker] Tienda:", e instanceof Error ? e.message : e);
+      await reportHealth(prisma, "tienda", false, e instanceof Error ? e.message : String(e)).catch(() => {});
+    }
+  };
+  void run();
+  setInterval(run, 3600_000);
+}
+
 async function main() {
   startHourlyJobs();
+  startStoreCatalog();
   startLegacySync();
   startBuyerMessages();
   startMlSaleDetails();

@@ -10,7 +10,7 @@ const day = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : 
 const money = (v: unknown) => (v == null ? "" : Number(v).toFixed(2));
 const yn = (b: boolean) => (b ? "Sí" : "No");
 
-const TYPE: Record<string, string> = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro" };
+const TYPE: Record<string, string> = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro", PURCHASE: "Compra tienda" };
 const PSTATUS: Record<string, string> = { UNIDENTIFIED: "Sin identificar", APPLIED: "Aplicado", REJECTED: "Rechazado" };
 const PICKUP: Record<string, string> = { SCHEDULED: "Programada", ASSIGNED: "Asignada", COLLECTED: "Recolectada", FAILED: "Fallida", CANCELLED: "Cancelada", BLOCKED: "Bloqueada por adeudo" };
 

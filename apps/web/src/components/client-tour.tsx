@@ -99,6 +99,7 @@ const SLIDES: Slide[] = [
     title: "¡Listo!",
     steps: [
       "Empieza por conectar tu Mercado Libre: es lo más importante.",
+      "Nuevo: en Menú → Tienda de insumos compras bolsas, etiquetas y cinta; te las llevamos con tu recolección.",
       "Puedes volver a ver esta guía cuando quieras en «Ver guía del portal», en Mis envíos.",
       "¿Dudas o algún problema? Menú → Ayuda y soporte: levanta un reporte y te respondemos ahí. También por WhatsApp al +52 56 1123 2342.",
     ],

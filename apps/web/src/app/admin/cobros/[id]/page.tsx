@@ -11,7 +11,7 @@ import { adjustmentAction, exemptionAction, paymentAction } from "../actions";
 
 export const metadata: Metadata = { title: "Estado de cuenta" };
 
-const TYPE_LABEL = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro" } as const;
+const TYPE_LABEL = { CHARGE: "Cargo", PAYMENT: "Abono", FEE: "Comisión", ADJUSTMENT: "Ajuste", INSURANCE: "Seguro", PURCHASE: "Compra tienda" } as const;
 
 export default async function EstadoCuentaPage({ params, searchParams }: PageProps<"/admin/cobros/[id]">) {
   await requireUser(["ADMIN"]);

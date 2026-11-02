@@ -26,7 +26,7 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
   const [pickups, drivers, branches] = await Promise.all([
     prisma.pickup.findMany({
       where: { scheduledFor: dateOnly(date) },
-      include: { client: { select: { id: true, name: true } }, branch: true, driver: { include: { user: { select: { name: true } } } }, order: { select: { id: true, code: true, status: true } } },
+      include: { client: { select: { id: true, name: true } }, branch: true, driver: { include: { user: { select: { name: true } } } }, order: { select: { id: true, code: true, status: true } }, storeOrders: { where: { status: { in: ["PAID", "READY"] } }, select: { number: true } } },
       orderBy: [{ status: "asc" }, { client: { name: "asc" } }],
     }),
     prisma.driver.findMany({ where: { active: true, user: { active: true } }, include: { user: { select: { name: true } } }, orderBy: { user: { name: "asc" } } }),
@@ -71,7 +71,10 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
               </Td>
               <Td><Link href={`/admin/cobros/${p.client.id}`} className="text-brand hover:underline">{p.client.name}</Link></Td>
               <Td className="whitespace-normal"><span className="font-medium">{p.branch.name}</span><span className="block text-xs text-slate-500">{p.branch.address}</span></Td>
-              <Td>{p.automatic ? "Automática" : "Solicitada"}</Td>
+              <Td>
+                {p.automatic ? "Automática" : "Solicitada"}
+                {p.storeOrders.length > 0 && <Link href="/admin/tienda" className="block text-xs font-medium text-amber-700">📦 lleva insumos ({p.storeOrders.length})</Link>}
+              </Td>
               <Td className="whitespace-normal">
                 <Badge tone={tone}>{label}</Badge>
                 {p.status === "BLOCKED" && (

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { orderStops, prisma, WAREHOUSE_ADDRESS } from "@packatelas/db";
+import { orderStops, prisma, storeFolio, WAREHOUSE_ADDRESS, type StoreItem } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { Badge } from "@/components/ui";
 import { PickupActions } from "./pickup-card";
@@ -14,7 +14,10 @@ export default async function RepartidorRecolecciones() {
   if (!driver) return null;
   const pickups = await prisma.pickup.findMany({
     where: { driverId: driver.id, status: "ASSIGNED" },
-    include: { client: { select: { name: true } }, branch: true, order: { select: { code: true, status: true } } },
+    include: {
+      client: { select: { name: true } }, branch: true, order: { select: { code: true, status: true } },
+      storeOrders: { where: { status: { in: ["PAID", "READY"] } }, select: { number: true, items: true } },
+    },
     orderBy: { scheduledFor: "asc" },
   });
   // Orden sugerido desde donde está el repartidor; la que va en camino, primero.
@@ -49,6 +52,16 @@ export default async function RepartidorRecolecciones() {
               </div>
               {enRoute ? <Badge tone="blue">En camino</Badge> : <Badge>Pendiente</Badge>}
             </div>
+            {p.storeOrders.length > 0 && (
+              <div className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                <p className="font-semibold">📦 Lleva y entrega insumos (ya pagados):</p>
+                {p.storeOrders.map((so) => (
+                  <p key={so.number}>
+                    {storeFolio(so.number)}: {(so.items as unknown as StoreItem[]).map((it) => `${it.qty}× ${it.name}`).join(", ")}
+                  </p>
+                ))}
+              </div>
+            )}
             <PickupActions pickupId={p.id} mapsUrl={`https://www.google.com/maps/dir/?api=1&destination=${dest}`} phone={p.branch.phone} enRoute={enRoute} />
           </div>
         );

@@ -123,6 +123,7 @@ model Client {
   stores        StoreConnector[]
   mpCheckouts   MpCheckout[]
   tickets       Ticket[]
+  storeOrders   StoreOrder[]
 }
 
 model Branch {
@@ -476,8 +477,9 @@ model Pickup {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  routeStops RouteStop[]
-  order      Order?
+  routeStops  RouteStop[]
+  order       Order?
+  storeOrders StoreOrder[]
 
   @@index([scheduledFor, status])
   @@index([clientId])
@@ -547,6 +549,7 @@ enum LedgerType {
   FEE // comisión por pago con tarjeta [I09]
   ADJUSTMENT // corrección
   INSURANCE // seguro por pérdida o daño: abono fijado por un admin [A36]
+  PURCHASE // compra de insumos en la tienda del portal [P17]
 }
 
 model LedgerEntry {
@@ -1274,6 +1277,7 @@ model MpCheckout {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   guestShipment GuestShipment?
+  storeOrder    StoreOrder?
 
   @@index([status, createdAt])
   @@index([clientId, createdAt])
@@ -1498,4 +1502,61 @@ model GuestShipment {
 
   @@index([status, createdAt])
   @@index([ip, createdAt])
+}
+
+// ───────────────────────── Tienda de insumos [P17] ─────────────────────────
+// Catálogo copiado de WooCommerce (packatelas.com.mx); los pedidos se entregan con la recolección.
+model StoreProduct {
+  id          String   @id @default(cuid())
+  wooId       Int      @unique
+  sku         String?
+  name        String
+  category    String
+  price       Decimal  @db.Decimal(12, 2)
+  imageUrl    String?
+  description String?
+  url         String?
+  inStock     Boolean  @default(true)
+  active      Boolean  @default(true) // el admin puede ocultarlo del portal
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([active, inStock, category])
+}
+
+enum StoreOrderStatus {
+  PENDING_PAYMENT
+  PAID
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum StorePayMethod {
+  SALDO
+  TARJETA
+}
+
+model StoreOrder {
+  id          String           @id @default(cuid())
+  number      Int              @unique @default(autoincrement()) // T-00001
+  clientId    String
+  client      Client           @relation(fields: [clientId], references: [id])
+  branchId    String
+  items       Json // [{productId, sku, name, price, qty}] al precio del momento
+  total       Decimal          @db.Decimal(12, 2)
+  status      StoreOrderStatus @default(PENDING_PAYMENT)
+  payMethod   StorePayMethod
+  checkoutId  String?          @unique
+  checkout    MpCheckout?      @relation(fields: [checkoutId], references: [id])
+  pickupId    String?
+  pickup      Pickup?          @relation(fields: [pickupId], references: [id], onDelete: SetNull)
+  createdById String?
+  paidAt      DateTime?
+  deliveredAt DateTime?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@index([status, createdAt])
+  @@index([clientId, createdAt])
 }

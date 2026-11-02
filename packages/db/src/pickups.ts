@@ -1,4 +1,5 @@
 // Recolecciones [A06, R09, C05, F07].
+import { storeOrdersAfterPickup } from "./store.ts";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { isPickupBlocked } from "./ledger.ts";
@@ -316,5 +317,7 @@ export async function completePickup(
     entityId: p.id,
     summary: input.collected ? `Recolectados ${input.count} paquete(s)` : `No se pudo recolectar${input.note ? `: ${input.note}` : ""}`,
   });
+  // Insumos de la tienda que iban en esta recolección [P17].
+  await storeOrdersAfterPickup(prisma, p.id, input.collected).catch((e) => console.error("[tienda] recolección", e));
   return done;
 }

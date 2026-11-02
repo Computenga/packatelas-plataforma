@@ -6,6 +6,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { fulfillGuestShipment } from "./guest.ts";
+import { fulfillStoreOrder } from "./store.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 type Fetch = typeof fetch;
@@ -199,7 +200,12 @@ export async function syncMpPayment(prisma: PrismaClient, mpPaymentId: string, f
     return { status: "pending" as const };
   });
   // Envío sin registro [P14]: con el pago aprobado se crean su recolección y su envío.
-  if (result.status === "applied" || result.status === "duplicate") await fulfillGuestShipment(prisma, c.id).catch((e) => console.error("[guest]", e));
+  if (result.status === "applied" || result.status === "duplicate") {
+    await fulfillGuestShipment(prisma, c.id).catch((e) => console.error("[guest]", e));
+    // Compra en la tienda [P17]: pagada → se agenda con su recolección.
+    const so = await prisma.storeOrder.findUnique({ where: { checkoutId: c.id }, select: { id: true } });
+    if (so) await fulfillStoreOrder(prisma, so.id).catch((e) => console.error("[tienda]", e));
+  }
   return result;
 }
 
