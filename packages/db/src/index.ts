@@ -45,6 +45,8 @@ export * from "./crm.ts";
 export * from "./municipios.ts";
 export * from "./store-links.ts";
 export * from "./faltas.ts";
+export * from "./mailer.ts";
+export * from "./client-access.ts";
 export * from "./totp.ts";
 export * from "./ml-routes.ts";
 export * from "./branches.ts";

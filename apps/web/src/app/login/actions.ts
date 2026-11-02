@@ -40,6 +40,12 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
     return { error: "Usuario o contraseña incorrectos.", username };
   }
 
+  // Clientes que nunca han entrado: se activan con su número de cliente (no con la contraseña
+  // temporal genérica, que cualquiera podría conocer).
+  if (user.role === "CLIENTE" && user.mustChangePassword && !user.lastLoginAt) {
+    return { error: "Tu cuenta aún no está activada. Usa «Primer acceso» abajo con tu número de cliente.", username };
+  }
+
   if (user.totpSecret) {
     // Falta el código de la app autenticadora [P09].
     await setPendingLogin(user.id);

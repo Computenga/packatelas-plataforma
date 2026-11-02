@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { driveConnection, driversWithoutLocation, prisma, readHealth, type HealthEntry } from "@packatelas/db";
+import { driveConnection, driversWithoutLocation, mailConnection, prisma, readHealth, type HealthEntry } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, hace } from "@/lib/format";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -45,7 +45,7 @@ export default async function SaludPage({ searchParams }: PageProps<"/admin/salu
     driversWithoutLocation(prisma),
     prisma.payment.findFirst({ where: { source: "GMAIL" }, orderBy: { receivedAt: "desc" }, select: { receivedAt: true } }),
   ]);
-  const [osrm, gdrive] = await Promise.all([pingOsrm(), driveConnection(prisma)]);
+  const [osrm, gdrive, mail] = await Promise.all([pingOsrm(), driveConnection(prisma), mailConnection(prisma)]);
   const mlCount = (s: string) => ml.find((m) => m.status === s)?._count._all ?? 0;
   const mlTotal = ml.reduce((a, m) => a + m._count._all, 0);
   const wa = health.whatsapp;
@@ -132,6 +132,21 @@ export default async function SaludPage({ searchParams }: PageProps<"/admin/salu
           ) : (
             <a href="/api/drive/conectar" className="mt-2 inline-block rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white">Conectar Google Drive</a>
           )}
+        </>
+      ),
+    },
+    {
+      name: "Correo de envío (restablecer contraseñas)",
+      level: mail.connected ? "ok" : "warn",
+      detail: mail.connected ? (
+        <>
+          Sale desde {mail.email} ·{" "}
+          <a href="/api/correo/conectar" className="text-brand hover:underline">cambiar cuenta</a>
+        </>
+      ) : (
+        <>
+          Sin conectar: los clientes no pueden restablecer su contraseña por correo.
+          <a href="/api/correo/conectar" className="mt-2 block w-fit rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white">Conectar correo</a>
         </>
       ),
     },

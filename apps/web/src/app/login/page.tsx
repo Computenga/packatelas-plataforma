@@ -25,6 +25,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <LoginForm />
         </div>
+        <div className="mt-4 space-y-1 text-center text-sm">
+          <p><Link href="/acceso" className="font-medium text-brand hover:underline">¿Eres cliente y es tu primera vez? Activa tu cuenta con tu número de cliente</Link></p>
+          <p><Link href="/acceso/restablecer" className="text-slate-500 hover:underline">Olvidé mi contraseña</Link></p>
+        </div>
         <p className="mt-6 text-center text-sm text-slate-500">
           ¿Tienes una tienda y quieres enviar con nosotros? <Link href="/registro" className="text-brand hover:underline">Regístrate</Link>
         </p>
