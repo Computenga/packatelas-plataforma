@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getClientBalance, isPickupBlocked, prisma, routeOptions } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
@@ -95,7 +96,10 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
               </div>
               <Checkbox label="Cobro habilitado (se cobra al escanear)" name="chargingEnabled" defaultChecked={client.chargingEnabled} />
               {client.pickupExemptUntil && client.pickupExemptUntil > new Date() && (
-                <p className="text-sm text-amber-700">Exento de bloqueo hasta {fecha(client.pickupExemptUntil)}</p>
+                <p className="text-sm text-amber-700">Exento de bloqueo hasta {fecha(client.pickupExemptUntil)}{client.pickupExemptNote ? ` · ${client.pickupExemptNote}` : ""} · <Link href={`/admin/cobros/${client.id}`} className="underline">cambiar o retirar</Link></p>
+              )}
+              {!(client.pickupExemptUntil && client.pickupExemptUntil > new Date()) && (
+                <p className="text-xs text-slate-500">¿Debe pero acordó pagar? <Link href={`/admin/cobros/${client.id}`} className="text-brand underline">Exentar de bloqueo hasta una fecha</Link></p>
               )}
             </ActionForm>
           </Card>

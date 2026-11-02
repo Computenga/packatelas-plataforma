@@ -51,15 +51,17 @@ export async function exemptionAction(clientId: string, _: ActionState, fd: Form
   const until = String(fd.get("until") ?? "");
   if (fd.get("remove") === "1") {
     await setPickupExemption(prisma, clientId, null, undefined, user.id);
-    revalidatePath(`/admin/cobros/${clientId}`);
+    revalidateExemption(clientId);
     return { ok: "Exención retirada" };
   }
   if (!ymd.safeParse(until).success) return { error: "Elige hasta qué fecha" };
   const date = new Date(`${until}T23:59:59-06:00`);
   if (date < new Date()) return { error: "La fecha debe ser futura" };
-  await setPickupExemption(prisma, clientId, date, String(fd.get("note") ?? "").trim() || undefined, user.id);
-  revalidatePath(`/admin/cobros/${clientId}`);
-  return { ok: `Exento hasta ${until}` };
+  const note = String(fd.get("note") ?? "").trim();
+  if (note.length < 3) return { error: "Escribe el motivo de la exención (queda en auditoría)" };
+  await setPickupExemption(prisma, clientId, date, note, user.id);
+  revalidateExemption(clientId);
+  return { ok: `Exento hasta ${until}: puede pedir recolecciones aunque tenga adeudo. Las bloqueadas ya se liberaron.` };
 }
 
 export async function applyPaymentAction(paymentId: string, fd: FormData) {
@@ -81,5 +83,12 @@ export async function dismissPaymentAction(paymentId: string) {
   } catch {
     // ya procesado
   }
+  revalidatePath("/admin/cobros");
+}
+
+function revalidateExemption(clientId: string) {
+  revalidatePath(`/admin/cobros/${clientId}`);
+  revalidatePath(`/admin/clientes/${clientId}`);
+  revalidatePath("/admin/recolecciones");
   revalidatePath("/admin/cobros");
 }

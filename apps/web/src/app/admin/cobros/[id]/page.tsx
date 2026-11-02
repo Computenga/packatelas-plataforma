@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { accountState, getClientBalance, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
+import { ExemptionForm } from "@/components/exemption-form";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, Field, PageHeader, Select, Table, Td } from "@/components/ui";
 import { adjustmentAction, exemptionAction, paymentAction } from "../actions";
@@ -99,10 +100,8 @@ export default async function EstadoCuentaPage({ params, searchParams }: PagePro
 
           <Card title="Exención de bloqueo">
             {exempt && <p className="mb-3 text-sm text-blue-700">Exento hasta {fecha(client.pickupExemptUntil)}{client.pickupExemptNote && ` · ${client.pickupExemptNote}`}</p>}
-            <ActionForm action={exemptionAction.bind(null, id)} submitLabel="Guardar exención">
-              <Field label="Permitir recolecciones hasta" name="until" type="date" min={today} />
-              <Field label="Motivo" name="note" placeholder="p. ej. acuerdo de pago" />
-            </ActionForm>
+            <p className="mb-2 text-xs text-slate-500">Mientras esté exento puede pedir recolecciones aunque tenga saldo vencido o crédito sin pagar. Solo administradores; queda en auditoría.</p>
+            <ExemptionForm action={exemptionAction.bind(null, id)} />
             {exempt && (
               <ActionForm action={exemptionAction.bind(null, id)} submitLabel="Retirar exención" className="mt-3">
                 <input type="hidden" name="remove" value="1" />

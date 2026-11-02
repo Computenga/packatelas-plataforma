@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { dateOnly, generateAutoPickups, prisma } from "@packatelas/db";
+import { accountStates, dateOnly, generateAutoPickups, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { PICKUP_LABEL } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, Field, PageHeader, Select, Table, Td } from "@/components/ui";
 import { assignPickupAction, newPickupAction } from "./actions";
+import { exemptionAction } from "../cobros/actions";
+import { ExemptionForm } from "@/components/exemption-form";
+import { mxn } from "@/lib/format";
 
 export const metadata: Metadata = { title: "Recolecciones" };
 
@@ -13,7 +16,8 @@ export const metadata: Metadata = { title: "Recolecciones" };
 const todayMx = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date());
 
 export default async function RecoleccionesPage({ searchParams }: PageProps<"/admin/recolecciones">) {
-  await requireUser(["ADMIN", "DESPACHADOR"]);
+  const user = await requireUser(["ADMIN", "DESPACHADOR"]);
+  const isAdmin = user.role === "ADMIN";
   const today = todayMx();
   const raw = String((await searchParams).date ?? today);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : today;
@@ -28,6 +32,9 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
     prisma.driver.findMany({ where: { active: true, user: { active: true } }, include: { user: { select: { name: true } } }, orderBy: { user: { name: "asc" } } }),
     prisma.branch.findMany({ where: { active: true, client: { active: true } }, include: { client: { select: { name: true } } }, orderBy: { client: { name: "asc" } } }),
   ]);
+
+  const blockedIds = [...new Set(pickups.filter((p) => p.status === "BLOCKED").map((p) => p.client.id))];
+  const states = blockedIds.length ? await accountStates(prisma, blockedIds) : new Map();
 
   const shift = (days: number) => {
     const d = dateOnly(date);
@@ -65,7 +72,22 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
               <Td><Link href={`/admin/cobros/${p.client.id}`} className="text-brand hover:underline">{p.client.name}</Link></Td>
               <Td className="whitespace-normal"><span className="font-medium">{p.branch.name}</span><span className="block text-xs text-slate-500">{p.branch.address}</span></Td>
               <Td>{p.automatic ? "Automática" : "Solicitada"}</Td>
-              <Td><Badge tone={tone}>{label}</Badge></Td>
+              <Td className="whitespace-normal">
+                <Badge tone={tone}>{label}</Badge>
+                {p.status === "BLOCKED" && (
+                  <div className="mt-1 w-72">
+                    {states.get(p.client.id) && <p className="text-xs text-red-700">{states.get(p.client.id)!.reason} · saldo {mxn(states.get(p.client.id)!.balance)}</p>}
+                    {isAdmin ? (
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-brand">Exentar y liberar</summary>
+                        <div className="mt-1"><ExemptionForm action={exemptionAction.bind(null, p.client.id)} compact /></div>
+                      </details>
+                    ) : (
+                      <p className="text-xs text-slate-500">Solo un administrador puede exentarlo.</p>
+                    )}
+                  </div>
+                )}
+              </Td>
               <Td>{p.collectedCount ?? p.expectedCount ?? "—"}</Td>
               <Td>
                 {open ? (
