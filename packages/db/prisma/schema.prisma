@@ -39,6 +39,8 @@ model User {
   sessions     Session[]
   lastLoginAt  DateTime?
   mustChangePassword Boolean @default(false) // contraseña temporal: la cambia al entrar
+  appVersion   String? // versión de la app Android con la que entró por última vez
+  appSeenAt    DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

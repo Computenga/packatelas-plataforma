@@ -71,7 +71,8 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
       }
     };
     const first = setTimeout(check, 0);
-    const id = setInterval(check, 4000);
+    // Cada 15 s y solo con la app a la vista (al volver se revisa al instante): menos batería.
+    const id = setInterval(() => document.visibilityState === "visible" && check(), 15_000);
     const onVisible = () => document.visibilityState === "visible" && check();
     document.addEventListener("visibilitychange", onVisible);
     return () => {

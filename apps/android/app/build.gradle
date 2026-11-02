@@ -9,6 +9,9 @@ if (ksFile.exists()) ks.load(new FileInputStream(ksFile))
 // Dirección de la plataforma. Para el cambio de dominio: ./gradlew assembleRelease -PbaseUrl=https://admin.packatelas.mx
 def baseUrl = project.findProperty("baseUrl") ?: "https://portal.packatelas.mx"
 
+// Versión: una sola fuente, la misma que lee la plataforma para avisar a las apps viejas.
+def appRelease = new groovy.json.JsonSlurper().parse(rootProject.file("../web/src/lib/app-release.json"))
+
 android {
     namespace "mx.packatelas.app"
     compileSdk 35
@@ -16,8 +19,8 @@ android {
         applicationId "mx.packatelas.app"
         minSdk 26
         targetSdk 35
-        versionCode 5
-        versionName "1.4"
+        versionCode appRelease.versionCode as int
+        versionName appRelease.versionName as String
         buildConfigField "String", "BASE_URL", "\"${baseUrl}\""
     }
     buildFeatures { buildConfig true }

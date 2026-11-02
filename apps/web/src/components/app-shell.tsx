@@ -5,6 +5,7 @@ import type { NavItem } from "@/lib/roles";
 import { NavLinks } from "./nav-links";
 import { MobileNav } from "./mobile-nav";
 import { PushPrompt } from "./push-prompt";
+import { AppUpdateBanner } from "./app-update-banner";
 import { Isotipo, Logo } from "@/components/brand";
 
 type Props = {
@@ -53,6 +54,7 @@ export function AppShell({ title, userName, roleLabel, nav, ready, mobileBottomN
       )}
 
       <main className={`min-w-0 flex-1 p-4 md:p-8 ${mobileBottomNav || hasFavs ? "pb-24 md:pb-8" : ""}`}>
+        <AppUpdateBanner />
         {push && <PushPrompt />}
         {children}
       </main>

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
+import { APP_RELEASE, olderThanLatest } from "@/lib/app-release";
 import { ActionForm } from "@/components/action-form";
 import { Badge, ButtonLink, Card, Checkbox, Field, PageHeader } from "@/components/ui";
 import { linkFlex, unlinkFlex, updateDriver } from "./actions";
@@ -13,13 +14,15 @@ export default async function RepartidoresPage() {
   const me = await requireUser(["ADMIN", "DESPACHADOR"]);
   const drivers = await prisma.driver.findMany({
     include: {
-      user: { select: { id: true, name: true, username: true, active: true } },
+      user: { select: { id: true, name: true, username: true, active: true, appVersion: true } },
       flexIdentities: { orderBy: { createdAt: "asc" } },
       _count: { select: { orders: { where: { status: { in: ["ASSIGNED", "OUT_FOR_DELIVERY"] } } } } },
     },
     orderBy: [{ onDuty: "desc" }, { user: { name: "asc" } }],
   });
   const active = drivers.filter((d) => d.user.active);
+  const outdated = active.filter((d) => olderThanLatest(d.user.appVersion)).length;
+  const noApp = active.filter((d) => !d.user.appVersion).length;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -33,7 +36,9 @@ export default async function RepartidoresPage() {
           </>
         }
       >
-        {active.filter((d) => d.onDuty).length} en turno de {active.length} activos
+        {active.filter((d) => d.onDuty).length} en turno de {active.length} activos · App {APP_RELEASE.versionName}: {active.length - outdated - noApp} al día
+        {outdated > 0 && `, ${outdated} con versión vieja`}
+        {noApp > 0 && `, ${noApp} sin la app`}
       </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -45,7 +50,15 @@ export default async function RepartidoresPage() {
           >
             <p className="mb-3 text-xs text-slate-500">
               <span className="font-mono">{d.user.username}</span> · {d._count.orders} pedido(s) en curso · Última ubicación{" "}
-              {fecha(d.lastLocationAt)}
+              {fecha(d.lastLocationAt)} ·{" "}
+              {d.user.appVersion ? (
+                <span className={olderThanLatest(d.user.appVersion) ? "font-medium text-amber-700" : "text-emerald-700"}>
+                  App {d.user.appVersion}
+                  {olderThanLatest(d.user.appVersion) ? " (actualizar)" : ""}
+                </span>
+              ) : (
+                <span>Sin la app Android</span>
+              )}
             </p>
             <ActionForm action={updateDriver.bind(null, d.id)} submitLabel="Guardar">
               <div className="grid gap-3 sm:grid-cols-3">

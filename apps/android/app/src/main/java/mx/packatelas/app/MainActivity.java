@@ -122,6 +122,19 @@ public class MainActivity extends Activity {
     protected void onPause() {
         super.onPause();
         CookieManager.getInstance().flush();
+        // En segundo plano la web no necesita correr: la ubicación la lleva el servicio nativo.
+        // Pausar sus temporizadores ahorra batería; al volver se reanudan y se envía lo pendiente.
+        web.onPause();
+        web.pauseTimers();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        web.resumeTimers();
+        web.onResume();
+        Updater.onResume(this);
+        Updater.check(this, false);
     }
 
     @Override
@@ -178,6 +191,12 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String version() {
             return BuildConfig.VERSION_NAME;
+        }
+
+        /** Buscar actualización ahora (botón en la web). */
+        @JavascriptInterface
+        public void checkUpdate() {
+            runOnUiThread(() -> Updater.check(MainActivity.this, true));
         }
     }
 

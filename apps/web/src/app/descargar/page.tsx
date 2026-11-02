@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import QRCode from "qrcode";
 import { Logo } from "@/components/brand";
+import { APP_RELEASE } from "@/lib/app-release";
 
 export const metadata: Metadata = { title: "Descargar app" };
 
-const VERSION = "1.4";
+const VERSION = APP_RELEASE.versionName;
 export const dynamic = "force-dynamic";
 
 /** Página pública para instalar la app Android desde cualquier celular. */

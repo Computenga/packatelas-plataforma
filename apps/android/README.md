@@ -19,3 +19,12 @@ gradle assembleRelease -PbaseUrl=https://admin.packatelas.mx   # el día del cam
 Firma: `keystore.properties` (no se sube) con `storeFile`, `storePassword`, `keyAlias`, `keyPassword`. **Siempre la misma llave**: si cambia, los teléfonos no aceptan la actualización y hay que desinstalar. Sube `versionCode` en `app/build.gradle` en cada versión.
 
 El APK firmado se publica en `apps/web/public/app/packatelas.apk` → https://nuevo.packatelas.mx/app/packatelas.apk
+
+## Sacar una versión nueva
+
+1. Sube `versionCode` (+1) y `versionName` en `apps/web/src/lib/app-release.json` (la única fuente: la usan Gradle y la plataforma).
+2. `gradle assembleRelease` en `apps/android` (con `keystore.properties`; misma firma siempre o no se instala encima).
+3. Copia `app/build/outputs/apk/release/app-release.apk` a `apps/web/public/app/packatelas.apk` y despliega.
+
+Las apps instaladas se enteran solas: la 1.5+ muestra una ventana «Actualizar» que descarga e instala; las anteriores
+reciben un aviso del sistema (una vez por versión) y una franja en la parte de arriba. En Repartidores se ve quién ya actualizó.
