@@ -13,7 +13,6 @@ export async function requestPickupAction(_: ActionState, fd: FormData): Promise
     .object({
       branchId: z.string().min(1, "Elige la sucursal"),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Elige la fecha").refine((d) => d >= today, "La fecha no puede ser pasada"),
-      expectedCount: z.union([z.coerce.number().int().min(1).max(5000), z.literal("")]).optional(),
       note: z.string().trim().max(300).optional(),
     })
     .safeParse(Object.fromEntries(fd));
@@ -24,10 +23,11 @@ export async function requestPickupAction(_: ActionState, fd: FormData): Promise
   try {
     const p = await requestPickup(
       prisma,
-      { clientId, branchId: d.branchId, ymd: when.ymd, expectedCount: d.expectedCount === "" ? undefined : d.expectedCount, note: d.note || undefined },
+      { clientId, branchId: d.branchId, ymd: when.ymd, note: d.note || undefined },
       user.id,
     );
     revalidatePath("/cliente/recolecciones");
+    if (p.existing) return { ok: `Ya tienes una recolección para esa sucursal el ${pickupDayLabel(when.ymd)}; no hace falta pedir otra.${d.note ? " Agregamos tu nota." : ""}` };
     return p.status === "BLOCKED"
       ? { error: "Registramos tu solicitud, pero está en pausa por saldo pendiente. Revisa tu estado de cuenta." }
       : { ok: `Recolección agendada para el ${pickupDayLabel(when.ymd)}${when.moved ? " (se pidió después de las 12:00 pm o en día no hábil, así que pasó al siguiente día hábil)" : ""}. Te llegará el folio por WhatsApp.` };

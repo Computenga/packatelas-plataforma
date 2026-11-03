@@ -34,10 +34,7 @@ export default async function ClienteRecolecciones() {
               <option key={b.id} value={b.id}>{b.name} · {b.address}</option>
             ))}
           </Select>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Fecha" name="date" type="date" min={earliest} defaultValue={earliest} required hint="Lunes a sábado" />
-            <Field label="Paquetes aprox." name="expectedCount" type="number" min="1" />
-          </div>
+          <Field label="Fecha" name="date" type="date" min={earliest} defaultValue={earliest} required hint="Lunes a sábado · una recolección por sucursal al día" />
           <Field label="Nota para el repartidor" name="note" />
         </ActionForm>
       </Card>

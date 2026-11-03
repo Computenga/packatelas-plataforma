@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addOrderEvent, applyInsurance, audit, createManualOrder, prisma, rescheduleOrder, sendToWarehouse } from "@packatelas/db";
+import { addOrderEvent, adminMarkOrder, applyInsurance, audit, createManualOrder, prisma, rescheduleOrder, sendToWarehouse } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 import { orderFields, toManualInput } from "@/lib/order-schema";
@@ -91,4 +91,22 @@ export async function insuranceAction(orderId: string, _: ActionState, fd: FormD
   }
   revalidatePath(`/admin/pedidos/${orderId}`);
   return { ok: "Seguro aplicado: el abono ya está en el saldo de la tienda" };
+}
+
+/** Cerrar a mano un envío: entregado o no entregado (queda en el historial con el motivo). */
+export async function manualCloseAction(orderId: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN", "OPERADOR", "DESPACHADOR"]);
+  const outcome = fd.get("outcome") === "failed" ? "failed" : "delivered";
+  try {
+    await adminMarkOrder(prisma, orderId, {
+      outcome,
+      note: String(fd.get("note") ?? ""),
+      receiverName: String(fd.get("receiverName") ?? "").trim() || undefined,
+      reason: String(fd.get("reason") ?? "otro") as never,
+    }, user.id);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo guardar" };
+  }
+  revalidatePath(`/admin/pedidos/${orderId}`);
+  return { ok: outcome === "delivered" ? "Marcado como entregado" : "Marcado como no entregado" };
 }

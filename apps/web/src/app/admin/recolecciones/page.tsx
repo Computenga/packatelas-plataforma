@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { PICKUP_LABEL } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, Field, PageHeader, Select, Table, Td } from "@/components/ui";
-import { assignPickupAction, newPickupAction } from "./actions";
+import { assignPickupAction, closePickupAction, newPickupAction } from "./actions";
+import { ClosePickup } from "./close-pickup";
 import { exemptionAction } from "../cobros/actions";
 import { ExemptionForm } from "@/components/exemption-form";
 import { mxn } from "@/lib/format";
@@ -106,6 +107,9 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
                 ) : (
                   p.driver?.user.name ?? "—"
                 )}
+                {["SCHEDULED", "ASSIGNED", "BLOCKED", "FAILED"].includes(p.status) && (
+                  <ClosePickup action={closePickupAction.bind(null, p.id)} canCollect={p.status !== "BLOCKED"} />
+                )}
               </Td>
             </tr>
           );
@@ -122,7 +126,7 @@ export default async function RecoleccionesPage({ searchParams }: PageProps<"/ad
               ))}
             </Select>
             <Field label="Fecha" name="date" type="date" defaultValue={date} min={today} required hint="Las tiendas no pueden pedir para el mismo día después de las 12:00 ni en domingo; desde aquí sí puedes." />
-            <Field label="Paquetes aprox." name="expectedCount" type="number" min="1" />
+
           </div>
           <Field label="Nota" name="note" />
         </ActionForm>

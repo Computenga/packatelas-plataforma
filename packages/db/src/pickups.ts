@@ -123,7 +123,8 @@ export async function generateAutoPickups(prisma: PrismaClient, ymd: string): Pr
     });
     let created = 0;
     for (const b of branches) {
-      const exists = await tx.pickup.findFirst({ where: { branchId: b.id, scheduledFor: date, automatic: true } });
+      // Si ya hay una (automática o pedida por la tienda), no se crea otra ese día.
+      const exists = await tx.pickup.findFirst({ where: { branchId: b.id, scheduledFor: date, status: { not: "CANCELLED" } } });
       if (exists) continue;
       const blocked = await isPickupBlocked(tx, b.clientId);
       const p = await tx.pickup.create({
@@ -173,6 +174,14 @@ export async function requestPickup(
 ) {
   const branch = await prisma.branch.findFirst({ where: { id: input.branchId, clientId: input.clientId, active: true } });
   if (!branch) throw new Error("Sucursal no válida");
+  // Una sola recolección por sucursal y día: si ya hay una, se usa esa (y se le agrega la nota).
+  const same = await prisma.pickup.findFirst({ where: { branchId: branch.id, scheduledFor: dateOnly(input.ymd), status: { not: "CANCELLED" } } });
+  if (same) {
+    if (input.note && !(same.note ?? "").includes(input.note)) {
+      await prisma.pickup.update({ where: { id: same.id }, data: { note: [same.note, input.note].filter(Boolean).join(" · ").slice(0, 300) } });
+    }
+    return Object.assign(same, { existing: true as const });
+  }
   const blocked = await isPickupBlocked(prisma, input.clientId);
   const p = await prisma.pickup.create({
     data: {
@@ -192,7 +201,7 @@ export async function requestPickup(
     entityId: p.id,
     summary: `Recolección ${input.ymd} en ${branch.name}${blocked ? " (bloqueada por adeudo)" : ""}`,
   });
-  return p;
+  return Object.assign(p, { existing: false as const });
 }
 
 export async function assignPickup(prisma: PrismaClient, pickupId: string, driverId: string | null, actorUserId?: string) {

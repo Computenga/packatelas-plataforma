@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { INSURANCE_REASONS, prisma } from "@packatelas/db";
+import { FAIL_REASONS, INSURANCE_REASONS, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Button, Card, PageHeader } from "@/components/ui";
-import { cancelOrder, insuranceAction, rescheduleAction, sendToWarehouseAction } from "../actions";
+import { cancelOrder, insuranceAction, manualCloseAction, rescheduleAction, sendToWarehouseAction } from "../actions";
 import { ActionForm } from "@/components/action-form";
 import { trackingPath } from "@/lib/tracking";
 import { MlSaleCard } from "@/components/ml-sale";
@@ -143,6 +143,26 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               <p className="mt-2 text-xs text-slate-500">Envío ML {order.mlShipmentId.toString()} · {order.mlStatus ?? "sin sincronizar"}</p>
             )}
           </Card>
+          {canAct && ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED"].includes(order.status) && (
+            <Card title={order.kind === "PICKUP" ? "Cerrar recolección a mano" : "Cerrar a mano"}>
+              <ActionForm action={manualCloseAction.bind(null, order.id)} submitLabel="Guardar">
+                <p className="text-xs text-slate-500">Si el repartidor no pudo cerrarlo en la app. Queda en el historial con tu nombre y el motivo.</p>
+                <select name="outcome" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+                  <option value="delivered">{order.kind === "PICKUP" ? "Recolectada" : "Entregado"}</option>
+                  <option value="failed">{order.kind === "PICKUP" ? "No se pudo recolectar" : "No entregado"}</option>
+                </select>
+                {order.kind !== "PICKUP" && (
+                  <>
+                    <input name="receiverName" placeholder="Quién recibió (si se entregó)" maxLength={120} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+                    <select name="reason" defaultValue="otro" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm" aria-label="Motivo si no se entregó">
+                      {Object.entries(FAIL_REASONS).map(([k, v]) => <option key={k} value={k}>Si no se entregó: {v}</option>)}
+                    </select>
+                  </>
+                )}
+                <input name="note" required minLength={3} maxLength={200} placeholder="Motivo del cierre a mano" className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" />
+              </ActionForm>
+            </Card>
+          )}
           {(canSendBack || canReschedule) && (
             <Card title="Siguiente paso">
               {order.status === "RETURNING" && (
