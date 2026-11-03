@@ -10,7 +10,7 @@ import { saveConfigAction, syncNowAction } from "./actions";
 export const metadata: Metadata = { title: "Unificación RH, checador y flotilla" };
 
 const LABEL: Record<string, string> = {
-  empleados: "Personal", checadas: "Checadas", justificadas: "Días justificados", vehiculos: "Motos", checks: "Checks", gasolina: "Cargas de gasolina",
+  empleados: "Personal", checadas: "Checadas", justificadas: "Días justificados", recibos: "Recibos de nómina", expedientes: "Expedientes", vehiculos: "Motos", checks: "Checks", gasolina: "Cargas de gasolina",
   fallas: "Fallas", reparaciones: "Reparaciones", documentos: "Documentos", omitidos: "Omitidos", estado: "Estado",
 };
 
@@ -52,7 +52,7 @@ export default async function UnificacionPage() {
         )}
         <ActionForm action={saveConfigAction} submitLabel="Guardar">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked={cfg.enabled} className="h-4 w-4 accent-brand" /> Copiar automáticamente cada 10 minutos</label>
-          <label className="block text-sm"><span className="text-slate-600">Hoja del checador y portal de empleados (Personal, Empleados, Checadas, Justificadas)</span>
+          <label className="block text-sm"><span className="text-slate-600">Hoja del checador y portal de empleados (Personal, Empleados, Checadas, Justificadas, Recibos, DocsEmpleado)</span>
             <input name="checador" defaultValue={cfg.checadorSheetId} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs" /></label>
           <label className="block text-sm"><span className="text-slate-600">Hoja de la flotilla (Vehiculos, Checks, Combustible, Fallas, Reparaciones, Documentos)</span>
             <input name="flotilla" defaultValue={cfg.flotillaSheetId} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono text-xs" /></label>

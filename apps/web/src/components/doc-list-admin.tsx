@@ -14,7 +14,7 @@ export function DocListAdmin({ rows, reviewable = true }: { rows: Row[]; reviewa
         return (
           <li key={type.key} className="flex flex-wrap items-center gap-3 py-3">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-50 text-xs text-slate-400">
-              {doc && url ? (doc.mime === "application/pdf" ? <a href={url} target="_blank" rel="noreferrer" className="font-semibold text-red-600">PDF</a> : (
+              {doc && url ? doc.fileKey.startsWith("drive:") ? <a href={url} target="_blank" rel="noreferrer" className="font-semibold text-blue-600">Drive</a> : (doc.mime === "application/pdf" ?<a href={url} target="_blank" rel="noreferrer" className="font-semibold text-red-600">PDF</a> : (
                 <a href={url} target="_blank" rel="noreferrer">
                   {/* eslint-disable-next-line @next/next/no-img-element -- archivo privado, no pasa por el optimizador */}
                   <img src={url} alt={type.name} className="h-14 w-14 object-cover" /></a>

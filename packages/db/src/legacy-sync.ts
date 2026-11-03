@@ -152,6 +152,61 @@ async function syncChecador(prisma: PrismaClient, read: SheetReader, sheetId: st
   out.justificadas = `${added} nuevas`;
 }
 
+// ── Nómina: recibos ya pagados (incluye el histórico desde 2022) y expediente digital ──
+async function syncNominaYDocs(prisma: PrismaClient, read: SheetReader, sheetId: string, out: Record<string, string>) {
+  const emps = new Map((await prisma.employee.findMany({ select: { id: true, employeeNo: true } })).map((x) => [x.employeeNo, x.id]));
+  const [recibos, docs] = await Promise.all([read(sheetId, "Recibos!A:T").then(asRecords), read(sheetId, "DocsEmpleado!A:K").then(asRecords)]);
+
+  // Recibos: solo se agregan los que la plataforma no tiene (nunca pisa uno hecho aquí).
+  const have = new Set((await prisma.payrollReceipt.findMany({ select: { employeeId: true, quincena: true } })).map((r) => `${r.employeeId}|${r.quincena}`));
+  let rNew = 0;
+  for (const r of recibos) {
+    const employeeId = emps.get(Number(r["no_empleado"]));
+    const q = (r["periodo"] ?? "").trim();
+    const from = legacyDate(r["desde"]), to = legacyDate(r["hasta"]);
+    if (!employeeId || !/^\d{4}-\d{2}-[12]$/.test(q) || !from || !to || have.has(`${employeeId}|${q}`)) continue;
+    let info: { etiqueta?: string; notas?: string; concepto_otras?: string } = {};
+    try { info = JSON.parse(r["detalle_json"] || "{}"); } catch { /* sin detalle */ }
+    const P = (k: string, concept: string) => ({ kind: "PERCEPCION" as const, concept, amount: num(r[k]) ?? 0 });
+    const D = (k: string, concept: string) => ({ kind: "DEDUCCION" as const, concept, amount: num(r[k]) ?? 0 });
+    const lines = [
+      P("sueldo", "Sueldo"), P("bonos", "Bonos"), P("otras_percepciones", info.concepto_otras || "Otras percepciones"),
+      D("desc_faltas", "Faltas"), D("desc_retardos", "Retardos"), D("desc_cargos", "Cargos"), D("desc_adeudos", "Adeudos"), D("otras_deducciones", "Otras deducciones"),
+    ].filter((l) => l.amount > 0).map((l, i) => ({ ...l, amount: new Prisma.Decimal(l.amount.toFixed(2)), order: i }));
+    const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(d);
+    await prisma.payrollReceipt.create({
+      data: {
+        employeeId, quincena: q, periodFrom: new Date(`${ymd(from)}T00:00:00Z`), periodTo: new Date(`${ymd(to)}T00:00:00Z`),
+        dailySalary: new Prisma.Decimal((num(r["salario_diario"]) ?? 0).toFixed(2)), status: "PAGADO", paidAt: to,
+        notes: [`Importado de la hoja (${r["recibo_id"]})`, info.notas].filter(Boolean).join(" · ").slice(0, 500),
+        lines: { create: lines },
+      },
+    });
+    have.add(`${employeeId}|${q}`);
+    rNew++;
+  }
+  out.recibos = `${rNew} nuevos (${recibos.length} en la hoja)`;
+
+  // Expediente: los archivos siguen en Drive; aquí se guarda la liga (clave drive:<id>).
+  const known = new Set((await prisma.employeeDocument.findMany({ where: { fileKey: { startsWith: "drive:" } }, select: { fileKey: true } })).map((d) => d.fileKey));
+  const ST: Record<string, "PENDIENTE" | "APROBADO" | "RECHAZADO"> = { aprobado: "APROBADO", rechazado: "RECHAZADO" };
+  let dNew = 0;
+  for (const d of docs) {
+    const employeeId = emps.get(empNo(d["owner"]) ?? -1);
+    const fileId = (d["file_id"] ?? "").trim();
+    if (!employeeId || !/^[\w-]{10,}$/.test(fileId) || known.has(`drive:${fileId}`)) continue;
+    await prisma.employeeDocument.create({
+      data: {
+        employeeId, docType: (d["doc_id"] || "otro").slice(0, 40), fileKey: `drive:${fileId}`, fileName: (d["nombre_archivo"] || null)?.slice(0, 200) ?? null,
+        mime: d["mime"] || "application/octet-stream", status: ST[nrm(d["estatus"] ?? "")] ?? "PENDIENTE", comment: d["comentario"] || null,
+        uploadedAt: legacyDate(d["fecha"]) ?? new Date(), reviewedAt: legacyDate(d["fecha_revision"]),
+      },
+    });
+    dNew++;
+  }
+  out.expedientes = `${dNew} documentos nuevos (liga a Drive)`;
+}
+
 // ── Flotilla ──
 async function syncFlotilla(prisma: PrismaClient, read: SheetReader, sheetId: string, out: Record<string, string>) {
   const [veh, checks, fuel, faults, repairs, docs] = await Promise.all(
@@ -290,6 +345,7 @@ export async function syncLegacy(prisma: PrismaClient, read?: SheetReader | null
     if (!errors.length) errors.push("Conecta Google Drive en Salud para poder leer las hojas.");
   } else {
     await syncChecador(prisma, reader, cfg.checadorSheetId, results).catch((e) => errors.push(`Checador: ${e instanceof Error ? e.message : e}`));
+    await syncNominaYDocs(prisma, reader, cfg.checadorSheetId, results).catch((e) => errors.push(`Nómina y expedientes: ${e instanceof Error ? e.message : e}`));
     await syncFlotilla(prisma, reader, cfg.flotillaSheetId, results).catch((e) => errors.push(`Flotilla: ${e instanceof Error ? e.message : e}`));
   }
   const status: LegacyStatus = { at: new Date().toISOString(), ok: errors.length === 0, results, errors };

@@ -14,6 +14,9 @@ export async function GET(_req: Request, ctx: RouteContext<"/api/docs/[...key]">
   // Despachador: solo documentos de solicitudes de repartidor por revisar (aprueba altas de repartidores).
   const dispatcherOk = user.role === "DESPACHADOR" && doc.application?.role === "repartidor" && ["EN_PROCESO", "ENVIADA"].includes(doc.application.status);
   if (user.role !== "ADMIN" && !dispatcherOk && doc.employee?.userId !== user.id) return new Response("No autorizado", { status: 403 });
+  // Expediente copiado de la hoja anterior: el archivo sigue en Drive.
+  const drive = /^drive:([\w-]{10,})$/.exec(decodeURIComponent(key));
+  if (drive) return Response.redirect(`https://drive.google.com/file/d/${drive[1]}/view`, 302);
   const data = await readEvidence(key);
   if (!data) return new Response("No encontrado", { status: 404 });
   const ext = key.split(".").pop() as keyof typeof TYPES;

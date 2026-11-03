@@ -13,6 +13,8 @@ const sheets: Record<string, string[][]> = {
   "Combustible!A:L": [["carga_id", "check_id", "fecha_hora", "usuario_id", "vehiculo_id", "km_recorridos", "monto", "litros"], ["CG-T99001", "CH-T99001", "14/10/2026 9:31:47", `U-${N1}`, "M-990", "", "101.03", "4.092"]],
   "Fallas!A:O": [["falla_id", "tipo", "check_id", "fecha_reporte", "reportada_por", "responsable_id", "vehiculo_id", "descripcion", "severidad", "foto_1", "foto_2", "foto_3", "foto_4", "estatus"], ["F-T99001", "normal", "CH-T99001", "13/10/2026 9:58:35", `U-${N1}`, `U-${N1}`, "M-990", "No sirve el velocímetro", "media", "", "", "", "", "abierta"]],
   "Reparaciones!A:U": [["rep_id", "falla_id", "vehiculo_id", "mecanico_id", "fecha_inicio", "fecha_cierre", "horas_respuesta", "horas_reparacion", "descripcion", "foto_1", "foto_2", "foto_3", "foto_4", "costo_refacciones", "costo_mano_obra", "costo_total", "causa", "responsable_id", "monto_empleado", "monto_empresa"], ["R-T99001", "F-T99001", "M-990", "U-62", "26/10/2026 14:42:17", "26/10/2026", "", "", "Cambio de cadena", "", "", "", "", "261", "0", "261", "desgaste", `U-${N1}`, "0", "261"]],
+  "Recibos!A:T": [["recibo_id", "no_empleado", "nombre", "periodo", "desde", "hasta", "dias", "salario_diario", "sueldo", "bonos", "otras_percepciones", "desc_faltas", "desc_retardos", "desc_cargos", "desc_adeudos", "otras_deducciones", "total_percepciones", "total_deducciones", "neto", "detalle_json"], ["REC-T1", String(N1), "Ana", "2022-03-1", "01/03/2022", "15/03/2022", "15", "200", "3000", "100", "0", "200", "0", "0", "0", "0", "3100", "200", "2900", "{\"notas\":\"histórico\"}"]],
+  "DocsEmpleado!A:K": [["archivo_id", "owner", "doc_id", "nombre_archivo", "file_id", "mime", "fecha", "estatus"], ["A-T1", `E:${N1}`, "ine", "ine.pdf", "1AbCdEfGhIjKlMnOp_q", "application/pdf", "01/10/2026", "aprobado"]],
   "Documentos!A:J": [["doc_id", "vehiculo_id", "tipo", "folio", "fecha_emision", "vigencia"]],
 };
 const read: SheetReader = async (_id, range) => sheets[range] ?? [];
@@ -26,6 +28,9 @@ afterAll(async () => {
     await prisma.vehicleCheck.deleteMany({ where: { vehicleId: v.id } });
     await prisma.vehicle.delete({ where: { id: v.id } });
   }
+  const emps = (await prisma.employee.findMany({ where: { employeeNo: { in: [N1, N2] } }, select: { id: true } })).map((e) => e.id);
+  await prisma.payrollReceipt.deleteMany({ where: { employeeId: { in: emps } } });
+  await prisma.employeeDocument.deleteMany({ where: { employeeId: { in: emps } } });
   await prisma.employee.deleteMany({ where: { employeeNo: { in: [N1, N2] } } });
   await prisma.auditLog.deleteMany({ where: { action: "employees.imported", summary: { contains: "Personal importado" }, createdAt: { gte: new Date(Date.now() - 600_000) } } }).catch(() => {});
   await prisma.$disconnect();
@@ -50,12 +55,20 @@ describe("unificación con las hojas actuales [A37]", () => {
     const f = await prisma.fault.findUniqueOrThrow({ where: { legacyId: "F-T99001" }, include: { repair: true } });
     expect(f.checkId).toBeTruthy();
     expect(Number(f.repair?.companyAmount)).toBe(261);
+    const rec = await prisma.payrollReceipt.findFirstOrThrow({ where: { employeeId: ana.id, quincena: "2022-03-1" }, include: { lines: true } });
+    expect(rec.status).toBe("PAGADO");
+    expect(rec.lines.map((l) => [l.concept, Number(l.amount)])).toEqual([["Sueldo", 3000], ["Bonos", 100], ["Faltas", 200]]);
+    const doc = await prisma.employeeDocument.findFirstOrThrow({ where: { employeeId: ana.id } });
+    expect(doc.fileKey).toBe("drive:1AbCdEfGhIjKlMnOp_q");
+    expect(doc.status).toBe("APROBADO");
 
     sheets["Fallas!A:O"][1][13] = "cerrada";
     const r2 = await syncLegacy(prisma, read, { force: true });
     expect(r2.results.checks).toBe("0 nuevos");
     expect(r2.results.fallas).toBe("0 nuevas, 1 con estatus actualizado");
     expect(r2.results.justificadas).toBe("0 nuevas");
+    expect(r2.results.recibos).toBe("0 nuevos (1 en la hoja)");
+    expect(r2.results.expedientes).toContain("0 documentos");
     expect(await prisma.punch.count({ where: { employeeId: ana.id } })).toBe(1);
 
     // Corrección en la hoja (hora −14 h y tipo puerta): se actualiza la misma checada, sin duplicar.
