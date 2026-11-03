@@ -50,7 +50,15 @@ export async function googleSheetsReader(prisma: PrismaClient, fetchImpl: typeof
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(30_000),
     });
-    if (r.status === 403) throw new Error("Falta permiso para leer las hojas: en Salud, vuelve a «Conectar Google Drive» (ahora pide también lectura de hojas).");
+    if (r.status === 403) {
+      const body = (await r.json().catch(() => ({}))) as { error?: { message?: string; details?: { reason?: string }[]; status?: string } };
+      const reason = body.error?.details?.find((d) => d.reason)?.reason ?? body.error?.status ?? "";
+      if (/SERVICE_DISABLED|ACCESS_NOT_CONFIGURED/i.test(reason) || /has not been used|is disabled/i.test(body.error?.message ?? ""))
+        throw new Error("La API de Google Sheets está apagada en el proyecto de Google Cloud «packatelas-plataforma»: actívala en console.cloud.google.com/apis/library/sheets.googleapis.com y vuelve a copiar.");
+      if (/SCOPE|insufficient/i.test(`${reason} ${body.error?.message ?? ""}`))
+        throw new Error("Falta permiso para leer las hojas: en Salud, vuelve a «Conectar Google Drive» y marca la casilla de hojas de cálculo.");
+      throw new Error(`Google no dejó leer ${range}: ${(body.error?.message ?? "sin permiso").slice(0, 200)}`);
+    }
     if (!r.ok) throw new Error(`Google Sheets respondió ${r.status} al leer ${range}`);
     return (((await r.json()) as { values?: string[][] }).values ?? []).map((row) => row.map((c) => String(c ?? "")));
   };
