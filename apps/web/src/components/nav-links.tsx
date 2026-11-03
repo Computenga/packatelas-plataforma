@@ -29,37 +29,58 @@ const styles = {
 export function NavLinks({ nav, ready, variant }: { nav: NavItem[]; ready: string[]; variant: keyof typeof styles }) {
   const pathname = usePathname();
   const s = styles[variant];
-  return (
-    <ul className={s.list}>
-      {nav.map((item) => {
-        const isReady = ready.includes(item.href);
-        const root = nav[0]?.href;
-        const active = item.href === root ? pathname === item.href : pathname === item.href || pathname.startsWith(item.href + "/");
-        if (!isReady) {
-          return (
-            <li key={item.href}>
-              <span className={`${s.item} cursor-default text-slate-400`} title="Disponible próximamente">
-                {item.label}
-                {variant === "side" && <span className="text-[10px] uppercase tracking-wide">pronto</span>}
-              </span>
-            </li>
-          );
-        }
-        return (
-          <li key={item.href}>
-            <Link href={item.href} className={`${s.item} ${active ? s.active : s.idle}`}>
-              {variant === "bottom" ? (
-                <>
-                  <NavIcon>{NAV_ICONS[item.href] ?? NAV_DOT}</NavIcon>
-                  <span className="max-w-full truncate">{SHORT[item.href] ?? item.label}</span>
-                </>
-              ) : (
-                item.label
-              )}
-            </Link>
-          </li>
-        );
-      })}
-    </ul>
-  );
+  const root = nav[0]?.href;
+  // La ruta más específica que coincide (p. ej. /admin/personal/altas sobre /admin/personal).
+  const match = nav
+    .filter((i) => (i.href === root ? pathname === i.href : pathname === i.href || pathname.startsWith(i.href + "/")))
+    .sort((a, b) => b.href.length - a.href.length)[0]?.href;
+
+  const item = (it: NavItem) => {
+    const active = it.href === match;
+    if (!ready.includes(it.href)) {
+      return (
+        <li key={it.href}>
+          <span className={`${s.item} cursor-default text-slate-400`} title="Disponible próximamente">
+            {it.label}
+            {variant === "side" && <span className="text-[10px] uppercase tracking-wide">pronto</span>}
+          </span>
+        </li>
+      );
+    }
+    return (
+      <li key={it.href}>
+        <Link href={it.href} className={`${s.item} ${active ? s.active : s.idle}`} aria-current={active ? "page" : undefined}>
+          {variant === "bottom" ? (
+            <>
+              <NavIcon>{NAV_ICONS[it.href] ?? NAV_DOT}</NavIcon>
+              <span className="max-w-full truncate">{SHORT[it.href] ?? it.label}</span>
+            </>
+          ) : (
+            it.label
+          )}
+        </Link>
+      </li>
+    );
+  };
+
+  // Menú lateral con secciones: un título por grupo.
+  if (variant === "side" && nav.some((i) => i.section)) {
+    const groups: { title?: string; items: NavItem[] }[] = [];
+    for (const it of nav) {
+      const last = groups[groups.length - 1];
+      if (last && last.title === it.section) last.items.push(it);
+      else groups.push({ title: it.section, items: [it] });
+    }
+    return (
+      <div className="space-y-4">
+        {groups.map((g, gi) => (
+          <div key={g.title ?? gi}>
+            {g.title && <p className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{g.title}</p>}
+            <ul className={s.list}>{g.items.map(item)}</ul>
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return <ul className={s.list}>{nav.map(item)}</ul>;
 }
