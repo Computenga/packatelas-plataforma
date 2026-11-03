@@ -5,6 +5,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { Prisma, type PrismaClient, type DocStatus } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { hashPassword } from "./password.ts";
+import { markCounter } from "./counters.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 const hash = (t: string) => createHash("sha256").update(t).digest("hex");
@@ -145,6 +146,7 @@ export async function approveApplication(prisma: PrismaClient, appId: string, in
       await tx.employee.update({ where: { id: emp.id }, data: { userId: user.id } });
       username = user.username;
     }
+    await markCounter(tx, "empleado", input.employeeNo);
     await tx.hireApplication.update({ where: { id: a.id }, data: { status: "APROBADA", employeeId: emp.id, resolvedById: actorUserId, resolvedAt: new Date(), passwordHash: null } });
     await audit(tx, { actorUserId, action: "employee.hired", entity: "Employee", entityId: emp.id, summary: `Alta de ${emp.name} (#${emp.employeeNo}) desde solicitud${username ? `; usuario de repartidor «${username}» activo` : ""}` });
     return { ok: true as const, employeeId: emp.id, username };

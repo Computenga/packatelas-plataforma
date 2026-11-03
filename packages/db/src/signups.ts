@@ -6,6 +6,7 @@ import { leadSignupApproved, setLeadStage } from "./crm.ts";
 import { normalizeStoreUrl } from "./store-links.ts";
 import { hashPassword } from "./password.ts";
 import { ID_PREFIXES, referenceFromPublicId, type IdPrefix } from "./public-id.ts";
+import { getCounters, markCounter } from "./counters.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -14,7 +15,9 @@ export async function nextPublicId(db: Db, prefix: IdPrefix) {
   const rows = await db.$queryRaw<{ max: number | null }[]>`
     SELECT MAX(CAST(SUBSTRING("publicId" FROM '^[a-z]{3}([0-9]+)') AS INTEGER)) AS max
     FROM "Client" WHERE "publicId" ~ ${`^${prefix}[0-9]+(-|$)`}`;
-  const publicId = `${prefix}${String((rows[0]?.max ?? 0) + 1).padStart(5, "0")}`;
+  // El siguiente después del mayor entre la base y el último consecutivo asignado fuera de ella.
+  const floor = (await getCounters(db))[prefix];
+  const publicId = `${prefix}${String(Math.max(rows[0]?.max ?? 0, floor) + 1).padStart(5, "0")}`;
   return { publicId, paymentReference: referenceFromPublicId(publicId) };
 }
 
@@ -106,6 +109,7 @@ export async function approveSignup(
     }
     const zone = input.zone ?? (signup.zone as IdPrefix);
     const ids = await nextPublicId(tx, zone);
+    await markCounter(tx, zone, Number(ids.publicId.slice(3)));
     const client = await tx.client.create({
       data: {
         ...ids,

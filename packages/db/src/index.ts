@@ -34,6 +34,7 @@ export * from "./guest.ts";
 export * from "./ml-buyer-message.ts";
 export * from "./legacy-sync.ts";
 export * from "./store.ts";
+export * from "./counters.ts";
 export { parseEmployees, parsePunches, type ParsedEmployees } from "./personnel-import.ts";
 export * from "./password.ts";
 export * from "./scan.ts";

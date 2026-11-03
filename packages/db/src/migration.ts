@@ -4,6 +4,7 @@
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { PUBLIC_ID, referenceFromPublicId } from "./public-id.ts";
+import { markCounter } from "./counters.ts";
 
 export { normalizePublicId } from "./public-id.ts";
 
@@ -104,6 +105,8 @@ export async function importClients(
           await tx.client.update({ where: { id: clientId }, data: patch });
           summary.updated.push(r.publicId);
         } else {
+          const m = r.publicId.match(/^(cmx|emx)(\d+)/);
+          if (m) await markCounter(tx, m[1] as "cmx" | "emx", Number(m[2]));
           const c = await tx.client.create({
             data: {
               ...data,

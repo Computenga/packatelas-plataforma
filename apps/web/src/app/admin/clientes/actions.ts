@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { audit, hashPassword, nextPublicId, prisma, Prisma, reactivateBranch, refreshBlockedPickups, removeBranch, setMlRoutes } from "@packatelas/db";
+import { audit, hashPassword, nextPublicId, markCounter, prisma, Prisma, reactivateBranch, refreshBlockedPickups, removeBranch, setMlRoutes } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ID_PREFIXES } from "@packatelas/db/public-id";
 import { opt } from "@/lib/format";
@@ -29,6 +29,7 @@ export async function createClient(_: ActionState, fd: FormData): Promise<Action
   const d = parsed.data;
 
   const ids = await nextPublicId(prisma, d.prefix);
+  await markCounter(prisma, d.prefix, Number(ids.publicId.slice(3)));
   const client = await prisma.client.create({
     data: {
       ...ids,

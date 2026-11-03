@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { docTypesFor, HIRE_ROLES, latestByType, missingForSubmit, prisma } from "@packatelas/db";
+import { getCounters, docTypesFor, HIRE_ROLES, latestByType, missingForSubmit, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { DocListAdmin } from "@/components/doc-list-admin";
 import { Badge, Card, PageHeader } from "@/components/ui";
@@ -18,8 +18,8 @@ export default async function AltaDetalle({ params }: PageProps<"/admin/personal
   const { id } = await params;
   const a = await prisma.hireApplication.findUnique({ where: { id }, include: { documents: true } });
   if (!a || (user.role !== "ADMIN" && a.role !== "repartidor")) notFound();
-  const [types, missing, last] = await Promise.all([
-    docTypesFor(prisma, a.role), missingForSubmit(prisma, a.id), prisma.employee.aggregate({ _max: { employeeNo: true } }),
+  const [types, missing, last, counters] = await Promise.all([
+    docTypesFor(prisma, a.role), missingForSubmit(prisma, a.id), prisma.employee.aggregate({ _max: { employeeNo: true } }), getCounters(prisma),
   ]);
   const latest = latestByType(a.documents);
   const open = a.status === "ENVIADA" || a.status === "EN_PROCESO";
@@ -46,7 +46,7 @@ export default async function AltaDetalle({ params }: PageProps<"/admin/personal
           {a.status === "EN_PROCESO" && missing.length > 0 && <p className="mb-3 text-sm text-amber-700">Aún no la envía. Le falta: {missing.join(", ")}.</p>}
           {!allApproved && <p className="mb-3 text-sm text-slate-600">Para aprobar, todos los documentos deben estar aprobados.</p>}
           {a.role === "repartidor" && <p className="mb-3 text-sm text-slate-600">{a.username ? <>Al aprobar se activa su usuario de la app: <strong>{a.username}</strong>.</> : "Aún no elige su usuario de la app."}</p>}
-          <Decide appId={a.id} nextNo={(last._max.employeeNo ?? 0) + 1} driver={a.role === "repartidor"} />
+          <Decide appId={a.id} nextNo={Math.max(last._max.employeeNo ?? 0, counters.empleado) + 1} driver={a.role === "repartidor"} />
         </Card>
       )}
       {a.notes && <p className="text-sm text-slate-600">Nota: {a.notes}</p>}
