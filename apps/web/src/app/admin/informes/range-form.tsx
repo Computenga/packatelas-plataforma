@@ -14,12 +14,12 @@ export function RangeForm({ base, fromYmd, toYmd, extra }: { base: string; fromY
           </Link>
         );
       })}
-      <form className="flex items-center gap-1">
+      <form className="grid w-full grid-cols-[1fr_auto_1fr] items-center gap-1 sm:flex sm:w-auto">
         {Object.entries(extra ?? {}).map(([k, v]) => <input key={k} type="hidden" name={k} value={v} />)}
-        <input type="date" name="from" defaultValue={fromYmd} aria-label="Desde" className="rounded-lg border border-slate-300 px-2 py-1.5" />
+        <input type="date" name="from" defaultValue={fromYmd} aria-label="Desde" className="min-w-0 rounded-lg border border-slate-300 px-2 py-1.5" />
         <span className="text-slate-400">a</span>
-        <input type="date" name="to" defaultValue={toYmd} aria-label="Hasta" className="rounded-lg border border-slate-300 px-2 py-1.5" />
-        <button className="rounded-lg bg-brand px-3 py-1.5 text-white">Ver</button>
+        <input type="date" name="to" defaultValue={toYmd} aria-label="Hasta" className="min-w-0 rounded-lg border border-slate-300 px-2 py-1.5" />
+        <button className="col-span-3 rounded-lg bg-brand px-3 py-1.5 text-white">Ver</button>
       </form>
     </div>
   );

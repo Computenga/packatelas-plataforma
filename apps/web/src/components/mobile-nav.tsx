@@ -18,7 +18,7 @@ type Props = {
   favorites: string[];
 };
 
-import { NAV_ICONS as ICONS, NAV_DOT as DOT, NavIcon as Icon } from "./nav-icons";
+import { NAV_ICONS as ICONS, NAV_DOT as DOT, NAV_SHORT, NavIcon as Icon } from "./nav-icons";
 
 export function MobileNav({ title, userName, roleLabel, nav, ready, favorites }: Props) {
   const [open, setOpen] = useState(false);
@@ -105,14 +105,14 @@ export function MobileNav({ title, userName, roleLabel, nav, ready, favorites }:
           <ul className="grid auto-cols-fr grid-flow-col">
             {favs.map((f) => (
               <li key={f.href}>
-                <Link href={f.href} className={`flex flex-col items-center gap-0.5 py-2 text-xs ${isActive(f.href) ? "font-semibold text-brand" : "text-slate-500"}`}>
+                <Link href={f.href} className={`flex flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] leading-tight ${isActive(f.href) ? "font-semibold text-brand" : "text-slate-500"}`}>
                   <Icon>{ICONS[f.href] ?? DOT}</Icon>
-                  {f.label}
+                  <span className="max-w-full truncate">{NAV_SHORT[f.href] ?? f.label}</span>
                 </Link>
               </li>
             ))}
             <li>
-              <button type="button" onClick={show} className="flex w-full flex-col items-center gap-0.5 py-2 text-xs text-slate-500">
+              <button type="button" onClick={show} className="flex w-full flex-col items-center gap-0.5 py-2 text-[11px] leading-tight text-slate-500">
                 <Icon>
                   <path d="M3 5.5h14M3 10h14M3 14.5h14" />
                 </Icon>

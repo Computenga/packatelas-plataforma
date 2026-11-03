@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 
 // Íconos del menú inferior (celular).
 export const NAV_ICONS: Record<string, ReactNode> = {
+  "/cliente": <path d="M4 6.5 10 3.5l6 3v7l-6 3-6-3zM4 6.5l6 3 6-3M10 9.5v7" />,
+  "/cliente/recolecciones": <path d="M3 6h9v8H3zM12 9h3l2 2.5V14h-5M6 16.5a1.5 1.5 0 1 0 0-.01M14 16.5a1.5 1.5 0 1 0 0-.01" />,
+  "/cliente/cuenta": <path d="M3 6.5h14v9H3zM3 9.5h14M6 13h3" />,
+  "/cliente/tienda": <path d="M4 7h12l-1 9H5zM7.5 7V5.5a2.5 2.5 0 0 1 5 0V7" />,
+  "/cliente/soporte": <path d="M10 17a7 7 0 1 0-6.1-3.6L3 17l3.6-.9A7 7 0 0 0 10 17zM8 8.2a2 2 0 1 1 2.6 1.9c-.4.2-.6.5-.6.9v.5M10 13.3v.2" />,
   "/repartidor": <path d="M10 17s-5-4.6-5-8.5a5 5 0 0 1 10 0C15 12.4 10 17 10 17zM10 10a1.6 1.6 0 1 0 0-3.2 1.6 1.6 0 0 0 0 3.2z" />,
   "/repartidor/escanear": (
     <>
@@ -54,3 +59,12 @@ export function NavIcon({ children }: { children: ReactNode }) {
     </svg>
   );
 }
+
+/** Nombres cortos para que quepan abajo en el celular. */
+export const NAV_SHORT: Record<string, string> = {
+  "/cliente": "Envíos",
+  "/cliente/recolecciones": "Recolectas",
+  "/cliente/cuenta": "Mi cuenta",
+  "/repartidor/recolecciones": "Recolectas",
+  "/mecanico/documentos": "Docs",
+};

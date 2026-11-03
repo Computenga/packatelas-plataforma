@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { NavItem } from "@/lib/roles";
-import { NAV_DOT, NAV_ICONS, NavIcon } from "./nav-icons";
-
-/** Nombres cortos para que quepan abajo en el celular. */
-const SHORT: Record<string, string> = { "/repartidor/recolecciones": "Recolectas", "/mecanico/documentos": "Docs" };
+import { NAV_DOT, NAV_ICONS, NAV_SHORT as SHORT, NavIcon } from "./nav-icons";
 
 const styles = {
   side: {

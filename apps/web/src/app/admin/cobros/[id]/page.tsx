@@ -71,7 +71,7 @@ export default async function EstadoCuentaPage({ params, searchParams }: PagePro
         <div className="space-y-6">
           <Card title="Registrar abono">
             <ActionForm action={paymentAction.bind(null, id)} submitLabel="Registrar abono" resetOnSuccess>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Field label="Monto (MXN)" name="amount" type="number" step="0.01" min="0.01" required />
                 <Field label="Fecha" name="date" type="date" defaultValue={today} max={today} required />
               </div>
@@ -87,7 +87,7 @@ export default async function EstadoCuentaPage({ params, searchParams }: PagePro
 
           <Card title="Ajuste de saldo">
             <ActionForm action={adjustmentAction.bind(null, id)} submitLabel="Registrar ajuste" resetOnSuccess>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <Select label="Tipo" name="kind" defaultValue="credit">
                   <option value="credit">Bonificación (resta)</option>
                   <option value="charge">Cargo extra (suma)</option>

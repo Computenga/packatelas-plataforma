@@ -24,4 +24,21 @@ body {
   main :where(code, .font-mono) {
     overflow-wrap: anywhere;
   }
+  /* Ningún campo más ancho que su caja (en Android/iOS el de fecha y el de archivo traen un ancho mínimo propio). */
+  input, select, textarea {
+    min-width: 0;
+    max-width: 100%;
+  }
+  input:where([type="date"], [type="time"], [type="datetime-local"], [type="month"]) {
+    -webkit-appearance: none;
+    appearance: none;
+    min-height: 2.375rem;
+    text-align: left;
+  }
+  input::-webkit-date-and-time-value {
+    text-align: left;
+  }
+  input[type="file"] {
+    width: 100%;
+  }
 }

@@ -67,14 +67,14 @@ export async function ClientOnboarding({ clientId }: { clientId: string }) {
       </p>
       <ol className="mt-3 space-y-2">
         {steps.map((s, i) => (
-          <li key={s.key} className={`flex items-start gap-3 rounded-lg border px-3 py-2 ${s.done ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/40"}`}>
+          <li key={s.key} className={`flex flex-wrap items-start gap-3 rounded-lg border px-3 py-2 ${s.done ? "border-emerald-200 bg-emerald-50/50" : "border-amber-200 bg-amber-50/40"}`}>
             <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${s.done ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"}`}>{s.done ? "✓" : i + 1}</span>
-            <span className="min-w-0 flex-1 text-sm">
+            <span className="min-w-0 flex-1 basis-48 text-sm">
               <span className="block font-medium">{s.title}</span>
               <span className="block text-slate-600">{s.body}</span>
             </span>
             {!s.done && (
-              <Link href={s.href} className="shrink-0 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white">
+              <Link href={s.href} className="ml-9 shrink-0 rounded-lg bg-brand px-3 py-1.5 text-sm font-medium text-white sm:ml-0">
                 {s.cta}
               </Link>
             )}
