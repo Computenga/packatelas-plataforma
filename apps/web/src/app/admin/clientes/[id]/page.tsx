@@ -7,7 +7,7 @@ import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { AddressPicker } from "@/components/address-picker";
 import { Badge, Card, Checkbox, Field, PageHeader, Select } from "@/components/ui";
-import { addBranch, createPortalUser, linkMlAccount, moveMlAccountAction, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
+import { addBranch, createPortalUser, togglePortalUser, linkMlAccount, moveMlAccountAction, setRoutesAction, updateBranch, updateClient, updateTariff } from "../actions";
 import { BranchControls } from "./branch-controls";
 import { MlConnect } from "@/components/ml-connect";
 
@@ -112,7 +112,12 @@ export default async function ClientePage({ params }: PageProps<"/admin/clientes
                     <span>
                       <span className="font-mono">{u.username}</span> · {u.name}
                     </span>
-                    <span className="text-slate-500">{u.lastLoginAt ? `Último acceso ${fecha(u.lastLoginAt)}` : "Sin acceso aún"}</span>
+                    <span className="flex items-center gap-2 text-slate-500">
+                      {!u.active ? <span className="text-red-600">Desactivado</span> : u.lastLoginAt ? `Último acceso ${fecha(u.lastLoginAt)}` : "Sin acceso aún"}
+                      <form action={togglePortalUser.bind(null, id, u.id)}>
+                        <button className="rounded border border-slate-300 px-1.5 py-0.5 text-xs text-slate-700">{u.active ? "Desactivar" : "Reactivar"}</button>
+                      </form>
+                    </span>
                   </li>
                 ))}
               </ul>

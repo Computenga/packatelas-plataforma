@@ -291,3 +291,14 @@ export async function moveMlAccountAction(fromClientId: string, mlAccountId: str
   revalidatePath(`/admin/clientes/${to.id}`);
   return { ok: `Movida a ${to.name}. Los envíos anteriores se quedan con el cliente original.` };
 }
+
+/** Desactivar o reactivar un acceso del portal de la tienda (no se borra: queda el historial). */
+export async function togglePortalUser(clientId: string, userId: string) {
+  const admin = await requireUser(["ADMIN"]);
+  const u = await prisma.user.findFirst({ where: { id: userId, clientId, role: "CLIENTE" } });
+  if (!u) return;
+  await prisma.user.update({ where: { id: u.id }, data: { active: !u.active } });
+  if (u.active) await prisma.session.deleteMany({ where: { userId: u.id } });
+  await audit(prisma, { actorUserId: admin.id, action: u.active ? "user.deactivated" : "user.reactivated", entity: "User", entityId: u.id, summary: `${u.username} ${u.active ? "desactivado" : "reactivado"} desde administración` });
+  revalidatePath(`/admin/clientes/${clientId}`);
+}
