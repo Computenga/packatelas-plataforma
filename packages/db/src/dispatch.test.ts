@@ -72,11 +72,24 @@ describe("despacho", () => {
     expect(done.evidence[0].receiverName).toBe("Ana");
   });
 
-  it("otro repartidor no puede cerrar ni cargar un pedido ajeno", async () => {
+  it("otro repartidor no puede cerrar un pedido ajeno sin escanearlo", async () => {
     const o = await order();
     await assignOrders(prisma, [o.id], driverA.id);
-    expect(await ev(driverB, o.id, "loaded")).toMatchObject({ ok: false });
     expect(await ev(driverB, o.id, "failed", { reason: "nadie" })).toMatchObject({ ok: false });
+  });
+
+  it("reasignación: si otro repartidor lo escanea, pasa a él con su inventario", async () => {
+    const o = await order();
+    await assignOrders(prisma, [o.id], driverA.id);
+    expect(await ev(driverA, o.id, "loaded")).toMatchObject({ ok: true });
+    expect(await ev(driverB, o.id, "loaded")).toMatchObject({ ok: true, status: "OUT_FOR_DELIVERY" });
+    const after = await prisma.order.findUniqueOrThrow({ where: { id: o.id }, include: { events: true } });
+    expect(after.driverId).toBe(driverB.id);
+    expect(after.events.some((e) => e.type === "reassigned")).toBe(true);
+    const open = await prisma.driverCustody.findMany({ where: { orderId: o.id, endedAt: null } });
+    expect(open.map((c) => c.driverId)).toEqual([driverB.id]);
+    expect(await ev(driverA, o.id, "delivered", { photoKey: "x.jpg" })).toMatchObject({ ok: false });
+    expect(await ev(driverB, o.id, "delivered", { photoKey: "x.jpg" })).toMatchObject({ ok: true, status: "DELIVERED" });
   });
 
   it("escanear al cargar un pedido libre se lo asigna al repartidor", async () => {

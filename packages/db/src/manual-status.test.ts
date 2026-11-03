@@ -40,8 +40,8 @@ describe("recolecciones: una por día y cierre a mano", () => {
   });
 
   it("envío marcado a mano: entregado o no entregado", async () => {
-    const o = await createManualOrder(prisma, { clientId, addressLine: "Av 1" });
-    await adminMarkOrder(prisma, o.id, { outcome: "failed", reason: "ausente", note: "Nadie abrió" }, userId);
+    const o = await createManualOrder(prisma, { clientId, recipientName: "Ana", addressLine: "Av 1" });
+    await adminMarkOrder(prisma, o.id, { outcome: "failed", reason: "nadie", note: "Nadie abrió" }, userId);
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe("FAILED");
     await adminMarkOrder(prisma, o.id, { outcome: "delivered", receiverName: "Ana", note: "Confirmó por WhatsApp" }, userId);
     expect((await prisma.order.findUniqueOrThrow({ where: { id: o.id } })).status).toBe("DELIVERED");

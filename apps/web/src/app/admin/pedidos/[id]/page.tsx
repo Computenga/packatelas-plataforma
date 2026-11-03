@@ -22,7 +22,7 @@ const EVENT_LABEL: Record<string, string> = {
   failed: "Entrega fallida", cancelled: "Cancelado", scanned_loaded: "Cargado por repartidor",
   unassigned: "Regresado a por asignar", return_required: "Llevar a bodega", rescheduled: "Reprogramado",
   return_received: "Recibido en bodega", returned_to_seller: "Devuelto al vendedor",
-  flex_assigned: "Tomado en Flex", ml_status: "MercadoLibre", insurance: "Seguro aplicado",
+  flex_assigned: "Tomado en Flex", ml_status: "MercadoLibre", insurance: "Seguro aplicado", reassigned: "Reasignado",
 };
 
 const CAN_SEND_BACK = ["FAILED", "RESCHEDULED", "ASSIGNED", "OUT_FOR_DELIVERY"];

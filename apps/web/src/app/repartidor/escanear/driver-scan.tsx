@@ -46,11 +46,11 @@ export function DriverScan() {
       }
       const r = await driverScan(raw);
       if (r.status === "found") {
-        if (!r.mine && !r.free) add({ tone: "err", text: `${r.code} está asignado a otro repartidor. Avisa al despachador.` });
-        else if (!["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED", "OUT_FOR_DELIVERY"].includes(r.orderStatus)) add({ tone: "warn", text: `${r.code} ya no está pendiente de entrega.` });
+        if (!["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED", "OUT_FOR_DELIVERY"].includes(r.orderStatus)) add({ tone: "warn", text: `${r.code} ya no está pendiente de entrega.` });
         else {
+          // Si lo traía otro repartidor, se reasigna a quien lo escanea.
           await loadOrder(r.orderId, r.code);
-          add({ tone: "ok", text: `${r.code} cargado${r.free ? " y agregado a tu ruta" : ""}` });
+          add({ tone: "ok", text: `${r.code} cargado${r.free ? " y agregado a tu ruta" : !r.mine ? " · reasignado a ti (lo traía otro repartidor)" : ""}` });
         }
       } else if (r.status === "external") add({ tone: "warn", text: "Paquete no registrado.", externalRef: r.raw });
       else add({ tone: "err", text: r.message });

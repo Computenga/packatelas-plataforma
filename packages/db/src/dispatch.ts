@@ -126,6 +126,14 @@ export async function applyDriverEvent(prisma: PrismaClient, e: DriverEventInput
 }
 
 async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<DriverEventResult> {
+  const reassignedFrom: { userId: string; code: string; to: string }[] = [];
+  const result = await applyOnceTx(prisma, e, reassignedFrom);
+  // Aviso al repartidor que lo traía: ya no está en su ruta ni en su inventario.
+  for (const r of reassignedFrom) void sendPush(prisma, [r.userId], { title: "Pedido reasignado", body: `${r.code} ahora lo lleva ${r.to}; ya no está en tu ruta.`, url: "/repartidor", tag: `reasignado-${r.code}` });
+  return result;
+}
+
+async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassignedFrom: { userId: string; code: string; to: string }[]): Promise<DriverEventResult> {
   const now = new Date();
   // Una hora del teléfono en el futuro no es confiable.
   const occurredAt = e.occurredAt > now ? now : e.occurredAt;
@@ -149,14 +157,23 @@ async function applyOnce(prisma: PrismaClient, e: DriverEventInput): Promise<Dri
     };
 
     if (e.type === "loaded") {
-      // Escaneo al cargar [R03]: si estaba libre, se lo asigna a sí mismo.
-      const free = order.driverId == null && ASSIGNABLE.includes(order.status);
-      if (!free && order.driverId !== e.driverId) return { ok: false as const, error: "Este pedido está asignado a otro repartidor" };
+      // Escaneo al cargar [R03]: si estaba libre, se lo asigna a sí mismo. Si lo tenía otro
+      // repartidor, es una REASIGNACIÓN: pasa a quien lo escaneó (y a su inventario).
       if (!["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED", "OUT_FOR_DELIVERY"].includes(order.status)) {
         return { ok: false as const, error: "Este pedido ya no está pendiente de entrega" };
       }
       if (order.kind !== "DELIVERY") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
-      if (free) await tx.order.update({ where: { id: order.id }, data: { driverId: e.driverId } });
+      if (order.driverId !== e.driverId) {
+        await tx.order.update({ where: { id: order.id }, data: { driverId: e.driverId } });
+        if (order.driverId) {
+          const [from, to] = await Promise.all([
+            tx.driver.findUnique({ where: { id: order.driverId }, select: { userId: true, user: { select: { name: true } } } }),
+            tx.driver.findUnique({ where: { id: e.driverId }, select: { user: { select: { name: true } } } }),
+          ]);
+          await addOrderEvent(tx, { ...base, clientEventId: undefined, type: "reassigned", note: `Reasignado de ${from?.user.name ?? "otro repartidor"} a ${to?.user.name ?? "repartidor"} al escanearlo`, data: { from: order.driverId, to: e.driverId } });
+          if (from) reassignedFrom.push({ userId: from.userId, code: order.code, to: to?.user.name ?? "otro repartidor" });
+        }
+      }
       await addOrderEvent(tx, { ...base, type: "scanned_loaded", toStatus: "OUT_FOR_DELIVERY" });
       await custodyStart(tx, order.id, e.driverId, { actorUserId: e.actorUserId, how: "cargado por el repartidor", source: "DRIVER_APP" });
       return { ok: true as const, duplicate: false, status: "OUT_FOR_DELIVERY" as OrderStatus };
