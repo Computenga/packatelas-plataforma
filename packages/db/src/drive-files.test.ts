@@ -29,9 +29,15 @@ describe("archivos de Drive al servidor", () => {
       { employeeId: e.id, docType: "foto", fileKey: "drive:GONEfile000001", mime: "application/octet-stream" },
     ] });
     const pdf = Buffer.from("%PDF-1.4 prueba");
+    let scope = "https://www.googleapis.com/auth/drive.file openid";
     const fetchImpl = (async (url: string) =>
-      String(url).includes("PDFfile") ? new Response(pdf) : new Response("not found", { status: 404 })) as typeof fetch;
+      String(url).includes("tokeninfo") ? Response.json({ scope }) : String(url).includes("PDFfile") ? new Response(pdf) : new Response("not found", { status: 404 })) as typeof fetch;
     const dir = await mkdtemp(path.join(tmpdir(), "up-"));
+    // Sin permiso de lectura: no intenta ni marca nada como fallido.
+    const r0 = await copyDriveFiles(prisma, { uploadDir: dir, fetchImpl });
+    expect(r0).toMatchObject({ copied: 0, failed: 0, pending: 2 });
+    expect(r0.error).toContain("Conectar Google Drive");
+    scope = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly openid";
     const r = await copyDriveFiles(prisma, { uploadDir: dir, fetchImpl });
     expect(r).toMatchObject({ copied: 1, failed: 1 });
     const doc = await prisma.employeeDocument.findFirstOrThrow({ where: { employeeId: e.id, docType: "curp" } });

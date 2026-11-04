@@ -11,11 +11,11 @@ import { googleAccessToken } from "./legacy-sync.ts";
 type Fetch = typeof fetch;
 const KEY = "legacy.drive_copy";
 const MAX = 15 * 1024 * 1024;
-type State = { copied: number; failed: Record<string, string>; at?: string; lastError?: string };
+type State = { copied: number; failed: Record<string, string>; at?: string; lastError?: string; scopeOk?: boolean };
 
 export async function getDriveCopyState(prisma: PrismaClient): Promise<State> {
   const v = (await prisma.setting.findUnique({ where: { key: KEY } }))?.value as Partial<State> | undefined;
-  return { copied: v?.copied ?? 0, failed: v?.failed ?? {}, at: v?.at, lastError: v?.lastError };
+  return { copied: v?.copied ?? 0, failed: v?.failed ?? {}, at: v?.at, lastError: v?.lastError, scopeOk: v?.scopeOk };
 }
 const saveState = (prisma: PrismaClient, s: State) => prisma.setting.upsert({ where: { key: KEY }, create: { key: KEY, value: s }, update: { value: s } });
 
@@ -69,6 +69,18 @@ export async function copyDriveFiles(prisma: PrismaClient, opts: { uploadDir?: s
 
   const token = await googleAccessToken(prisma, fetchImpl);
   if (!token) return { copied: 0, failed: 0, pending: pendingBefore, error: "Google Drive no está conectado" };
+  // Sin el permiso de lectura de archivos, Drive contesta «no existe» a todo: no se intenta ni se anota nada.
+  const info = await fetchImpl(`https://oauth2.googleapis.com/tokeninfo?access_token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(15_000) }).then((r) => r.json() as Promise<{ scope?: string }>).catch(() => ({ scope: undefined }));
+  if (info.scope !== undefined && !/auth\/drive(\.readonly)?(\s|$)/.test(info.scope)) {
+    state.lastError = "Falta permiso para leer los archivos de Drive: en Salud vuelve a «Conectar Google Drive» con la cuenta dueña de los archivos y acepta todos los permisos.";
+    await saveState(prisma, state);
+    return { copied: 0, failed: 0, pending: pendingBefore, error: state.lastError };
+  }
+  if (info.scope !== undefined && !state.scopeOk) {
+    // Primera vez con permiso: lo que falló antes (por falta de permiso) se vuelve a intentar.
+    state.failed = {};
+    state.scopeOk = true;
+  }
 
   let copied = 0, failed = 0;
   /** Baja un archivo; null si no se pudo (queda anotado). Lanza si el permiso falta (para todo). */
