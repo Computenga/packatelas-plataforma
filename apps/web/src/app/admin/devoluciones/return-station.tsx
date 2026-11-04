@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 import type { ReturnOutcome } from "@packatelas/db";
@@ -38,7 +39,7 @@ export function ReturnStation() {
           {(
             [
               ["receive", "1 · Recibir en Packatelas"],
-              ["deliver", "2 · Devolver al vendedor"],
+              ["deliver", "2 · La tienda recoge aquí"],
             ] as const
           ).map(([m, label]) => (
             <button
@@ -51,6 +52,13 @@ export function ReturnStation() {
             </button>
           ))}
         </div>
+        {mode === "deliver" && (
+          <p className="mb-3 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">
+            Solo si alguien de la tienda vino por sus paquetes a Packatelas: al escanear quedan entregados al instante, sin repartidor.
+            Para llevárselos con un repartidor usa{" "}
+            <Link href="/admin/devoluciones/nueva" className="font-semibold underline">Nueva devolución (folio DV)</Link>.
+          </p>
+        )}
         <Scanner onScan={onScan} busy={pending} />
       </div>
       <ul className="space-y-2">
@@ -65,7 +73,7 @@ export function ReturnStation() {
             ) : (
               <>
                 <span className="font-mono">{r.code}</span> · {r.clientName} ·{" "}
-                {r.status === "already" ? "ya estaba registrado" : m === "receive" ? "recibido en almacén" : "devuelto al vendedor"}
+                {r.status === "already" ? "ya estaba registrado" : m === "receive" ? "recibido en almacén" : "entregado a la tienda en mostrador"}
               </>
             )}
           </li>

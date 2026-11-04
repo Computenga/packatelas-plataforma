@@ -83,7 +83,7 @@ export function ReturnBuilder({ initial }: { initial: ReturnCandidate[] }) {
             <ul className="mt-2 max-h-72 divide-y divide-slate-100 overflow-auto rounded-lg border border-slate-200 bg-white text-sm">
               {results.map((r) => (
                 <li key={r.id} className="flex items-center justify-between gap-2 px-3 py-1.5">
-                  <span className="min-w-0"><span className="font-mono text-xs">{r.code}</span> · {r.clientName} <span className="text-xs text-slate-500">· {r.inWarehouse ? "en bodega" : "por recibir"}</span></span>
+                  <span className="min-w-0"><span className="font-mono text-xs">{r.code}</span> · {r.clientName} <span className="text-xs text-slate-500">· {r.reopened ? "marcado devuelto sin DV" : r.inWarehouse ? "en bodega" : "por recibir"}</span></span>
                   <button onClick={() => add(r)} disabled={items.some((x) => x.id === r.id)} className="text-xs font-semibold text-brand disabled:text-slate-400">{items.some((x) => x.id === r.id) ? "Agregado" : "Agregar"}</button>
                 </li>
               ))}
@@ -98,7 +98,7 @@ export function ReturnBuilder({ initial }: { initial: ReturnCandidate[] }) {
         <ul className="mt-2 divide-y divide-slate-100 text-sm">
           {items.map((i) => (
             <li key={i.id} className="flex items-center justify-between py-1.5">
-              <span><span className="font-mono text-xs">{i.code}</span> <span className="text-xs text-slate-500">· {i.inWarehouse ? "en bodega" : "se marcará recibido en bodega"}</span></span>
+              <span><span className="font-mono text-xs">{i.code}</span> <span className="text-xs text-slate-500">· {i.reopened ? "estaba marcado devuelto sin DV: regresa a bodega" : i.inWarehouse ? "en bodega" : "se marcará recibido en bodega"}</span></span>
               <button onClick={() => setItems((c) => c.filter((x) => x.id !== i.id))} className="text-xs text-red-600">Quitar</button>
             </li>
           ))}

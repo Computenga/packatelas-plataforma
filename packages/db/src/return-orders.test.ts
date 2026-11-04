@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { applyDriverEvent, assignOrders, cancelReturnOrder, createManualOrder, createReturnOrder, hashPassword, markReturning, prisma, receiveReturn, returnCandidate, searchReturnCandidates } from "./index.ts";
+import { applyDriverEvent, assignOrders, cancelReturnOrder, createManualOrder, createReturnOrder, hashPassword, markReturning, prisma, receiveReturn, returnCandidate, returnToSeller, searchReturnCandidates } from "./index.ts";
 
 const tag = `dv${Date.now()}`;
 let clientId: string, otherClient: string, branchId: string, staff: string;
@@ -75,5 +75,19 @@ describe("órdenes de devolución", () => {
     await cancelReturnOrder(prisma, dv.id, "se reprograma", staff);
     expect((await prisma.order.findUniqueOrThrow({ where: { id: c.id } })).returnOrderId).toBeNull();
     expect((await returnCandidate(prisma, { orderId: c.id })).ok).toBe(true);
+  });
+
+  it("un paquete marcado «devuelto al vendedor» con el escáner (sin DV) se puede meter a una DV", async () => {
+    const d = await createManualOrder(prisma, { clientId, recipientName: "D", addressLine: "x" });
+    await prisma.$transaction((tx) => markReturning(tx, d.id, "prueba", "ADMIN", staff));
+    await receiveReturn(prisma, d.code, staff, "ADMIN");
+    expect((await returnToSeller(prisma, d.code, staff)).status).toBe("ok");
+    const c = await returnCandidate(prisma, { raw: d.code });
+    expect(c.ok && c.item.reopened).toBe(true);
+    expect((await searchReturnCandidates(prisma, d.code, clientId)).map((x) => x.id)).toContain(d.id);
+    const dv = await createReturnOrder(prisma, { orderIds: [d.id] }, staff);
+    const o = await prisma.order.findUniqueOrThrow({ where: { id: d.id }, include: { return: true } });
+    expect([o.returnOrderId, o.return?.status, o.return?.returnedAt]).toEqual([dv.id, "IN_WAREHOUSE", null]);
+    expect(o.status).not.toBe("RETURNED_TO_SELLER");
   });
 });

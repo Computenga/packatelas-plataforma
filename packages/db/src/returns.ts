@@ -81,13 +81,19 @@ type Tx = Prisma.TransactionClient;
 const CANDIDATE_STATUS: OrderStatus[] = ["FAILED", "RETURNING", "CANCELLED", "RETURNED_TO_WAREHOUSE"];
 export const returnFolio = (n: number | bigint) => `DV-${String(n).padStart(5, "0")}`;
 
-export type ReturnCandidate = { id: string; code: string; clientId: string; clientName: string; status: OrderStatus; inWarehouse: boolean; branchId: string | null };
+export type ReturnCandidate = { id: string; code: string; clientId: string; clientName: string; status: OrderStatus; inWarehouse: boolean; branchId: string | null; reopened?: boolean };
+/** Un paquete marcado «devuelto al vendedor» a mano (sin orden DV) se puede meter a una DV durante estos días. */
+const REOPEN_DAYS = 7;
+const reopenSince = () => new Date(Date.now() - REOPEN_DAYS * 86_400_000);
+/** Se marcó devuelto con el escáner (no con una DV) hace poco: probablemente aún no sale de bodega. */
+const reopenable = (o: { returnOrderId: string | null; return: { status: string; returnedAt: Date | null } | null }) =>
+  o.return?.status === "RETURNED_TO_SELLER" && !o.returnOrderId && !!o.return.returnedAt && o.return.returnedAt >= reopenSince();
 export type CandidateResult = { ok: true; item: ReturnCandidate } | { ok: false; error: string };
 
 const candSelect = {
   id: true, code: true, kind: true, status: true, clientId: true, branchId: true, returnOrderId: true,
   client: { select: { name: true } },
-  return: { select: { status: true } },
+  return: { select: { status: true, returnedAt: true } },
   returnOrder: { select: { code: true, status: true } },
   custodies: { where: { endedAt: null }, select: { driver: { select: { user: { select: { name: true } } } } } },
 } as const;
@@ -96,6 +102,9 @@ type CandRow = Prisma.OrderGetPayload<{ select: typeof candSelect }>;
 
 function judge(o: CandRow): CandidateResult {
   if (o.kind !== "DELIVERY") return { ok: false, error: `${o.code} no es un envío` };
+  if (reopenable(o)) {
+    return { ok: true, item: { id: o.id, code: o.code, clientId: o.clientId, clientName: o.client.name, status: o.status, inWarehouse: false, branchId: o.branchId, reopened: true } };
+  }
   if (o.return?.status === "RETURNED_TO_SELLER") return { ok: false, error: `${o.code} ya se devolvió a la tienda` };
   if (o.returnOrder && !["CANCELLED", "DELIVERED"].includes(o.returnOrder.status)) return { ok: false, error: `${o.code} ya va en la devolución ${o.returnOrder.code}` };
   const inWarehouse = o.return?.status === "IN_WAREHOUSE";
@@ -124,8 +133,11 @@ export async function searchReturnCandidates(prisma: PrismaClient, q: string, cl
     where: {
       kind: "DELIVERY",
       ...(clientId ? { clientId } : {}),
-      OR: [{ status: { in: CANDIDATE_STATUS } }, { return: { status: "IN_WAREHOUSE" } }],
-      NOT: { return: { status: "RETURNED_TO_SELLER" } },
+      OR: [
+        { status: { in: CANDIDATE_STATUS }, NOT: { return: { status: "RETURNED_TO_SELLER" } } },
+        { return: { status: "IN_WAREHOUSE" } },
+        { returnOrderId: null, return: { status: "RETURNED_TO_SELLER", returnedAt: { gte: reopenSince() } } },
+      ],
       ...(t ? { AND: [{ OR: [{ code: { contains: t, mode: "insensitive" } }, { client: { name: { contains: t, mode: "insensitive" } } }, { client: { publicId: { contains: t.toLowerCase() } } }, { recipientName: { contains: t, mode: "insensitive" } }] }] } : {}),
     },
     select: candSelect,
@@ -171,10 +183,15 @@ export async function createReturnOrder(prisma: PrismaClient, input: { orderIds:
       if (!it.inWarehouse) {
         await tx.returnCustody.upsert({
           where: { orderId: it.id },
-          update: { status: "IN_WAREHOUSE", receivedAt: new Date(), receivedById: actorUserId },
+          update: it.reopened
+            ? { status: "IN_WAREHOUSE", returnedAt: null, returnedById: null }
+            : { status: "IN_WAREHOUSE", receivedAt: new Date(), receivedById: actorUserId },
           create: { orderId: it.id, status: "IN_WAREHOUSE", receivedAt: new Date(), receivedById: actorUserId },
         });
-        await addOrderEvent(tx, { orderId: it.id, type: "return_received", source: "ADMIN", toStatus: "RETURNED_TO_WAREHOUSE", actorUserId, note: `Recibido en Packatelas al crear ${code}` });
+        await addOrderEvent(tx, {
+          orderId: it.id, type: "return_received", source: "ADMIN", toStatus: "RETURNED_TO_WAREHOUSE", actorUserId,
+          note: it.reopened ? `Estaba marcado «devuelto al vendedor» sin orden; vuelve a bodega para ir en ${code}` : `Recibido en Packatelas al crear ${code}`,
+        });
       }
       await tx.order.update({ where: { id: it.id }, data: { returnOrderId: order.id } });
       await addOrderEvent(tx, { orderId: it.id, type: "return_order", source: "ADMIN", actorUserId, note: `Va a la tienda en la orden de devolución ${code}` });
