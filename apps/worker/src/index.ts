@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { syncStoreCatalog, syncLegacy, copyDriveFiles, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { syncStoreCatalog, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -376,6 +376,19 @@ function startLegacySync() {
   }, 3 * 60_000);
 }
 
+/** Tareas [A40]: avisa lo que vence en menos de 24 h y lo vencido (una vez cada cosa), cada 15 min. */
+function startTaskReminders() {
+  const run = async () => {
+    try {
+      const r = await taskReminders(prisma);
+      if (r.soon || r.late) console.log(`[worker] Tareas: ${r.soon} por vencer, ${r.late} vencidas avisadas`);
+    } catch (e) {
+      console.error("[worker] Tareas:", e instanceof Error ? e.message : e);
+    }
+  };
+  setInterval(run, 15 * 60_000);
+}
+
 /** Catálogo de la tienda de insumos desde WooCommerce, cada hora [P17]. */
 function startStoreCatalog() {
   const run = async () => {
@@ -395,6 +408,7 @@ async function main() {
   startHourlyJobs();
   startStoreCatalog();
   startLegacySync();
+  startTaskReminders();
   startBuyerMessages();
   startMlSaleDetails();
   startCustody();

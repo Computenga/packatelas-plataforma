@@ -32,6 +32,10 @@ export const NAV_ICONS: Record<string, ReactNode> = {
       <path d="M5 13.5 8 8h4l3 5.5M10.5 8 9 5H7M12 8l1-2h2" />
     </>
   ),
+  "/admin/tareas": <path d="M4 5.5h1.5M4 10h1.5M4 14.5h1.5M8.5 5.5H16M8.5 10H16M8.5 14.5H13" />,
+  "/empleado/tareas": <path d="M4 5.5h1.5M4 10h1.5M4 14.5h1.5M8.5 5.5H16M8.5 10H16M8.5 14.5H13" />,
+  "/repartidor/tareas": <path d="M4 5.5h1.5M4 10h1.5M4 14.5h1.5M8.5 5.5H16M8.5 10H16M8.5 14.5H13" />,
+  "/mecanico/tareas": <path d="M4 5.5h1.5M4 10h1.5M4 14.5h1.5M8.5 5.5H16M8.5 10H16M8.5 14.5H13" />,
   "/empleado": <path d="M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14zM10 6v4l2.5 2" />,
   "/admin": <path d="M3 9.5 10 4l7 5.5V16a1 1 0 0 1-1 1h-3.5v-4.5h-5V17H4a1 1 0 0 1-1-1z" />,
   "/admin/escanear": (

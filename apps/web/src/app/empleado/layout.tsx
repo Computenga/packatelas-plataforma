@@ -9,8 +9,8 @@ export default async function EmpleadoLayout({ children }: LayoutProps<"/emplead
       title="Portal empleado"
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
-      nav={[{ href: "/empleado", label: "Mi asistencia" }]}
-      ready={["/empleado"]}
+      nav={[{ href: "/empleado", label: "Mi asistencia" }, { href: "/empleado/tareas", label: "Tareas" }]}
+      ready={["/empleado", "/empleado/tareas"]}
       mobileBottomNav
     >
       {children}

@@ -50,6 +50,9 @@ model User {
   orderEvents       OrderEvent[]
   pushSubscriptions PushSubscription[]
   leads             Lead[]             @relation("LeadOwner")
+  tasksCreated      Task[]             @relation("TaskCreator")
+  tasksAssigned     Task[]             @relation("TaskAssignee")
+  taskEvents        TaskEvent[]
 
   @@index([clientId])
 }
@@ -1559,4 +1562,85 @@ model StoreOrder {
 
   @@index([status, createdAt])
   @@index([clientId, createdAt])
+}
+
+// Tareas tipo Asana [A40]: alguien del equipo asigna un pendiente a otra persona (o a sí mismo).
+// Solo quien la asignó y quien la tiene pueden verla.
+enum TaskStatus {
+  PENDIENTE
+  EN_PROCESO
+  EN_REVISION // terminada por quien la tiene; espera el visto bueno de quien la asignó
+  COMPLETADA
+  CANCELADA
+}
+
+enum TaskPriority {
+  BAJA
+  NORMAL
+  ALTA
+  URGENTE
+}
+
+model Task {
+  id               String       @id @default(cuid())
+  number           Int          @unique @default(autoincrement()) // folio TA-00001
+  title            String
+  description      String?
+  createdById      String
+  createdBy        User         @relation("TaskCreator", fields: [createdById], references: [id])
+  assigneeId       String
+  assignee         User         @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  status           TaskStatus   @default(PENDIENTE)
+  priority         TaskPriority @default(NORMAL)
+  dueAt            DateTime? // fecha (y hora) objetivo
+  requiresEvidence Boolean      @default(true) // al terminar: nota + al menos un archivo
+  requiresApproval Boolean      @default(true) // quien asignó revisa antes de cerrarla
+  checklist        Json         @default("[]") // [{ id, text, done }]
+  startedAt        DateTime?
+  submittedAt      DateTime?
+  completedAt      DateTime?
+  cancelledAt      DateTime?
+  dueSoonSentAt    DateTime? // aviso «vence pronto»
+  overdueSentAt    DateTime? // aviso «venció»
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  events           TaskEvent[]
+  files            TaskFile[]
+
+  @@index([assigneeId, status])
+  @@index([createdById, status])
+  @@index([status, dueAt])
+}
+
+model TaskEvent {
+  id         String      @id @default(cuid())
+  taskId     String
+  task       Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  kind       String // comment | status | evidence | edit | checklist | created
+  body       String?
+  fromStatus TaskStatus?
+  toStatus   TaskStatus?
+  createdAt  DateTime    @default(now())
+  files      TaskFile[]
+
+  @@index([taskId, createdAt])
+}
+
+model TaskFile {
+  id           String     @id @default(cuid())
+  taskId       String
+  task         Task       @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  eventId      String?
+  event        TaskEvent? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  uploadedById String?
+  key          String     @unique
+  fileName     String
+  mime         String
+  size         Int
+  evidence     Boolean    @default(false)
+  createdAt    DateTime   @default(now())
+
+  @@index([taskId])
 }

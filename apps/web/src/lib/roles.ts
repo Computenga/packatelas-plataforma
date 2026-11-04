@@ -42,6 +42,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { section: OP, href: "/admin/inventario", label: "Inventario", roles: ["ADMIN", "DESPACHADOR"] },
   { section: OP, href: "/admin/devoluciones", label: "Devoluciones", roles: ["ADMIN", "OPERADOR", "DESPACHADOR"] },
   { section: OP, href: "/admin/repartidores", label: "Repartidores", roles: ["ADMIN", "DESPACHADOR"] },
+  { section: OP, href: "/admin/tareas", label: "Tareas", roles: STAFF_ROLES },
   { section: CLI, href: "/admin/clientes", label: "Clientes", roles: ["ADMIN"] },
   { section: CLI, href: "/admin/crm", label: "CRM", roles: ["ADMIN"] },
   { section: CLI, href: "/admin/cobros", label: "Cobros", roles: ["ADMIN"] },
@@ -90,6 +91,7 @@ export const DRIVER_NAV: NavItem[] = [
   { href: "/repartidor/escanear", label: "Escanear" },
   { href: "/repartidor/recolecciones", label: "Recolecciones" },
   { href: "/repartidor/moto", label: "Moto" },
+  { href: "/repartidor/tareas", label: "Tareas" },
   { href: "/repartidor/perfil", label: "Perfil" },
 ];
 
@@ -97,4 +99,5 @@ export const MECHANIC_NAV: NavItem[] = [
   { href: "/mecanico", label: "Fallas" },
   { href: "/mecanico/documentos", label: "Documentos" },
   { href: "/mecanico/motos", label: "Motos" },
+  { href: "/mecanico/tareas", label: "Tareas" },
 ];
