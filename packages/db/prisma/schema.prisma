@@ -263,6 +263,7 @@ enum OrderSource {
 enum OrderKind {
   DELIVERY
   PICKUP
+  RETURN // orden de devolución a la tienda (folio DV-00001): lleva varios paquetes devueltos
 }
 
 enum OrderStatus {
@@ -330,6 +331,11 @@ model Order {
   pickupId String? @unique
   pickup   Pickup? @relation(fields: [pickupId], references: [id], onDelete: SetNull)
 
+  // Paquete devuelto: en qué orden de devolución va a la tienda (DV-…). En la orden: sus paquetes.
+  returnOrderId String?
+  returnOrder   Order?  @relation("ReturnBatch", fields: [returnOrderId], references: [id], onDelete: SetNull)
+  returnItems   Order[] @relation("ReturnBatch")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -353,6 +359,7 @@ model Order {
   @@index([addressLine(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_addressLine_trgm_idx")
   @@index([neighborhood(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_neighborhood_trgm_idx")
   @@index([zip(ops: raw("gin_trgm_ops"))], type: Gin, map: "Order_zip_trgm_idx")
+  @@index([returnOrderId])
 }
 
 enum EventSource {

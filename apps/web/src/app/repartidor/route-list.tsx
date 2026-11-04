@@ -15,6 +15,9 @@ export type Stop = {
   address: string;
   zip: string | null;
   instructions: string | null;
+  /** Orden de devolución (DV-): qué paquetes se le entregan a la tienda. */
+  kind?: string;
+  items?: string | null;
   lat: number | null;
   lng: number | null;
   /** Minutos estimados de manejo hasta aquí (con tráfico, si hay TomTom). */
@@ -135,6 +138,7 @@ export function RouteList() {
                 <span className="block truncate font-medium">{s.recipient ?? "Sin nombre"}</span>
                 <span className="block text-sm text-slate-600">{s.address}</span>
                 <span className="block text-xs text-slate-500">
+                  {s.kind === "RETURN" && <span className="mr-1 rounded bg-amber-100 px-1 font-semibold text-amber-800">DEVOLUCIÓN</span>}
                   <span className="font-mono">{s.code}</span> · {s.client}
                   {s.etaMin != null && <span className="ml-1 text-slate-600">· ~{s.etaMin} min</span>}
                   {s.status === "ASSIGNED" && !loadedIds.has(s.id) && <span className="ml-1 text-amber-700">· falta escanear al cargar</span>}
@@ -194,6 +198,7 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
 
   return (
     <div className="space-y-3 border-t border-slate-100 p-3">
+      {stop.kind === "RETURN" && stop.items && <p className="rounded-lg bg-slate-100 p-2 text-sm"><strong>Entregar a la tienda:</strong> {stop.items}</p>}
       {stop.instructions && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{stop.instructions}</p>}
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
         <a className="rounded-lg border border-slate-300 py-2" href={`https://www.google.com/maps/dir/?api=1&destination=${dest}`} target="_blank" rel="noreferrer">

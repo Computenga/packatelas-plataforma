@@ -22,7 +22,7 @@ const driverName = async (db: Db, driverId: string) =>
 /** El paquete entra al inventario del repartidor (si ya lo tenía otro, es un traspaso). */
 export async function custodyStart(db: Db, orderId: string, driverId: string, opts: { actorUserId?: string; how: string; source?: "ADMIN" | "DRIVER_APP" | "FLEX_HANDSHAKE" | "SYSTEM" }) {
   const order = await db.order.findUnique({ where: { id: orderId }, select: { kind: true, source: true } });
-  if (!order || order.kind !== "DELIVERY" || order.source === "IMPORT") return false;
+  if (!order || order.kind === "PICKUP" || order.source === "IMPORT") return false;
   const open = await db.driverCustody.findFirst({ where: { orderId, endedAt: null } });
   if (open?.driverId === driverId) return false;
   const name = await driverName(db, driverId);

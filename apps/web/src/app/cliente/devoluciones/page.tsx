@@ -20,7 +20,7 @@ export default async function DevolucionesClientePage({ searchParams }: PageProp
     return: { select: { receivedAt: true, returnedAt: true } },
     events: { where: { type: "failed" }, orderBy: { occurredAt: "desc" as const }, take: 1, select: { note: true, occurredAt: true, evidence: { select: { id: true, storageKey: true } } } },
   };
-  const [pendingCount, inWarehouse, returned30, rows] = await Promise.all([
+  const [pendingCount, inWarehouse, returned30, rows, dvs] = await Promise.all([
     prisma.order.count({ where: { clientId, status: { in: PENDING } } }),
     prisma.order.count({ where: { clientId, status: "RETURNED_TO_WAREHOUSE" } }),
     prisma.order.count({ where: { clientId, status: "RETURNED_TO_SELLER", updatedAt: { gte: daysAgo(30) } } }),
@@ -30,6 +30,12 @@ export default async function DevolucionesClientePage({ searchParams }: PageProp
       take: 200,
       select,
     }),
+    prisma.order.findMany({
+      where: { clientId, kind: "RETURN", status: { not: "CANCELLED" }, createdAt: { gte: daysAgo(60) } },
+      select: { id: true, code: true, status: true, deliveredAt: true, createdAt: true, driver: { select: { user: { select: { name: true } } } }, returnItems: { select: { code: true }, orderBy: { code: "asc" } }, evidence: { select: { receiverName: true }, take: 1 } },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
   ]);
 
   return (
@@ -37,9 +43,25 @@ export default async function DevolucionesClientePage({ searchParams }: PageProp
       <h1 className="text-xl font-bold">Devoluciones</h1>
       <div className="grid grid-cols-3 gap-3">
         <Stat label="Por devolverte" value={pendingCount} tone="amber" />
-        <Stat label="Listas en almacén" value={inWarehouse} hint="Se entregan en tu siguiente recolección" />
+        <Stat label="Listas en almacén" value={inWarehouse} hint="Te las llevamos en una orden de devolución" />
         <Stat label="Devueltas (30 días)" value={returned30} tone="green" />
       </div>
+      {dvs.length > 0 && (
+        <Card title="Órdenes de devolución">
+          <ul className="divide-y divide-slate-100 text-sm">
+            {dvs.map((d) => (
+              <li key={d.id} className="py-2">
+                <p>
+                  <span className="font-mono font-semibold">{d.code}</span> · {d.returnItems.length} paquete(s) ·{" "}
+                  {d.status === "DELIVERED" ? <Badge tone="green">Entregada {d.deliveredAt ? fecha(d.deliveredAt) : ""}</Badge> : d.status === "OUT_FOR_DELIVERY" || d.status === "ASSIGNED" ? <Badge tone="blue">En camino{d.driver ? ` · ${d.driver.user.name}` : ""}</Badge> : <Badge tone="amber">Programada</Badge>}
+                  {d.evidence[0]?.receiverName && <span className="text-xs text-slate-500"> · Recibió {d.evidence[0].receiverName}</span>}
+                </p>
+                <p className="mt-0.5 font-mono text-xs text-slate-500">{d.returnItems.map((r) => r.code).join(" · ")}</p>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
       <nav className="flex gap-1 overflow-x-auto border-b border-slate-200 text-sm">
         {(["pendientes", "entregadas"] as const).map((t) => (
           <Link key={t} href={t === "pendientes" ? "/cliente/devoluciones" : "/cliente/devoluciones?tab=entregadas"}

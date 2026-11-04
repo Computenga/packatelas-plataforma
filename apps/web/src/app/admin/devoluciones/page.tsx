@@ -9,8 +9,10 @@ import { ReturnStation } from "./return-station";
 import { ActionForm } from "@/components/action-form";
 import { rescheduleAction } from "../pedidos/actions";
 import { maxAttemptsAction } from "./actions";
+import { cancelReturnAction } from "./nueva/actions";
 
 export const metadata: Metadata = { title: "Devoluciones" };
+const weekAgo = () => new Date(Date.now() - 7 * 86400_000);
 
 type Row = { id: string; code: string; status: keyof typeof STATUS_LABEL; updatedAt: Date; client: { id: string; name: string }; driver: { user: { name: string } } | null };
 
@@ -29,18 +31,24 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
   const tab = String((await searchParams).tab ?? "recibir");
   const select = { id: true, code: true, status: true, updatedAt: true, client: { select: { id: true, name: true } }, driver: { select: { user: { select: { name: true } } } } } as const;
 
-  const [toReceive, inWarehouse, returnedToday, maxAttempts] = await Promise.all([
+  const [toReceive, inWarehouse, returnedToday, maxAttempts, dvs] = await Promise.all([
     prisma.order.findMany({ where: { status: { in: ["FAILED", "RETURNING", "CANCELLED"] } }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
-    prisma.order.findMany({ where: { status: "RETURNED_TO_WAREHOUSE" }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
+    prisma.order.findMany({ where: { status: "RETURNED_TO_WAREHOUSE", OR: [{ returnOrderId: null }, { returnOrder: { status: "CANCELLED" } }] }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
     prisma.returnCustody.count({ where: { status: "RETURNED_TO_SELLER", returnedAt: { gte: startOfTodayMx() } } }),
     getMaxAttempts(prisma),
+    prisma.order.findMany({
+      where: { kind: "RETURN", OR: [{ status: { notIn: ["DELIVERED", "CANCELLED"] } }, { updatedAt: { gte: weekAgo() } }] },
+      select: { id: true, code: true, status: true, updatedAt: true, client: { select: { name: true } }, branch: { select: { name: true } }, driver: { select: { user: { select: { name: true } } } }, _count: { select: { returnItems: true } } },
+      orderBy: { createdAt: "desc" },
+      take: 100,
+    }),
   ]);
   const inWarehouseTab = tab === "almacen";
   const groups = byClient(tab === "almacen" ? inWarehouse : toReceive);
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader eyebrow="Operación" title="Devoluciones">
+      <PageHeader eyebrow="Operación" title="Devoluciones" actions={<Link href="/admin/devoluciones/nueva" className="rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white">+ Nueva devolución</Link>}>
         Dos escaneos: el paquete llega a Packatelas y después se entrega al vendedor.
       </PageHeader>
 
@@ -51,6 +59,31 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
       </div>
 
       <ReturnStation />
+      <Card title={`Órdenes de devolución (${dvs.filter((d) => !["DELIVERED", "CANCELLED"].includes(d.status)).length} abiertas)`}>
+        {dvs.length === 0 ? (
+          <p className="text-sm text-slate-500">Aún no hay órdenes. Crea una con «Nueva devolución» o desde «En almacén».</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 text-sm">
+            {dvs.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span>
+                  <Link href={`/admin/pedidos/${d.id}`} className="font-mono font-semibold text-brand hover:underline">{d.code}</Link> · {d.client.name}
+                  {d.branch && <span className="text-slate-500"> ({d.branch.name})</span>} · {d._count.returnItems} paquete(s)
+                </span>
+                <span className="flex items-center gap-3 text-xs text-slate-500">
+                  {STATUS_LABEL[d.status]}{d.driver ? ` · ${d.driver.user.name}` : " · sin asignar"} · {fecha(d.updatedAt)}
+                  {!["DELIVERED", "CANCELLED"].includes(d.status) && (
+                    <form action={cancelReturnAction.bind(null, d.id)} className="flex items-center gap-1">
+                      <input name="reason" required minLength={3} placeholder="Motivo" className="w-28 rounded border border-slate-300 px-2 py-1" />
+                      <button className="text-red-600 hover:underline">Cancelar</button>
+                    </form>
+                  )}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       <Card
         title={tab === "almacen" ? "En almacén, por vendedor" : "Por recibir, por vendedor"}
@@ -67,7 +100,10 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
             <details key={g.name} className="rounded-lg border border-slate-200">
               <summary className="flex cursor-pointer justify-between px-4 py-2 text-sm">
                 <span className="font-medium">{g.name}</span>
-                <span className="text-slate-500">{g.rows.length} paquete(s)</span>
+                <span className="flex items-center gap-3 text-slate-500">
+                  {g.rows.length} paquete(s)
+                  {inWarehouseTab && <Link href={`/admin/devoluciones/nueva?cliente=${g.rows[0].client.id}`} className="font-semibold text-brand hover:underline">Crear devolución</Link>}
+                </span>
               </summary>
               <ul className="divide-y divide-slate-100 border-t border-slate-100 text-sm">
                 {g.rows.map((r) => (

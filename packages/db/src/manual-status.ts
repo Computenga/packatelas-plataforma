@@ -1,6 +1,7 @@
 // Cierre manual desde administración: marcar entregado / no entregado un envío o una recolección
 // (cuando el repartidor no pudo hacerlo en la app), y cancelar recolecciones repetidas.
 // Todo queda en el historial con quién lo hizo y por qué.
+import { completeReturnOrder } from "./returns.ts";
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { FAIL_REASONS, type FailReason } from "./dispatch.ts";
@@ -32,11 +33,12 @@ export async function adminMarkOrder(
       });
       await tx.order.update({ where: { id: orderId }, data: { attempts: { increment: 1 } } });
       await reconcileCustody(tx, orderId);
+      if (order.kind === "RETURN") await completeReturnOrder(tx, orderId, actorUserId, input.receiverName);
     } else {
       const reason = input.reason && input.reason in FAIL_REASONS ? input.reason : "otro";
       await addOrderEvent(tx, { orderId, type: "failed", source: "ADMIN", toStatus: "FAILED", actorUserId, note: `Marcado no entregado a mano: ${FAIL_REASONS[reason]} · ${note}`, data: { reason, manual: true } });
       const u = await tx.order.update({ where: { id: orderId }, data: { attempts: { increment: 1 } } });
-      if (reason === "rechazo" || u.attempts >= (await getMaxAttempts(tx))) {
+      if (order.kind !== "RETURN" && (reason === "rechazo" || u.attempts >= (await getMaxAttempts(tx)))) {
         await markReturning(tx, orderId, `Llevar a bodega: ${reason === "rechazo" ? "el cliente lo rechazó" : `${u.attempts} intento(s) sin entregar`}`, "ADMIN", actorUserId);
       }
     }

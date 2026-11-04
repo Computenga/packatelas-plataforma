@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const start = hasPos ? { lat, lng } : s.driver.lastLat != null && s.driver.lastLng != null ? { lat: s.driver.lastLat, lng: s.driver.lastLng } : null;
 
   const orders = await prisma.order.findMany({
-    where: { driverId: s.driver.id, kind: "DELIVERY", status: { in: IN_ROUTE } },
+    where: { driverId: s.driver.id, kind: { in: ["DELIVERY", "RETURN"] }, status: { in: IN_ROUTE } },
     include: { client: { select: { name: true } } },
     orderBy: { createdAt: "asc" },
   });
@@ -24,6 +24,8 @@ export async function GET(request: Request) {
       id: o.id,
       code: o.code,
       status: o.status,
+      kind: o.kind,
+      items: o.kind === "RETURN" ? o.itemsSummary : null,
       client: o.client.name,
       recipient: o.recipientName,
       phone: o.recipientPhone,

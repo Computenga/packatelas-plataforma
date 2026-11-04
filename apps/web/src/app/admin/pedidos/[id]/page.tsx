@@ -41,6 +41,8 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
       events: { orderBy: { occurredAt: "desc" }, include: { actor: { select: { name: true } } } },
       ledger: true,
       evidence: true,
+      returnOrder: { select: { id: true, code: true, status: true } },
+      returnItems: { select: { id: true, code: true, status: true }, orderBy: { code: "asc" } },
     },
   });
   if (!order) notFound();
@@ -123,6 +125,24 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               <Row label="Entregado" value={order.deliveredAt ? fecha(order.deliveredAt) : null} />
             </dl>
           </Card>
+          {order.kind === "RETURN" && (
+            <Card title={`Paquetes de esta devolución (${order.returnItems.length})`}>
+              <ul className="divide-y divide-slate-100 text-sm">
+                {order.returnItems.map((r) => (
+                  <li key={r.id} className="flex justify-between py-1.5">
+                    <Link href={`/admin/pedidos/${r.id}`} className="font-mono text-brand hover:underline">{r.code}</Link>
+                    <span className="text-xs text-slate-500">{STATUS_LABEL[r.status]}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-xs text-slate-500">Al marcar esta orden como entregada, todos quedan «Devuelto al vendedor». Se asigna en Despacho como cualquier pedido; no genera cargo a la tienda.</p>
+            </Card>
+          )}
+          {order.returnOrder && (
+            <Card title="Devolución a la tienda">
+              <p className="text-sm">Va en la orden <Link href={`/admin/pedidos/${order.returnOrder.id}`} className="font-mono font-semibold text-brand hover:underline">{order.returnOrder.code}</Link> · {STATUS_LABEL[order.returnOrder.status]}</p>
+            </Card>
+          )}
           <MlSaleCard order={order} />
           {order.evidence.length > 0 && (
             <Card title="Evidencia">

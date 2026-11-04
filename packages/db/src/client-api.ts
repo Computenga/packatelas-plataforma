@@ -158,9 +158,9 @@ export function signWebhook(secret: string, timestamp: number, body: string) {
 
 /** Se llama al cambiar el estado de un envío (desde addOrderEvent). */
 export async function enqueueWebhook(db: Db, orderId: string, from: OrderStatus, to: OrderStatus, at: Date, note?: string) {
-  const order = await db.order.findUnique({ where: { id: orderId }, select: { code: true, externalRef: true, client: { select: { webhook: true } } } });
+  const order = await db.order.findUnique({ where: { id: orderId }, select: { code: true, kind: true, externalRef: true, client: { select: { webhook: true } } } });
   const ep = order?.client.webhook;
-  if (!order || !ep?.active) return;
+  if (!order || !ep?.active || order.kind === "RETURN") return; // las órdenes de devolución (DV-) no son envíos de su sistema
   const payload = {
     evento: "envio.estado",
     codigo: order.code,

@@ -1,4 +1,5 @@
 // Despacho y acciones del repartidor [A04, A05, R01, R03, R06, R07, R10, R11, R14].
+import { completeReturnOrder } from "./returns.ts";
 import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { getMaxAttempts, markReturning, mustReturn } from "./failures.ts";
@@ -36,7 +37,7 @@ export async function assignOrders(
   for (const orderId of orderIds) {
     await prisma.$transaction(async (tx) => {
       const order = await tx.order.findUnique({ where: { id: orderId } });
-      if (!order || order.kind !== "DELIVERY" || !ASSIGNABLE.includes(order.status)) return;
+      if (!order || order.kind === "PICKUP" || !ASSIGNABLE.includes(order.status)) return;
       if (order.driverId === driverId && order.status === "ASSIGNED") return;
       await tx.order.update({ where: { id: orderId }, data: { driverId } });
       const source = opts.source ?? "ADMIN";
@@ -162,7 +163,7 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
       if (!["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED", "OUT_FOR_DELIVERY"].includes(order.status)) {
         return { ok: false as const, error: "Este pedido ya no está pendiente de entrega" };
       }
-      if (order.kind !== "DELIVERY") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
+      if (order.kind === "PICKUP") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
       if (order.driverId !== e.driverId) {
         await tx.order.update({ where: { id: order.id }, data: { driverId: e.driverId } });
         if (order.driverId) {
@@ -180,7 +181,7 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
     }
 
     if (order.driverId !== e.driverId) return { ok: false as const, error: "Este pedido no está en tu ruta" };
-    if (order.kind !== "DELIVERY") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
+    if (order.kind === "PICKUP") return { ok: false as const, error: "Las recolecciones se confirman en la pestaña Recolecciones" };
     if (!IN_ROUTE.includes(order.status)) return { ok: false as const, error: "Este pedido ya no está pendiente de entrega" };
 
     if (e.type === "delivered") {
@@ -196,6 +197,7 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
       });
       await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
       await reconcileCustody(tx, order.id);
+      if (order.kind === "RETURN") await completeReturnOrder(tx, order.id, e.actorUserId, e.receiverName);
       return { ok: true as const, duplicate: false, status: "DELIVERED" as OrderStatus };
     }
 
@@ -212,7 +214,8 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
       await tx.evidence.create({ data: { orderId: order.id, eventId: ev.id, kind: "PHOTO", storageKey: e.photoKey } });
     }
     const updated = await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
-    if (mustReturn(reason, updated.attempts, await getMaxAttempts(tx))) {
+    // Una orden de devolución que no se entregó se queda en FALLIDO para reprogramarla (no «regresa a bodega»).
+    if (order.kind !== "RETURN" && mustReturn(reason, updated.attempts, await getMaxAttempts(tx))) {
       const why = reason === "rechazo" ? "el cliente lo rechazó" : `${updated.attempts} intento(s) sin entregar`;
       await markReturning(tx, order.id, `Llevar a bodega: ${why}`, "SYSTEM");
       return { ok: true as const, duplicate: false, status: "RETURNING" as OrderStatus };
