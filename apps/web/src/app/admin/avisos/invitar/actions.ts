@@ -15,7 +15,7 @@ export async function sendInvitesAction(_: ActionState): Promise<ActionState> {
   const user = await requireUser(["ADMIN"]);
   const { templateStatuses } = await import("@/lib/wa-templates");
   const st = (await templateStatuses()) ?? [];
-  const pending = ["pk_acceso_portal", "pk_conectar_ml"].filter((t) => st.find((s) => s.template === t)?.status !== "APPROVED");
+  const pending = ["pk_cuenta_portal", "pk_conectar_ml"].filter((t) => st.find((s) => s.template === t)?.status !== "APPROVED");
   if (pending.length) return { error: `Meta aún no aprueba: ${pending.join(", ")}` };
   const r = await sendPortalInvites(prisma, user.id);
   revalidatePath("/admin/avisos/invitar");
