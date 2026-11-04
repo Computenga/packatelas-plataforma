@@ -16,7 +16,7 @@ export default async function InvitarPage() {
   await requireUser(["ADMIN"]);
   const [{ groups, noPhone }, st] = await Promise.all([portalInviteTargets(prisma), templateStatuses()]);
   const tpl = (name: string) => st?.find((s) => s.template === name)?.status ?? "—";
-  const ready = tpl("pk_portal_invitacion") === "APPROVED" && tpl("pk_conectar_ml") === "APPROVED";
+  const ready = tpl("pk_portal_disponible") === "APPROVED" && tpl("pk_conectar_ml") === "APPROVED";
   const live = groups.filter((g) => !g.omitted);
   const tone = (s: string) => (s === "APPROVED" ? "green" : s === "REJECTED" ? "red" : "amber");
 
@@ -29,7 +29,7 @@ export default async function InvitarPage() {
 
       <Card title="Plantillas en Meta">
         <p className="text-sm">
-          pk_portal_invitacion <Badge tone={tone(tpl("pk_portal_invitacion"))}>{tpl("pk_portal_invitacion")}</Badge> · pk_conectar_ml <Badge tone={tone(tpl("pk_conectar_ml"))}>{tpl("pk_conectar_ml")}</Badge>
+          pk_portal_disponible <Badge tone={tone(tpl("pk_portal_disponible"))}>{tpl("pk_portal_disponible")}</Badge> · pk_conectar_ml <Badge tone={tone(tpl("pk_conectar_ml"))}>{tpl("pk_conectar_ml")}</Badge>
         </p>
         {!ready && <p className="mt-2 text-sm text-slate-600">Si dicen «No registrada», regístralas en <Link href="/admin/avisos" className="text-brand underline">Avisos → Plantillas</Link>. El envío se habilita cuando Meta las aprueba.</p>}
       </Card>

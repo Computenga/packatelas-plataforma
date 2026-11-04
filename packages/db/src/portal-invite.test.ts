@@ -37,7 +37,7 @@ describe("invitación al portal", () => {
     await sendPortalInvites(prisma, (await prisma.user.findFirstOrThrow({ where: { clientId: a.id } })).id);
     const n = await prisma.notification.findMany({ where: { clientId: { in: ids } } });
     expect(n.length).toBe(2);
-    expect(n.find((x) => x.to === "525500000001")?.template).toBe("pk_portal_invitacion");
+    expect(n.find((x) => x.to === "525500000001")?.template).toBe("pk_portal_disponible");
     await sendPortalInvites(prisma, (await prisma.user.findFirstOrThrow({ where: { clientId: a.id } })).id);
     expect(await prisma.notification.count({ where: { clientId: { in: ids } } })).toBe(2);
   });
