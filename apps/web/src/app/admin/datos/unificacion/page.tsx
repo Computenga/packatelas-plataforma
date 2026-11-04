@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { driveConnection, getLegacyConfig, getLegacyStatus, prisma } from "@packatelas/db";
+import { driveConnection, getDriveCopyState, getLegacyConfig, getLegacyStatus, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader } from "@/components/ui";
-import { saveConfigAction, syncNowAction } from "./actions";
+import { copyFilesNowAction, cutoverAction, saveConfigAction, syncNowAction } from "./actions";
 
 export const metadata: Metadata = { title: "Unificación RH, checador y flotilla" };
 
@@ -24,6 +24,14 @@ export default async function UnificacionPage() {
     Promise.all([prisma.employee.count(), prisma.punch.count(), prisma.vehicle.count(), prisma.vehicleCheck.count(), prisma.fault.count(), prisma.repair.count()]),
   ]);
   const [emp, pun, veh, chk, flt, rep] = counts;
+  const [copyState, driveDocs, fleetPhotos] = await Promise.all([
+    getDriveCopyState(prisma),
+    prisma.employeeDocument.count({ where: { fileKey: { startsWith: "drive:" } } }),
+    Promise.all([prisma.vehicleCheck.findMany({ select: { photos: true } }), prisma.fault.findMany({ select: { photos: true } }), prisma.repair.findMany({ select: { photos: true } })]),
+  ]);
+  const driveFleet = fleetPhotos.flat().reduce((n, r) => n + r.photos.filter((p) => /^https?:/.test(p)).length, 0);
+  const failedCount = Object.keys(copyState.failed).length;
+  const filesLeft = Math.max(0, driveDocs + driveFleet - failedCount);
   return (
     <div className="mx-auto max-w-4xl space-y-6">
       <PageHeader eyebrow="Importar y exportar" title="Unificación: RH, checador y flotilla">
@@ -33,9 +41,9 @@ export default async function UnificacionPage() {
 
       <Card title="Cómo es la transición">
         <ol className="list-decimal space-y-1.5 pl-5 text-sm text-slate-700">
-          <li><strong>Ahora (espejo):</strong> todos siguen usando lo de siempre; aquí se va llenando solo. Compara números (faltas, retardos, costos de flotilla) entre ambos.</li>
-          <li><strong>Cuando cuadre:</strong> repartidores y mecánico pasan a la app de la plataforma (pestaña Moto y /mecanico) y el ZKTeco se apunta a la plataforma (Checador → ADMS). La copia sigue trayendo lo que alguien registre todavía en lo anterior.</li>
-          <li><strong>Al final:</strong> se apaga la copia; las hojas quedan intactas como archivo histórico.</li>
+          <li><strong>Espejo:</strong> todo lo de las hojas ya está aquí y se mantiene al día cada 10 minutos.</li>
+          <li><strong>Archivos:</strong> expedientes y fotos de flotilla se traen de Drive al servidor solos (abajo ves el avance).</li>
+          <li><strong>Corte:</strong> el ZKTeco se apunta a la plataforma (Checador → Recepción directa), el personal entra con su RFC en portal.packatelas.mx/acceso/empleado y se da «Hacer el corte»: última copia y se apaga. Las hojas quedan intactas como archivo histórico.</li>
         </ol>
       </Card>
 
@@ -76,6 +84,35 @@ export default async function UnificacionPage() {
           <p className="text-sm text-slate-500">Aún no se ha copiado nada.</p>
         )}
         <p className="mt-3 text-xs text-slate-500">En la plataforma hoy: {emp} empleados · {pun} checadas · {veh} motos · {chk} checks · {flt} fallas · {rep} reparaciones.</p>
+      </Card>
+
+      <Card title="Archivos de Drive → servidor" actions={filesLeft > 0 ? <ActionForm action={copyFilesNowAction} submitLabel="Copiar una tanda ahora"><span /></ActionForm> : undefined}>
+        <p className="text-sm">
+          {filesLeft > 0 ? <Badge tone="amber">{filesLeft} por traer</Badge> : <Badge tone="green">Al día</Badge>}{" "}
+          {copyState.copied} copiados al servidor{failedCount ? ` · ${failedCount} se quedan como liga a Drive (no se pudieron bajar)` : ""}
+          {copyState.at && <span className="text-slate-500"> · última tanda {fecha(new Date(copyState.at))}</span>}
+        </p>
+        {copyState.lastError && <p className="mt-2 rounded bg-red-50 px-2 py-1 text-sm text-red-700">{copyState.lastError}</p>}
+        <p className="mt-2 text-xs text-slate-500">Se copian solos de 40 en 40 cada 3 minutos. Los que no se pueden bajar (borrados, sin permiso o fotos HEIC) siguen abriendo en Drive.</p>
+        {failedCount > 0 && (
+          <details className="mt-2 text-xs text-slate-500"><summary className="cursor-pointer">Ver cuáles</summary>
+            <ul className="mt-1 space-y-0.5">{Object.entries(copyState.failed).slice(0, 50).map(([id, why]) => <li key={id}><a href={`https://drive.google.com/file/d/${id}/view`} target="_blank" rel="noreferrer" className="font-mono text-brand">{id.slice(0, 12)}…</a> {why}</li>)}</ul>
+          </details>
+        )}
+      </Card>
+
+      <Card title="Corte final">
+        {cfg.enabled ? (
+          <>
+            <p className="mb-3 text-sm text-slate-600">
+              Hazlo cuando el ZKTeco ya mande sus checadas aquí y repartidores y mecánico usen el portal. Hace una última copia de las hojas y apaga la copia automática.
+              Si alguien sigue registrando en lo anterior, ya no llegará aquí.
+            </p>
+            <ActionForm action={cutoverAction} submitLabel="Hacer el corte"><span /></ActionForm>
+          </>
+        ) : (
+          <p className="text-sm"><Badge tone="green">Hecho</Badge> La copia está apagada: todo se maneja desde el portal. Las hojas quedan como archivo histórico.</p>
+        )}
       </Card>
     </div>
   );

@@ -9,7 +9,8 @@ export const DRIVE_TOKEN_KEY = "backup.drive.token";
 const DRIVE_STATE_KEY = "backup.drive";
 const PREFIX = "drive:";
 // + lectura de hojas: la unificación [A37] copia lo nuevo de las hojas del checador y la flotilla actuales.
-const SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets.readonly openid email";
+// + lectura de archivos: para traer al servidor los expedientes y fotos de flotilla que viven en Drive.
+const SCOPE = "https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/spreadsheets.readonly openid email";
 
 type Stored = { enc: string; email?: string; at: string; byUserId?: string };
 

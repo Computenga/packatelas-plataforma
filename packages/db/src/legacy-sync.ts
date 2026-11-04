@@ -33,7 +33,8 @@ export async function getLegacyStatus(db: PrismaClient) {
 }
 
 // ── Lectura de Google Sheets con el permiso de Google Drive conectado en Salud ──
-export async function googleSheetsReader(prisma: PrismaClient, fetchImpl: typeof fetch = fetch): Promise<SheetReader | null> {
+/** Token de acceso de la cuenta de Google conectada en Salud (null si no hay conexión). */
+export async function googleAccessToken(prisma: PrismaClient, fetchImpl: typeof fetch = fetch): Promise<string | null> {
   const refresh = await driveRefreshToken(prisma);
   const id = process.env.GMAIL_CLIENT_ID?.trim(), secret = process.env.GMAIL_CLIENT_SECRET?.trim();
   if (!refresh || !id || !secret) return null;
@@ -44,7 +45,12 @@ export async function googleSheetsReader(prisma: PrismaClient, fetchImpl: typeof
     signal: AbortSignal.timeout(15_000),
   });
   if (!t.ok) throw new Error(`Google no renovó el permiso (${t.status}). Vuelve a conectar Google Drive en Salud.`);
-  const token = ((await t.json()) as { access_token: string }).access_token;
+  return ((await t.json()) as { access_token: string }).access_token;
+}
+
+export async function googleSheetsReader(prisma: PrismaClient, fetchImpl: typeof fetch = fetch): Promise<SheetReader | null> {
+  const token = await googleAccessToken(prisma, fetchImpl);
+  if (!token) return null;
   return async (sheetId, range) => {
     const r = await fetchImpl(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodeURIComponent(range)}?valueRenderOption=FORMATTED_VALUE`, {
       headers: { Authorization: `Bearer ${token}` },

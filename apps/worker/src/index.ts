@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { syncStoreCatalog, syncLegacy, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { syncStoreCatalog, syncLegacy, copyDriveFiles, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -360,6 +360,20 @@ function startLegacySync() {
     }
   };
   setInterval(run, 10 * 60_000);
+  // Archivos que quedaron como liga a Drive (expedientes y fotos de flotilla) → al servidor, por tandas.
+  let copying = false;
+  setInterval(async () => {
+    if (copying) return;
+    copying = true;
+    try {
+      const r = await copyDriveFiles(prisma, { limit: 40 });
+      if (r.copied || r.failed) console.log(`[worker] Archivos de Drive: ${r.copied} copiados, ${r.failed} no se pudieron, ${r.pending} pendientes`);
+    } catch (e) {
+      console.error("[worker] Archivos de Drive:", e instanceof Error ? e.message : e);
+    } finally {
+      copying = false;
+    }
+  }, 3 * 60_000);
 }
 
 /** Catálogo de la tienda de insumos desde WooCommerce, cada hora [P17]. */

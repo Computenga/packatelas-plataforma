@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getLegacyConfig, prisma, saveLegacyConfig, syncLegacy } from "@packatelas/db";
+import { audit, copyDriveFiles, getLegacyConfig, prisma, saveLegacyConfig, syncLegacy } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -23,4 +23,24 @@ export async function syncNowAction(_: ActionState): Promise<ActionState> {
   const r = await syncLegacy(prisma, null, { force: true });
   revalidatePath("/admin/datos/unificacion");
   return r.ok ? { ok: "Copia terminada" } : { error: r.errors.join(" · ") };
+}
+
+export async function copyFilesNowAction(_: ActionState): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const r = await copyDriveFiles(prisma, { limit: 40 });
+  revalidatePath("/admin/datos/unificacion");
+  if (r.error) return { error: r.error };
+  return { ok: `${r.copied} copiados${r.failed ? `, ${r.failed} no se pudieron` : ""}; quedan ${r.pending}` };
+}
+
+/** Corte: última copia de las hojas y se apaga la copia automática. */
+export async function cutoverAction(_: ActionState): Promise<ActionState> {
+  const admin = await requireUser(["ADMIN"]);
+  const cfg = await getLegacyConfig(prisma);
+  const r = await syncLegacy(prisma, null, { force: true });
+  if (!r.ok) return { error: `La última copia tuvo errores; corrígelos antes del corte: ${r.errors.join(" · ")}` };
+  await saveLegacyConfig(prisma, { ...cfg, enabled: false });
+  await audit(prisma, { actorUserId: admin.id, action: "legacy.cutover", entity: "Setting", entityId: "legacy", summary: "Corte de la unificación: copia de hojas apagada" });
+  revalidatePath("/admin/datos/unificacion");
+  return { ok: "Corte hecho: la copia de las hojas quedó apagada" };
 }
