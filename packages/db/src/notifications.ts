@@ -21,7 +21,7 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
   bienvenida_registro: { label: "Bienvenida a quien se registra", audience: "Tienda", template: "pk_bienvenida_registro", text: "Hola {{1}}, recibimos el registro de {{2}} en Packatelas. En breve te contactamos para terminar tu alta y agendar tu primera recolección. ¡Gracias por elegirnos!", example: ["Ana", "Tienda Ejemplo"] },
   // Meta rechazó como «Utilidad» pk_acceso_portal y pk_cuenta_portal (INCORRECT_CATEGORY): va como Marketing.
-  acceso_portal: { label: "Invitación al portal (campaña)", audience: "Tienda", template: "pk_invitacion_portal", category: "MARKETING", text: "Hola {{1}}, tu cuenta {{2}} en el nuevo portal de Packatelas ya está lista. Entra a portal.packatelas.mx/acceso con tu número de cliente y los últimos 4 dígitos de este WhatsApp, crea tu contraseña y en el menú elige «Conectar Mercado Libre» para autorizar tu cuenta. Sin este paso no vemos tus ventas Flex y no podemos recolectarlas a tiempo. ¿Dudas? Respóndenos por aquí.", example: ["Ana", "cmx00151"] },
+  acceso_portal: { label: "Invitación al portal (campaña)", audience: "Tienda", template: "pk_portal_invitacion", category: "MARKETING", text: "Hola {{1}}, tu cuenta {{2}} en el nuevo portal de Packatelas ya está lista. Entra a portal.packatelas.mx/acceso con tu número de cliente y los últimos 4 dígitos de este WhatsApp, crea tu contraseña y en el menú elige «Conectar Mercado Libre» para autorizar tu cuenta. Sin este paso no vemos tus ventas Flex y no podemos recolectarlas a tiempo. ¿Dudas? Respóndenos por aquí.", example: ["Ana", "cmx00151"] },
   conectar_ml: { label: "Recordatorio: conectar Mercado Libre (campaña)", audience: "Tienda", template: "pk_conectar_ml", text: "Hola {{1}}, gracias por activar tu acceso al nuevo portal de Packatelas. Falta un paso: entra a portal.packatelas.mx, ve a «Conectar Mercado Libre» y autoriza tu cuenta {{2}}. Sin esto no vemos tus ventas Flex y no podemos recolectarlas a tiempo.", example: ["Ana", "cmx00151"] },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
@@ -29,7 +29,8 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
 /** Cuerpo para registrar la plantilla en Meta (POST /{waba}/message_templates). */
 export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") {
   const e = NOTIFY_EVENTS[event];
-  return { name: e.template, language, category: e.category ?? "UTILITY", components: [{ type: "BODY", text: e.text, example: { body_text: [e.example] } }] };
+  // allow_category_change: si Meta cree que la categoría no corresponde, la cambia en vez de rechazarla.
+  return { name: e.template, language, category: e.category ?? "UTILITY", allow_category_change: true, components: [{ type: "BODY", text: e.text, example: { body_text: [e.example] } }] };
 }
 
 export type NotifySettings = { enabled: Record<NotifyEvent, boolean>; reminderWeekday: number; reminderHour: number };

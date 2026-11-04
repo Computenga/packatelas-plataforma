@@ -92,7 +92,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
                   <p className="font-mono text-xs">{t.template}</p>
                   <p className="text-xs text-slate-500">{t.label}</p>
                   <p className={`text-xs font-medium ${t.status === "APPROVED" ? "text-emerald-700" : t.status === "REJECTED" ? "text-red-700" : "text-amber-700"}`}>
-                    {t.status === "APPROVED" ? "Aprobada" : t.status === "PENDING" ? "En revisión" : t.status === "REJECTED" ? `Rechazada${t.reason ? `: ${t.reason}` : ""}` : t.status}
+                    {t.status === "APPROVED" ? "Aprobada" : t.status === "PENDING" ? "En revisión" : t.status === "REJECTED" ? `Rechazada${t.reason ? `: ${t.reason}` : ""}` : t.status}{t.category ? ` · ${t.category === "MARKETING" ? "Marketing" : t.category === "UTILITY" ? "Utilidad" : t.category}` : ""}
                   </p>
                 </li>
               ))}

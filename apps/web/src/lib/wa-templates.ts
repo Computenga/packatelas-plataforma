@@ -8,19 +8,19 @@ const cfg = () => {
   return token && waba ? { token, waba } : null;
 };
 
-export type TemplateStatus = { template: string; label: string; status: string; reason?: string };
+export type TemplateStatus = { template: string; label: string; status: string; reason?: string; category?: string };
 
 /** Estado de nuestras plantillas en Meta (APPROVED, PENDING, REJECTED o "No registrada"). */
 export async function templateStatuses(): Promise<TemplateStatus[] | null> {
   const c = cfg();
   if (!c) return null;
   try {
-    const res = await fetch(`${GRAPH}/${c.waba}/message_templates?fields=name,status,rejected_reason,language&limit=200`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
-    const j = (await res.json()) as { data?: { name: string; status: string; rejected_reason?: string; language: string }[]; error?: { message: string } };
+    const res = await fetch(`${GRAPH}/${c.waba}/message_templates?fields=name,status,rejected_reason,language,category&limit=200`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    const j = (await res.json()) as { data?: { name: string; status: string; rejected_reason?: string; language: string; category?: string }[]; error?: { message: string } };
     if (!res.ok) throw new Error(j.error?.message ?? `HTTP ${res.status}`);
     return (Object.keys(NOTIFY_EVENTS) as NotifyEvent[]).map((k) => {
       const t = j.data?.find((d) => d.name === NOTIFY_EVENTS[k].template && d.language === "es_MX");
-      return { template: NOTIFY_EVENTS[k].template, label: NOTIFY_EVENTS[k].label, status: t?.status ?? "No registrada", reason: t?.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : undefined };
+      return { template: NOTIFY_EVENTS[k].template, label: NOTIFY_EVENTS[k].label, status: t?.status ?? "No registrada", reason: t?.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : undefined, category: t?.category };
     });
   } catch (e) {
     return [{ template: "—", label: "Error al consultar Meta", status: e instanceof Error ? e.message : "Error" }];
