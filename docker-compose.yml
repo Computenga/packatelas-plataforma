@@ -62,6 +62,15 @@ services:
     depends_on:
       migrate: { condition: service_completed_successfully }
       redis: { condition: service_started }
+    # El reloj ZKTeco solo habla HTTP (sin S): se abre una entrada HTTP únicamente para /iclock
+    # (sin redirección a HTTPS). Todo lo demás del portal sigue forzado a HTTPS por Coolify.
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.zkteco-iclock.rule=Host(`portal.packatelas.mx`) && PathPrefix(`/iclock`)
+      - traefik.http.routers.zkteco-iclock.entrypoints=http
+      - traefik.http.routers.zkteco-iclock.priority=10000
+      - traefik.http.routers.zkteco-iclock.service=zkteco-iclock
+      - traefik.http.services.zkteco-iclock.loadbalancer.server.port=3000
     ports:
       - "3000"
 
