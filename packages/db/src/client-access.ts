@@ -107,3 +107,58 @@ export async function resetPassword(prisma: PrismaClient, token: string, passwor
 
 /** Para mostrar en la pantalla: «••••• ••56» (sin revelar el teléfono completo). */
 export const maskEmail = (e: string) => e.replace(/^(.{1,2})[^@]*(@.*)$/, (_, a: string, b: string) => `${a}•••${b}`);
+
+// ── Primer acceso de empleados ──
+// Con su RFC y su número de empleado (el del checador) crean su contraseña. Su usuario para entrar
+// es su RFC. Los repartidores quedan con acceso de repartidor (ruta, moto, asistencia) y el mecánico
+// con el suyo; el resto como empleado (asistencia, recibos, expediente).
+export const normRfc = (s: string) => s.toUpperCase().replace(/[^A-ZÑ&0-9]/g, "");
+const roleForKind = (kind: string | null) =>
+  /repartidor/i.test(kind ?? "") ? ("REPARTIDOR" as const) : /mec[aá]nico/i.test(kind ?? "") ? ("MECANICO" as const) : ("EMPLEADO" as const);
+
+export type EmployeeAccessStart =
+  | { status: "ok"; token: string; name: string }
+  | { status: "already"; username: string }
+  | { status: "invalid" };
+
+export async function startEmployeeAccess(prisma: PrismaClient, rawRfc: string, rawNo: string): Promise<EmployeeAccessStart> {
+  const rfc = normRfc(rawRfc), no = Number(rawNo.replace(/\D/g, ""));
+  if (rfc.length < 12 || !(no > 0 && no <= 999_999)) return { status: "invalid" };
+  const e = await prisma.employee.findUnique({ where: { employeeNo: no }, include: { user: true } });
+  if (!e || e.status !== "ACTIVO" || normRfc(e.rfc ?? "") !== rfc) return { status: "invalid" };
+  if (e.user && (e.user.lastLoginAt || !e.user.active)) return { status: "already", username: e.user.username };
+  return { status: "ok", token: makeToken("emp-first", e.id, e.userId ?? "nuevo", 20), name: e.name };
+}
+
+export async function completeEmployeeAccess(prisma: PrismaClient, token: string, password: string, email: string, now = Date.now()) {
+  const fail = (error: string) => ({ ok: false as const, error });
+  const [payload, s] = token.split(".");
+  if (!payload || !s) return fail("El enlace venció. Empieza de nuevo.");
+  const a = Buffer.from(sign("emp-first", payload)), b = Buffer.from(s);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return fail("El enlace venció. Empieza de nuevo.");
+  let t: { u: string; e: number; h: string };
+  try { t = JSON.parse(Buffer.from(payload, "base64url").toString()); } catch { return fail("El enlace venció. Empieza de nuevo."); }
+  const emp = await prisma.employee.findUnique({ where: { id: t.u }, include: { user: true } });
+  if (!(t.e > now) || !emp || emp.status !== "ACTIVO" || sign("pw", emp.userId ?? "nuevo").slice(0, 10) !== t.h) return fail("El enlace venció. Empieza de nuevo.");
+  if (emp.user?.lastLoginAt) return fail("Esta cuenta ya se activó: entra con tu contraseña.");
+  const problem = passwordProblem(password);
+  if (problem) return fail(problem);
+  const mail = email.trim().toLowerCase();
+  if (mail && !/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(mail)) return fail("Escribe un correo válido o déjalo vacío");
+  const emailFree = mail ? !(await prisma.user.findFirst({ where: { email: mail, NOT: emp.userId ? { id: emp.userId } : undefined }, select: { id: true } })) : false;
+  const passwordHash = await hashPassword(password);
+  const data = { passwordHash, mustChangePassword: false, lastLoginAt: new Date(now), ...(emailFree ? { email: mail } : {}) };
+
+  const user = await prisma.$transaction(async (tx) => {
+    if (emp.userId) return tx.user.update({ where: { id: emp.userId }, data });
+    const rfcUser = normRfc(emp.rfc ?? "").toLowerCase();
+    const username = rfcUser && !(await tx.user.findUnique({ where: { username: rfcUser }, select: { id: true } })) ? rfcUser : `e${emp.employeeNo}`;
+    const role = roleForKind(emp.kind);
+    const u = await tx.user.create({ data: { username, name: emp.name, role, ...data, ...(role === "REPARTIDOR" ? { driver: { create: { phone: emp.phone } } } : {}) } });
+    await tx.employee.update({ where: { id: emp.id }, data: { userId: u.id } });
+    return u;
+  });
+  if (mail && !emp.email) await prisma.employee.update({ where: { id: emp.id }, data: { email: mail } });
+  await audit(prisma, { actorUserId: user.id, action: "employee.first_access", entity: "Employee", entityId: emp.id, summary: `${emp.name} activó su acceso (usuario ${user.username})` });
+  return { ok: true as const, userId: user.id, username: user.username, role: user.role };
+}
