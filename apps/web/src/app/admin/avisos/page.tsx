@@ -98,7 +98,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
               ))}
             </ul>
             <ActionForm action={registerTemplatesAction} submitLabel="Registrar las que falten">
-              <p className="text-xs text-slate-500">Se mandan a revisión de Meta como categoría Utilidad en Español (MEX). Suelen aprobarse en minutos.</p>
+              <p className="text-xs text-slate-500">Se mandan a revisión de Meta en Español (MEX), como Utilidad salvo las campañas (Marketing). Suelen aprobarse en minutos.</p>
             </ActionForm>
           </div>
         )}
