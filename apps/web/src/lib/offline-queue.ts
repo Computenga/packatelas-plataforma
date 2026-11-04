@@ -137,15 +137,28 @@ export function flush(): Promise<void> {
   return run;
 }
 
-/** Reduce la foto antes de guardarla/subirla (lado mayor 1280 px, JPEG). */
-export async function compressPhoto(file: File): Promise<Blob> {
+/** Reduce la foto antes de guardarla/subirla (lado mayor 1280 px, JPEG). Con `stamp`, imprime
+ *  esas líneas (fecha, hora, coordenadas, pedido) en una franja al pie de la imagen. */
+export async function compressPhoto(file: File, stamp?: string[]): Promise<Blob> {
   try {
     const bmp = await createImageBitmap(file);
     const scale = Math.min(1, 1280 / Math.max(bmp.width, bmp.height));
     const canvas = document.createElement("canvas");
     canvas.width = Math.round(bmp.width * scale);
     canvas.height = Math.round(bmp.height * scale);
-    canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+    if (stamp?.length) {
+      const fs = Math.max(14, Math.round(canvas.width / 38));
+      const pad = Math.round(fs * 0.6);
+      const h = stamp.length * fs * 1.3 + pad * 2;
+      ctx.fillStyle = "rgba(0,0,0,0.6)";
+      ctx.fillRect(0, canvas.height - h, canvas.width, h);
+      ctx.fillStyle = "#fff";
+      ctx.font = `600 ${fs}px system-ui, sans-serif`;
+      ctx.textBaseline = "top";
+      stamp.forEach((line, i) => ctx.fillText(line, pad, canvas.height - h + pad + i * fs * 1.3, canvas.width - pad * 2));
+    }
     return await new Promise((resolve) => canvas.toBlob((b) => resolve(b ?? file), "image/jpeg", 0.72));
   } catch {
     return file;

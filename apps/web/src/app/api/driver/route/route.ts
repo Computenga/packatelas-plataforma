@@ -34,6 +34,8 @@ export async function GET(request: Request) {
       instructions: o.instructions,
       lat: o.lat,
       lng: o.lng,
+      /** ML ya lo marcó entregado pero aquí sigue en ruta: falta la foto de evidencia. */
+      mlDelivered: o.mlStatus === "delivered",
       etaMin: etaSeconds?.[i] != null && o.lat != null ? Math.round(etaSeconds[i] / 60) : null,
     })),
   });
