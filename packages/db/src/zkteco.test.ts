@@ -20,13 +20,17 @@ describe("ZKTeco ADMS", () => {
     expect(rows[1]).toMatchObject({ kind: "salida", method: "rostro" });
   });
 
-  it("apagado por omisión; exige número de serie e IP; los contactos no cambian la configuración", async () => {
+  it("apagado por omisión; exige número de serie (e IP si se configuró); los contactos no cambian la configuración", async () => {
     await prisma.setting.deleteMany({ where: { key: { startsWith: "checador.adms" } } });
     expect(await admsContact(prisma, "cqz-123", "1.2.3.4", "fw")).toEqual({ sn: "CQZ123", allowed: false });
     expect((await getAdmsConfig(prisma)).devices.CQZ123.ip).toBe("1.2.3.4");
     await setAdmsConfig(prisma, true, ["cqz123"], ["1.2.3.4"]);
     expect((await admsContact(prisma, "CQZ123", "1.2.3.4")).allowed).toBe(true);
     expect((await admsContact(prisma, "CQZ123", "9.9.9.9")).allowed).toBe(false); // serie correcta, IP ajena
+    // Sin IP configurada basta con el número de serie; otro número de serie sigue sin pasar.
+    await setAdmsConfig(prisma, true, ["cqz123"], []);
+    expect((await admsContact(prisma, "CQZ123", "9.9.9.9")).allowed).toBe(true);
+    expect((await admsContact(prisma, "OTRO2", "9.9.9.9")).allowed).toBe(false);
     // Una petición pública no puede reactivar la recepción que el admin apagó.
     await setAdmsConfig(prisma, false, ["cqz123"], ["1.2.3.4"]);
     await admsContact(prisma, "OTRO1", "5.5.5.5", "x");

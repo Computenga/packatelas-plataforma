@@ -57,7 +57,8 @@ export async function admsContact(prisma: PrismaClient, snRaw: string | null, ip
   if (!sn) return { sn, allowed: false };
   const c = await getAdmsConfig(prisma);
   const prev = c.devices[sn];
-  const allowed = c.enabled && c.serials.includes(sn) && !!ip && c.ips.includes(ip);
+  // La IP es un filtro opcional: sin IPs configuradas basta con el número de serie autorizado.
+  const allowed = c.enabled && c.serials.includes(sn) && (c.ips.length === 0 || (!!ip && c.ips.includes(ip)));
   // Para no escribir en cada consulta (el reloj pregunta cada pocos segundos), máximo una vez por minuto.
   if ((!prev || Date.now() - new Date(prev.lastAt).getTime() > 60_000) && (prev || Object.keys(c.devices).length < MAX_DEVICES)) {
     c.devices[sn] = { ...prev, punches: prev?.punches ?? 0, lastAt: new Date().toISOString(), ip, ...(info ? { info: info.slice(0, 300) } : {}) };

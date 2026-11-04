@@ -35,9 +35,8 @@ export async function admsConfigAction(_: ActionState, fd: FormData): Promise<Ac
   const serials = String(fd.get("serials") ?? "").split(/[\s,;]+/);
   const ips = String(fd.get("ips") ?? "").split(/[\s,;]+/);
   if (enabled && !serials.some((s) => s.trim())) return { error: "Agrega el número de serie del reloj para activarlo" };
-  if (enabled && !ips.some((s) => s.trim())) return { error: "Agrega la IP pública de la oficina (aparece junto al reloj en la lista)" };
   const c = await setAdmsConfig(prisma, enabled, serials, ips);
-  await audit(prisma, { actorUserId: user.id, action: "checador.adms_config", entity: "Setting", summary: `Recepción ZKTeco ${enabled ? "activada" : "apagada"} (${c.serials.join(", ") || "sin relojes"}; IP ${c.ips.join(", ") || "—"})` });
+  await audit(prisma, { actorUserId: user.id, action: "checador.adms_config", entity: "Setting", summary: `Recepción ZKTeco ${enabled ? "activada" : "apagada"} (${c.serials.join(", ") || "sin relojes"}; IP ${c.ips.join(", ") || "cualquiera"})` });
   revalidatePath("/admin/checador");
   return { ok: enabled ? "Recepción activada" : "Guardado (apagada)" };
 }
