@@ -6,7 +6,7 @@ import { audit } from "./orders.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
-export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago" | "bienvenida_registro" | "recoleccion_creada";
+export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago" | "bienvenida_registro" | "recoleccion_creada" | "acceso_portal" | "conectar_ml";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
 export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[] }> = {
@@ -20,6 +20,8 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   recoleccion_en_camino: { label: "Recolección en camino", audience: "Tienda", template: "pk_recoleccion_en_camino", text: "Hola {{1}}, {{2}} ya va en camino a {{3}} para recoger tus paquetes. Síguelo en tiempo real aquí: {{4}} Ten listos tus envíos, por favor.", example: ["Tienda Ejemplo", "Juan", "Sucursal Centro", "https://nuevo.packatelas.mx/s/abc"] },
   recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
   bienvenida_registro: { label: "Bienvenida a quien se registra", audience: "Tienda", template: "pk_bienvenida_registro", text: "Hola {{1}}, recibimos el registro de {{2}} en Packatelas. En breve te contactamos para terminar tu alta y agendar tu primera recolección. ¡Gracias por elegirnos!", example: ["Ana", "Tienda Ejemplo"] },
+  acceso_portal: { label: "Invitación al portal (campaña)", audience: "Tienda", template: "pk_acceso_portal", text: "Hola {{1}}, tu cuenta {{2}} en el nuevo portal de Packatelas ya está lista. Entra a portal.packatelas.mx/acceso con tu número de cliente y los últimos 4 dígitos de este WhatsApp, crea tu contraseña y en el menú elige «Conectar Mercado Libre» para autorizar tu cuenta. Sin este paso no vemos tus ventas Flex y no podemos recolectarlas a tiempo. ¿Dudas? Respóndenos por aquí.", example: ["Ana", "cmx00151"] },
+  conectar_ml: { label: "Recordatorio: conectar Mercado Libre (campaña)", audience: "Tienda", template: "pk_conectar_ml", text: "Hola {{1}}, gracias por activar tu acceso al nuevo portal de Packatelas. Falta un paso: entra a portal.packatelas.mx, ve a «Conectar Mercado Libre» y autoriza tu cuenta {{2}}. Sin esto no vemos tus ventas Flex y no podemos recolectarlas a tiempo.", example: ["Ana", "cmx00151"] },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
 
@@ -34,7 +36,7 @@ const KEY = "notify.settings";
 export const DEFAULT_NOTIFY: NotifySettings = {
   // A compradores solo en pedidos externos (los de ML los avisa MercadoLibre); a las tiendas solo
   // «recolección registrada» y «en camino». Lo demás queda apagado y se puede prender en Avisos.
-  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: false, recoleccion_creada: true, recoleccion_asignada: false, recoleccion_en_camino: true, recoleccion_bloqueada: false, recordatorio_pago: false, bienvenida_registro: false },
+  enabled: { en_camino: true, entregado: true, no_entregado: true, regresa_bodega: false, recoleccion_creada: true, recoleccion_asignada: false, recoleccion_en_camino: true, recoleccion_bloqueada: false, recordatorio_pago: false, bienvenida_registro: false, acceso_portal: false, conectar_ml: false },
   reminderWeekday: 6, // sábado
   reminderHour: 10,
 };

@@ -43,7 +43,7 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
-      <PageHeader eyebrow="Gestión" title="Avisos por WhatsApp">
+      <PageHeader eyebrow="Gestión" title="Avisos por WhatsApp" actions={<Link href="/admin/avisos/invitar" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">Invitar al portal</Link>}>
         Mensajes automáticos al comprador y a la tienda. Últimos 7 días: {c("SENT") + c("DELIVERED") + c("READ")} enviados ({c("DELIVERED") + c("READ")} entregados) · {c("FAILED")} fallidos · {c("SKIPPED")} omitidos · {c("PENDING")} en cola.
       </PageHeader>
       {!configured && (
