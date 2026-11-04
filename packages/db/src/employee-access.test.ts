@@ -34,3 +34,23 @@ describe("primer acceso de empleados", () => {
     expect(await startEmployeeAccess(prisma, "XAXX010101AA1", String(NO))).toEqual({ status: "already", username: "xaxx010101aa1" });
   });
 });
+
+describe("baja y reingreso", () => {
+  it("da de baja: quita acceso y cierra sesiones; el reingreso lo devuelve", async () => {
+    const { offboardEmployee, rehireEmployee } = await import("./index.ts");
+    const e = await prisma.employee.findUniqueOrThrow({ where: { employeeNo: NO } });
+    await prisma.session.create({ data: { id: `t-${NO}`, userId: e.userId!, expiresAt: new Date(Date.now() + 3600_000) } });
+    await expect(offboardEmployee(prisma, { employeeId: e.id, date: "2026-11-03", reason: "Inventado" }, e.userId!)).rejects.toThrow();
+    const s = await offboardEmployee(prisma, { employeeId: e.id, date: "2026-11-03", reason: "Renuncia voluntaria", note: "Se va a otra ciudad" }, e.userId!);
+    expect(s.packages).toBe(0);
+    const after = await prisma.employee.findUniqueOrThrow({ where: { id: e.id }, include: { user: true } });
+    expect(after.status).toBe("BAJA");
+    expect(after.user?.active).toBe(false);
+    expect(after.notes).toContain("Renuncia voluntaria — Se va a otra ciudad");
+    expect(await prisma.session.count({ where: { userId: e.userId! } })).toBe(0);
+    expect((await startEmployeeAccess(prisma, "XAXX010101AA1", String(NO))).status).toBe("invalid");
+    await rehireEmployee(prisma, e.id, "2026-12-01", e.userId!);
+    const back = await prisma.employee.findUniqueOrThrow({ where: { id: e.id }, include: { user: true } });
+    expect([back.status, back.user?.active, back.endDate]).toEqual(["ACTIVO", true, null]);
+  });
+});

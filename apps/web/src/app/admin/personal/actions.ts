@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
-  audit, hashPassword, importEmployees, importPunches, normalizePunchKind, parseClock, parseWorkdays, prisma, Prisma,
+  audit, hashPassword, importEmployees, offboardEmployee, rehireEmployee, importPunches, normalizePunchKind, parseClock, parseWorkdays, prisma, Prisma,
 } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { parseEmployees, parsePunches } from "@/lib/personnel-import";
@@ -123,4 +123,28 @@ export async function importPunchesAction(_: ActionState, fd: FormData): Promise
   revalidatePath("/admin/checador");
   const unk = r.unknownEmployees.length ? ` · sin empleado en Personal: ${r.unknownEmployees.slice(0, 15).join(", ")}${r.unknownEmployees.length > 15 ? "…" : ""}` : "";
   return { ok: `${r.added} checada(s) nuevas, ${r.duplicates} ya estaban${p.errors.length ? ` · ${p.errors.length} renglón(es) no se entendieron` : ""}${unk}` };
+}
+
+export async function offboardAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const admin = await requireUser(["ADMIN"]);
+  try {
+    const s = await offboardEmployee(prisma, { employeeId: id, date: String(fd.get("date") ?? ""), reason: String(fd.get("reason") ?? ""), note: String(fd.get("note") ?? "") }, admin.id);
+    revalidatePath(`/admin/personal/${id}`);
+    revalidatePath("/admin/personal");
+    const pend = [s.packages ? `${s.packages} paquete(s) siguen a su nombre: reasígnalos` : "", s.pendingCharges ? `adeudos sin descontar por $${s.pendingCharges.toFixed(2)}: inclúyelos en el finiquito` : ""].filter(Boolean);
+    return { ok: `Baja registrada y acceso retirado.${pend.length ? ` Pendiente: ${pend.join("; ")}.` : ""} Genera el paquete de baja en Documentos RH.` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo dar de baja" };
+  }
+}
+
+export async function rehireAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const admin = await requireUser(["ADMIN"]);
+  try {
+    await rehireEmployee(prisma, id, String(fd.get("date") ?? ""), admin.id);
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo reactivar" };
+  }
+  revalidatePath(`/admin/personal/${id}`);
+  return { ok: "Reingreso registrado; su acceso volvió a quedar activo." };
 }

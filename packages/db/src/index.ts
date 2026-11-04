@@ -87,3 +87,4 @@ export * from "./legacy-import.ts";
 export * from "./custody.ts";
 export * from "./demo.ts";
 export * from "./live.ts";
+export * from "./offboarding.ts";

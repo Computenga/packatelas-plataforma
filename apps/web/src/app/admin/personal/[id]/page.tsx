@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { employeeFile, prisma, quincenaOf, ymdMx } from "@packatelas/db";
+import { BAJA_REASONS, employeeFile, offboardingSummary, prisma, quincenaOf, ymdMx } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ROLE_LABEL } from "@/lib/roles";
 import { ActionForm } from "@/components/action-form";
@@ -9,7 +9,7 @@ import { Badge, Card, Field, PageHeader, Select } from "@/components/ui";
 import { EmployeeForm } from "../employee-form";
 import { DocListAdmin } from "@/components/doc-list-admin";
 import { DocUploader } from "@/components/doc-uploader";
-import { linkUserAction, updateEmployee } from "../actions";
+import { linkUserAction, offboardAction, rehireAction, updateEmployee } from "../actions";
 
 export const metadata: Metadata = { title: "Empleado" };
 const today = () => ymdMx(new Date());
@@ -26,6 +26,7 @@ export default async function EmpleadoPage({ params }: PageProps<"/admin/persona
   });
   const q = quincenaOf(today());
   const file = await employeeFile(prisma, e.id);
+  const pending = e.status === "ACTIVO" ? await offboardingSummary(prisma, e.id) : null;
   const missingDocs = file.filter((r) => r.type.required && r.doc?.status !== "APROBADO").length;
 
   return (
@@ -68,6 +69,32 @@ export default async function EmpleadoPage({ params }: PageProps<"/admin/persona
           </div>
         </ActionForm>
       </Card>
+      {e.status === "ACTIVO" && pending ? (
+        <Card title="Dar de baja">
+          <p className="mb-3 text-sm text-slate-600">
+            Queda como baja con fecha y motivo, se le quita el acceso al portal y se cierran sus sesiones. Su historial (checadas, recibos, expediente) se conserva.
+            {pending.packages > 0 && <strong className="text-amber-700"> Tiene {pending.packages} paquete(s) a su nombre.</strong>}
+            {pending.pendingCharges > 0 && <strong className="text-amber-700"> Adeudos sin descontar: ${pending.pendingCharges.toFixed(2)}.</strong>}
+          </p>
+          <ActionForm action={offboardAction.bind(null, e.id)} submitLabel="Dar de baja">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Fecha de baja" name="date" type="date" required defaultValue={today()} />
+              <Select label="Motivo" name="reason" defaultValue="" required>
+                <option value="" disabled>Elige…</option>
+                {BAJA_REASONS.map((r) => <option key={r}>{r}</option>)}
+              </Select>
+            </div>
+            <Field label="Nota (opcional)" name="note" placeholder="Detalle para el expediente" />
+          </ActionForm>
+          <p className="mt-2 text-xs text-slate-500">Después: <Link href={`/admin/personal/${e.id}/documentos`} className="text-brand hover:underline">paquete de baja y finiquito</Link> · bórralo del reloj ZKTeco.</p>
+        </Card>
+      ) : (
+        <Card title="Reingreso">
+          <ActionForm action={rehireAction.bind(null, e.id)} submitLabel="Reactivar">
+            <Field label="Fecha de reingreso" name="date" type="date" required defaultValue={today()} />
+          </ActionForm>
+        </Card>
+      )}
     </div>
   );
 }
