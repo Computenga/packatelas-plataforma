@@ -9,7 +9,7 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago" | "bienvenida_registro" | "recoleccion_creada" | "acceso_portal" | "conectar_ml";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
-export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[] }> = {
+export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[]; category?: "UTILITY" | "MARKETING" }> = {
   // Reglas de Meta: el texto no puede empezar ni terminar con una variable.
   en_camino: { label: "Envío en camino", audience: "Comprador", template: "pk_en_camino", text: "Hola {{1}}, tu pedido de {{2}} ({{3}}) ya va en camino. Puedes seguirlo aquí: {{4}} ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826", "https://nuevo.packatelas.mx/s/abc"] },
   entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_envio_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826"] },
@@ -20,8 +20,8 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   recoleccion_en_camino: { label: "Recolección en camino", audience: "Tienda", template: "pk_recoleccion_en_camino", text: "Hola {{1}}, {{2}} ya va en camino a {{3}} para recoger tus paquetes. Síguelo en tiempo real aquí: {{4}} Ten listos tus envíos, por favor.", example: ["Tienda Ejemplo", "Juan", "Sucursal Centro", "https://nuevo.packatelas.mx/s/abc"] },
   recoleccion_bloqueada: { label: "Recolección en pausa por adeudo", audience: "Tienda", template: "pk_recoleccion_pausa", text: "Hola {{1}}, tu recolección está en pausa por un saldo pendiente de {{2}}. Paga con la referencia {{3}} para reactivarla.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151"] },
   bienvenida_registro: { label: "Bienvenida a quien se registra", audience: "Tienda", template: "pk_bienvenida_registro", text: "Hola {{1}}, recibimos el registro de {{2}} en Packatelas. En breve te contactamos para terminar tu alta y agendar tu primera recolección. ¡Gracias por elegirnos!", example: ["Ana", "Tienda Ejemplo"] },
-  // v1 (pk_acceso_portal) la rechazó Meta por categoría; esta redacción es de actualización de cuenta.
-  acceso_portal: { label: "Invitación al portal (campaña)", audience: "Tienda", template: "pk_cuenta_portal", text: "Hola {{1}}, actualizamos tu cuenta de Packatelas {{2}} a nuestro nuevo portal. Para seguir gestionando tus envíos y recolecciones, actívala en portal.packatelas.mx/acceso con tu número de cliente y los últimos 4 dígitos de este WhatsApp. Después autoriza tu cuenta de Mercado Libre en la sección «Conectar Mercado Libre»; sin esa autorización no recibimos tus ventas Flex.", example: ["Ana", "cmx00151"] },
+  // Meta rechazó como «Utilidad» pk_acceso_portal y pk_cuenta_portal (INCORRECT_CATEGORY): va como Marketing.
+  acceso_portal: { label: "Invitación al portal (campaña)", audience: "Tienda", template: "pk_invitacion_portal", category: "MARKETING", text: "Hola {{1}}, tu cuenta {{2}} en el nuevo portal de Packatelas ya está lista. Entra a portal.packatelas.mx/acceso con tu número de cliente y los últimos 4 dígitos de este WhatsApp, crea tu contraseña y en el menú elige «Conectar Mercado Libre» para autorizar tu cuenta. Sin este paso no vemos tus ventas Flex y no podemos recolectarlas a tiempo. ¿Dudas? Respóndenos por aquí.", example: ["Ana", "cmx00151"] },
   conectar_ml: { label: "Recordatorio: conectar Mercado Libre (campaña)", audience: "Tienda", template: "pk_conectar_ml", text: "Hola {{1}}, gracias por activar tu acceso al nuevo portal de Packatelas. Falta un paso: entra a portal.packatelas.mx, ve a «Conectar Mercado Libre» y autoriza tu cuenta {{2}}. Sin esto no vemos tus ventas Flex y no podemos recolectarlas a tiempo.", example: ["Ana", "cmx00151"] },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
@@ -29,7 +29,7 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
 /** Cuerpo para registrar la plantilla en Meta (POST /{waba}/message_templates). */
 export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") {
   const e = NOTIFY_EVENTS[event];
-  return { name: e.template, language, category: "UTILITY", components: [{ type: "BODY", text: e.text, example: { body_text: [e.example] } }] };
+  return { name: e.template, language, category: e.category ?? "UTILITY", components: [{ type: "BODY", text: e.text, example: { body_text: [e.example] } }] };
 }
 
 export type NotifySettings = { enabled: Record<NotifyEvent, boolean>; reminderWeekday: number; reminderHour: number };
