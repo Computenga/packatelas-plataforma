@@ -94,7 +94,8 @@ const num = (s: string | undefined) => {
 /** U-77 / U-077 → 77 */
 export const empNo = (s: string | undefined) => {
   const m = (s ?? "").match(/(\d+)/);
-  return m ? Number(m[1]) : null;
+  const n = m ? Number(m[1]) : NaN;
+  return n > 0 && n <= 999_999 ? n : null; // un teléfono en esa columna no es número de empleado
 };
 const photos = (r: Record<string, string>, keys: string[]) => keys.map((k) => r[k]).filter((v) => /^https?:\/\//.test(v ?? ""));
 
@@ -126,6 +127,8 @@ async function syncChecador(prisma: PrismaClient, read: SheetReader, sheetId: st
     const r = await importEmployees(prisma, rows);
     out.empleados = `${r.created} nuevos, ${r.updated} actualizados`;
   } else out.empleados = "sin cambios";
+  const skipped = [...p.errors, ...e.errors].filter((x) => x.includes("no parece número"));
+  if (skipped.length) out.empleados += ` · se omitieron ${skipped.length} renglones: ${skipped.slice(0, 3).join("; ")}`;
 
   const punches = parsePunches(await read(sheetId, "Checadas!A:L"), normalizePunchKind);
   const r = await importPunches(prisma, punches.rows, "hoja");

@@ -76,6 +76,7 @@ export function parseEmployees(
     const g = (k: string) => (map.has(k) ? (cells[map.get(k)!] ?? "").trim() : "");
     const no = Number(g("employeeNo").replace(/\D/g, ""));
     if (!no || !g("name")) { errors.push(`Renglón ${idx + 2}: falta número o nombre`); return; }
+    if (no > 999_999) { errors.push(`Renglón ${idx + 2}: «${g("employeeNo")}» no parece número de empleado (¿un teléfono?)`); return; }
     const r: EmployeeImportRow = { employeeNo: no, name: g("name").slice(0, 160) };
     for (const k of ["rfc", "curp", "nss", "position", "area", "kind", "clabe", "bank", "phone", "email", "motoType", "address"] as const) {
       const v = g(k);
@@ -123,7 +124,7 @@ export function parsePunches(text: string | string[][], kind: (s: string) => str
     const both = iBoth >= 0 ? (c[iBoth] ?? "").trim() : `${c[iDate] ?? ""} ${c[iTime] ?? ""}`.trim();
     const d = ymd(both);
     const tm = both.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(am|pm|a\.\s?m\.|p\.\s?m\.)?\s*$/i);
-    if (!no || !d || !tm) { if (errors.length < 20) errors.push(`Renglón ${idx + 2}: no se entiende "${both}"`); return; }
+    if (!no || no > 999_999 || !d || !tm) { if (errors.length < 20) errors.push(`Renglón ${idx + 2}: no se entiende "${both}"`); return; }
     let hh = Number(tm[1]);
     if (tm[4]?.toLowerCase().startsWith("p") && hh < 12) hh += 12;
     if (tm[4]?.toLowerCase().startsWith("a") && hh === 12) hh = 0;
