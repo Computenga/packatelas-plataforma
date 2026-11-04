@@ -61,6 +61,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { section: SIS, href: "/admin/auditoria", label: "Auditoría", roles: ["ADMIN"] },
   { section: SIS, href: "/admin/seguridad", label: "Seguridad", roles: STAFF_ROLES },
   { section: SIS, href: "/admin/arranque", label: "Arranque", roles: ["ADMIN"] },
+  { section: SIS, href: "/ayuda/admin", label: "Manual de uso", roles: STAFF_ROLES },
 ];
 
 /** Accesos fijos abajo en el celular (admin y operación). Agrega aquí más rutas de ADMIN_NAV. */
@@ -81,6 +82,7 @@ export const CLIENT_NAV: NavItem[] = [
   { section: "Mi negocio", href: "/cliente/negocio", label: "Direcciones y accesos" },
   { section: "Mi negocio", href: "/cliente/avisos", label: "Mis avisos" },
   { section: "Mi negocio", href: "/cliente/soporte", label: "Ayuda y soporte" },
+  { section: "Mi negocio", href: "/ayuda/tienda", label: "Manual de uso" },
 ];
 
 /** Accesos fijos abajo en el celular para las tiendas; el resto está en el menú ☰. */

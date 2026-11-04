@@ -29,6 +29,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
           <p><Link href="/acceso" className="font-medium text-brand hover:underline">¿Eres cliente y es tu primera vez? Activa tu cuenta con tu número de cliente</Link></p>
           <p><Link href="/acceso/empleado" className="font-medium text-brand hover:underline">¿Trabajas en Packatelas y es tu primera vez? Activa tu cuenta con tu RFC</Link></p>
           <p><Link href="/acceso/restablecer" className="text-slate-500 hover:underline">Olvidé mi contraseña</Link></p>
+          <p><Link href="/ayuda" className="text-slate-500 hover:underline">📖 Manual de uso</Link></p>
         </div>
         <p className="mt-6 text-center text-sm text-slate-500">
           ¿Tienes una tienda y quieres enviar con nosotros? <Link href="/registro" className="text-brand hover:underline">Regístrate</Link>

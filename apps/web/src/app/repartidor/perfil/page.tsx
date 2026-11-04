@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { Metadata } from "next";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
@@ -17,7 +18,10 @@ export default async function PerfilPage() {
   const flex = await prisma.flexIdentity.findMany({ where: { driverId: d.id }, select: { flexDriverId: true } });
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-bold">Mi perfil</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-lg font-bold">Mi perfil</h1>
+        <Link href="/ayuda/repartidor" className="text-sm font-medium text-brand">📖 Manual de uso</Link>
+      </div>
       <p className="text-sm text-slate-600">Cuando vas en camino a una recolección, la tienda ve tu nombre, tu foto y tu teléfono en el enlace de seguimiento.</p>
       <Card title="Mercado Libre Flex">
         {flex.length > 0 && (
