@@ -12,10 +12,28 @@ export default async function PersonalPage({ searchParams }: PageProps<"/admin/p
   const sp = await searchParams;
   const q = typeof sp.q === "string" ? sp.q.trim() : "";
   const all = sp.ver === "todos";
+  // Número de empleado (máx. 6 dígitos: un teléfono no cabe en el campo y tronaba la búsqueda),
+  // teléfono (comparando solo dígitos, guarden como lo guarden) y RFC.
+  const digits = q.replace(/\D/g, "");
+  const no = /^\d{1,6}$/.test(q) ? Number(q) : null;
+  const byPhone =
+    digits.length >= 4
+      ? (await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "Employee" WHERE regexp_replace(coalesce(phone, ''), '\\D', '', 'g') LIKE ${`%${digits}%`}`).map((r) => r.id)
+      : [];
   const emps = await prisma.employee.findMany({
     where: {
       ...(all ? {} : { status: "ACTIVO" }),
-      ...(q ? { OR: [{ name: { contains: q, mode: "insensitive" } }, { position: { contains: q, mode: "insensitive" } }, ...(Number(q) ? [{ employeeNo: Number(q) }] : [])] } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: "insensitive" } },
+              { position: { contains: q, mode: "insensitive" } },
+              { rfc: { contains: q, mode: "insensitive" } },
+              ...(no != null ? [{ employeeNo: no }] : []),
+              ...(byPhone.length ? [{ id: { in: byPhone } }] : []),
+            ],
+          }
+        : {}),
     },
     orderBy: { employeeNo: "asc" },
     include: { user: { select: { username: true, role: true } } },
@@ -30,7 +48,7 @@ export default async function PersonalPage({ searchParams }: PageProps<"/admin/p
         Base maestra de empleados. El número es el mismo del ZKTeco y de la flotilla (U-número).
       </PageHeader>
       <form className="flex gap-2 text-sm">
-        <input name="q" defaultValue={q} placeholder="Nombre, puesto o número" className="w-72 rounded-lg border border-slate-300 px-3 py-2" />
+        <input name="q" defaultValue={q} placeholder="Nombre, puesto, número, teléfono o RFC" className="w-72 rounded-lg border border-slate-300 px-3 py-2" />
         <label className="flex items-center gap-1 text-slate-600"><input type="checkbox" name="ver" value="todos" defaultChecked={all} className="accent-brand" /> Incluir bajas</label>
         <button className="rounded-lg bg-brand px-4 text-white">Buscar</button>
       </form>
