@@ -6,6 +6,8 @@ import { STAFF_ROLES } from "@/lib/roles";
 import { fecha, hace, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { buildWhere, filtersToQuery, LIVE_STATUSES, PAGE_SIZE, readFilters, type OrderFilters } from "@/lib/order-filters";
 import { RecuperadosList } from "./recuperados";
+import { Atencion } from "./atencion";
+import { ATTENTION, type AttentionKey } from "@packatelas/db";
 import { EnVivo } from "./en-vivo";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
 import { AutoRefresh } from "@/components/auto-refresh";
@@ -13,6 +15,7 @@ import { AutoRefresh } from "@/components/auto-refresh";
 export const metadata: Metadata = { title: "Pedidos" };
 
 const VIEWS = [
+  { key: "atencion", label: "Necesitan atención" },
   { key: "", label: "Histórico" },
   { key: "vivo", label: "En vivo" },
   { key: "recuperados", label: "Recuperados" },
@@ -28,8 +31,11 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
   const sp = await searchParams;
   const f = readFilters(sp);
   const where = buildWhere(f);
+  // Sin filtros, Pedidos abre en «Necesitan atención».
+  const attention = sp.vista === "atencion" || Object.keys(sp).length === 0;
+  const motivo = (ATTENTION.find((a) => a.key === sp.motivo)?.key ?? "todos") as AttentionKey | "todos";
   const live = f.view === "vivo";
-  const recovered = f.view === "recuperados";
+  const recovered = f.view === "recuperados" || attention; // (attention: no se carga el histórico)
 
   const [orders, total, clients, liveCounts] = await Promise.all([
     recovered || live ? Promise.resolve([]) : prisma.order.findMany({
@@ -55,8 +61,9 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
     : qs;
   const now = requestTime();
   const statusOptions = (live ? LIVE_STATUSES : f.view ? [] : (Object.keys(STATUS_LABEL) as OrderStatus[]));
-  const tabHref = (view: OrderFilters["view"]) => {
-    const q = filtersToQuery({ ...f, view, status: "", page: 1 });
+  const tabHref = (view: OrderFilters["view"] | "atencion") => {
+    if (view === "atencion") return "/admin/pedidos?vista=atencion";
+    const q = filtersToQuery({ ...f, view, status: "", page: 1 }) || "vista=historico";
     return `/admin/pedidos${q ? `?${q}` : ""}`;
   };
 
@@ -84,7 +91,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
           </>
         }
       >
-        {recovered ? "Envíos Flex de MercadoLibre por recoger" : live ? "Envíos en la calle durante el día: en tránsito, entregados y no entregados" : <>{total.toLocaleString("es-MX")} pedido(s)</>}
+        {attention ? "Lo que hay que resolver hoy, con el motivo de cada pedido" : recovered ? "Envíos Flex de MercadoLibre por recoger" : live ? "Envíos en la calle durante el día: en tránsito, entregados y no entregados" : <>{total.toLocaleString("es-MX")} pedido(s)</>}
       </PageHeader>
 
       <nav className="mb-4 flex gap-1 border-b border-slate-200 text-sm" aria-label="Vistas">
@@ -92,15 +99,16 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
           <Link
             key={v.key}
             href={tabHref(v.key)}
-            aria-current={f.view === v.key ? "page" : undefined}
-            className={`-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 ${f.view === v.key ? "border-brand font-semibold text-brand" : "border-transparent text-slate-600 hover:text-slate-900"}`}
+            aria-current={(attention ? v.key === "atencion" : f.view === v.key) ? "page" : undefined}
+            className={`-mb-px shrink-0 whitespace-nowrap border-b-[3px] px-3 py-2 font-semibold ${(attention ? v.key === "atencion" : f.view === v.key) ? "border-accent text-brand" : "border-transparent text-slate-500 hover:text-slate-900"}`}
           >
             {v.label}
           </Link>
         ))}
       </nav>
 
-      {recovered && <RecuperadosList f={f} clients={clients} />}
+      {attention && <Atencion sel={motivo} canAssign={user.role === "ADMIN" || user.role === "DESPACHADOR"} />}
+      {recovered && !attention && <RecuperadosList f={f} clients={clients} />}
 
       {live && (
         <>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { driversWithoutLocation, prisma } from "@packatelas/db";
+import { driversWithoutLocation, prisma, todayMx } from "@packatelas/db";
 import { NoLocationAlert } from "@/components/no-location-alert";
 import { requireUser } from "@/lib/auth";
 import { PageHeader } from "@/components/ui";
@@ -24,6 +24,12 @@ export default async function DespachoPage() {
     }),
     driversWithoutLocation(prisma),
   ]);
+  const doneToday = await prisma.order.groupBy({
+    by: ["driverId"],
+    where: { status: "DELIVERED", deliveredAt: { gte: new Date(`${todayMx()}T00:00:00-06:00`) }, driverId: { not: null } },
+    _count: { _all: true },
+  });
+  const done = new Map(doneToday.map((d) => [d.driverId, d._count._all]));
 
   const boardOrders: BoardOrder[] = orders.map((o) => ({
     id: o.id,
@@ -32,6 +38,8 @@ export default async function DespachoPage() {
     client: o.client.name,
     recipient: o.recipientName,
     address: [o.addressLine, o.neighborhood, o.city].filter(Boolean).join(", "),
+    neighborhood: o.neighborhood,
+    city: o.city,
     zip: o.zip,
     lat: o.lat,
     lng: o.lng,
@@ -45,12 +53,13 @@ export default async function DespachoPage() {
     lat: d.lastLat,
     lng: d.lastLng,
     lastLocationAt: d.lastLocationAt?.toISOString() ?? null,
+    deliveredToday: done.get(d.id) ?? 0,
   }));
 
   return (
     <div className="mx-auto max-w-[1600px]">
       <PageHeader eyebrow="Operación" title="Despacho">
-        Selecciona pedidos en la lista o en el mapa y asígnalos a un repartidor. Se actualiza cada 30 segundos.
+        Elige una zona (o pedidos sueltos en la lista o el mapa) y asígnala a un repartidor. Se actualiza cada 30 segundos.
       </PageHeader>
       <NoLocationAlert drivers={lost} />
       <DispatchBoard orders={boardOrders} drivers={boardDrivers} />

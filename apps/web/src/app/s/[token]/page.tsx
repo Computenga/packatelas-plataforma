@@ -1,11 +1,16 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { prisma, WAREHOUSE_ADDRESS, type OrderStatus } from "@packatelas/db";
-import { orderIdFromToken } from "@/lib/tracking";
+import { cookies } from "next/headers";
+import { BUYER_PROBLEMS, buyerDates, prisma, WAREHOUSE_ADDRESS, type OrderStatus } from "@packatelas/db";
+import { buyerCookieName, buyerVerified, orderIdFromToken } from "@/lib/tracking";
+import { BuyerPanel } from "./buyer-panel";
 import { fecha, hace } from "@/lib/format";
 import { AutoRefresh } from "@/components/auto-refresh";
 import { TrackMap } from "./track-map";
-import { Isotipo } from "@/components/brand";
+import { Logo } from "@/components/brand";
+
+/** WhatsApp de Packatelas (el número conectado a Meta). */
+const WHATSAPP = "525611232342";
 
 export const metadata: Metadata = { title: "Seguimiento de tu envío", robots: { index: false, follow: false } };
 
@@ -58,7 +63,7 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
   const order = await prisma.order.findUnique({
     where: { id },
     select: {
-      code: true, kind: true, status: true, mlStatus: true, recipientName: true, neighborhood: true, city: true, lat: true, lng: true, deliveredAt: true, updatedAt: true,
+      code: true, kind: true, status: true, mlStatus: true, recipientName: true, recipientPhone: true, neighborhood: true, city: true, lat: true, lng: true, deliveredAt: true, updatedAt: true,
       client: { select: { name: true } },
       driver: { select: { lastLat: true, lastLng: true, lastLocationAt: true, phone: true, photoKey: true, user: { select: { name: true } } } },
       events: {
@@ -87,6 +92,8 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
       : null;
   const dest = order.lat != null && order.lng != null ? { lat: order.lat, lng: order.lng } : null;
   const firstName = order.recipientName?.split(" ")[0];
+  const verified = !pickup && buyerVerified(id, (await cookies()).get(buyerCookieName(id))?.value, now);
+  const canChange = !pickup && ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "FAILED", "RESCHEDULED"].includes(status);
   const EVENT: Record<string, string> = {
     created: pickup ? "Recolección programada" : "Registrado en Packatelas", scanned_loaded: "Salió a entrega", delivered: "Entregado", failed: "Intento de entrega",
     rescheduled: "Entrega reprogramada", return_required: "Regresa a la tienda", ml_status: "Entregado (Mercado Libre)",
@@ -96,20 +103,18 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
   };
 
   return (
-    <main className="min-h-dvh bg-slate-50 px-4 py-6">
+    <main className="min-h-dvh bg-floor">
       {status === "OUT_FOR_DELIVERY" && <AutoRefresh seconds={pickup ? 30 : 60} />}
-      <div className="mx-auto max-w-md space-y-4">
-        <header className="flex items-center gap-2">
-          <Isotipo className="h-9 w-auto" />
-          <div>
-            <p className="font-bold leading-tight">Packatelas</p>
-            <p className="text-xs text-slate-500">{pickup ? `Recolección para ${order.client.name}` : `Envío de ${order.client.name}`}</p>
-          </div>
-        </header>
-
+      <header className="border-b-4 border-accent bg-brand px-4 py-3 text-white">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+          <Logo light className="h-5 w-auto" />
+          <span className="truncate text-xs text-slate-300">{pickup ? `Recolección para ${order.client.name}` : `Envío de ${order.client.name}`}</span>
+        </div>
+      </header>
+      <div className="mx-auto max-w-md space-y-4 px-4 py-5">
         <section className={`rounded-2xl p-5 ${st.tone === "ok" ? "bg-emerald-600 text-white" : st.tone === "warn" ? "bg-amber-100 text-amber-900" : "bg-white"}`}>
           {firstName && <p className="text-sm opacity-80">Hola {firstName},</p>}
-          <h1 className="mt-1 text-xl font-bold">{st.title}</h1>
+          <h1 className="mt-1 font-display text-4xl leading-none font-black">{st.title}</h1>
           {status === "DELIVERED" && deliveredAt && <p className="mt-1 text-sm opacity-90">{fecha(deliveredAt)}</p>}
           {status !== "DELIVERED" && <p className="mt-1 text-sm opacity-70">Actualizado hace {hace(order.updatedAt, now)}</p>}
           <ol className="mt-4 flex items-center gap-2" aria-label="Avance">
@@ -122,6 +127,21 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
           </ol>
         </section>
 
+        {!pickup && order.driver && status === "OUT_FOR_DELIVERY" && (
+          <section className="flex items-center gap-4 rounded-2xl bg-white p-4">
+            {order.driver.photoKey ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={`/s/${token}/foto`} alt={`Foto de ${driverFirst}`} className="h-14 w-14 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand text-lg font-bold text-accent">{driverFirst?.[0]}</span>
+            )}
+            <div className="text-sm">
+              <p className="font-display text-xl leading-tight font-extrabold">{driverFirst} te lo entrega</p>
+              <p className="text-slate-500">Va en camino con tu paquete</p>
+            </div>
+          </section>
+        )}
+
         {pickup && order.driver && (status === "ASSIGNED" || status === "OUT_FOR_DELIVERY") && (
           <section className="flex items-center gap-4 rounded-2xl bg-white p-4">
             {order.driver.photoKey ? (
@@ -133,7 +153,7 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
               </span>
             )}
             <div className="min-w-0 text-sm">
-              <p className="text-xs uppercase tracking-wide text-slate-500">Tu repartidor</p>
+              <p className="text-xs text-slate-500">Tu repartidor</p>
               <p className="font-semibold">{order.driver.user.name}</p>
               {order.driver.phone && (
                 <p className="mt-1 flex flex-wrap gap-3">
@@ -159,8 +179,8 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
         )}
 
         <section className="rounded-2xl bg-white p-5 text-sm">
-          <p className="text-xs uppercase tracking-wide text-slate-500">{pickup ? "Recolección" : "Envío"}</p>
-          <p className="font-mono font-semibold">{order.code}</p>
+          <p className="text-xs text-slate-500">{pickup ? "Recolección" : "Envío"}</p>
+          <p className="font-bold tabular-nums">{order.code}</p>
           {pickup ? (
             <p className="mt-2 text-slate-600">Destino de los paquetes: {WAREHOUSE_ADDRESS}</p>
           ) : (
@@ -175,7 +195,24 @@ export default async function SeguimientoPage({ params }: PageProps<"/s/[token]"
             ))}
           </ul>
         </section>
-        <p className="text-center text-xs text-slate-400">{pickup ? "¿Dudas? Escríbenos por WhatsApp." : "¿Dudas sobre tu compra? Contacta a la tienda."}</p>
+        {pickup ? (
+          <p className="text-center text-xs text-slate-400">¿Dudas? Escríbenos por WhatsApp.</p>
+        ) : (
+          <>
+            <BuyerPanel
+              token={token}
+              verified={verified}
+              open={canChange}
+              delivered={status === "DELIVERED"}
+              hasPhone={(order.recipientPhone ?? "").replace(/\D/g, "").length >= 4}
+              dates={buyerDates()}
+              problems={BUYER_PROBLEMS}
+              code={order.code}
+              whatsapp={WHATSAPP}
+            />
+            <p className="text-center text-xs text-slate-400">¿Dudas sobre tu compra (producto, factura, cambios)? Contacta a la tienda.</p>
+          </>
+        )}
       </div>
     </main>
   );

@@ -1,9 +1,10 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Barlow, Big_Shoulders } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+// Barlow (letra de señalamiento) para el texto; Big Shoulders (letrero industrial) para títulos y cifras.
+const barlow = Barlow({ variable: "--font-barlow", subsets: ["latin"], weight: ["400", "500", "600", "700"] });
+const display = Big_Shoulders({ variable: "--font-display-face", subsets: ["latin"], weight: "variable", axes: ["opsz"] });
 
 export const metadata: Metadata = {
   title: { default: "Packatelas", template: "%s · Packatelas" },
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0f1e4a",
+  themeColor: "#0E1B33",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
@@ -21,7 +22,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="es-MX" className={`${geistSans.variable} ${geistMono.variable} h-full`}>
+    <html lang="es-MX" className={`${barlow.variable} ${display.variable} h-full`}>
       <body className="min-h-full font-sans">{children}</body>
     </html>
   );

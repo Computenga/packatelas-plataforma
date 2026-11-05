@@ -1,11 +1,16 @@
 @import "tailwindcss";
 
+/* Estilo «Cabina»: marco azul marino de la marca con línea amarilla y contenido claro.
+   Títulos y cifras en Big Shoulders; texto en Barlow. Los folios usan cifras tabulares, no letra de máquina. */
 @theme inline {
-  --color-brand: #0f1e4a;
-  --color-brand-dark: #0a1433;
-  --color-accent: #f2b123;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-brand: #0e1b33;
+  --color-brand-dark: #08111f;
+  --color-brand-2: #16294a;
+  --color-accent: #f6b800;
+  --color-floor: #eef1f5;
+  --font-sans: var(--font-barlow);
+  --font-mono: var(--font-barlow);
+  --font-display: var(--font-display-face);
 }
 
 html {
@@ -13,7 +18,12 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-floor text-brand antialiased;
+}
+
+.font-mono {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 /* Celular: que nada empuje la página a lo ancho (las tablas se desplazan dentro de su caja). */
@@ -41,4 +51,30 @@ body {
   input[type="file"] {
     width: 100%;
   }
+}
+
+/* Títulos de página y de sección en la letra de letrero (fuera de capas: gana sobre los tamaños sueltos de cada página). */
+main h1:not([class*="text-4xl"], [class*="text-5xl"], [class*="text-6xl"]) {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 2.25rem;
+  line-height: 1;
+  letter-spacing: 0.01em;
+}
+main h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+main h2:where(.text-sm, .text-base, .font-semibold:not([class*="text-"])) {
+  font-size: 1.25rem;
+  line-height: 1.2;
+}
+/* Sin etiquetas en MAYÚSCULAS espaciadas: se leen como plantilla. */
+main .uppercase:where(.tracking-wide, .tracking-wider, .tracking-widest) {
+  text-transform: none;
+  letter-spacing: normal;
+}
+main :where(td) .font-mono, main td.font-mono {
+  font-weight: 600;
 }

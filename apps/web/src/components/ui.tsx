@@ -10,8 +10,8 @@ export function PageHeader({ eyebrow, title, actions, children }: {
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
       <div>
-        {eyebrow && <p className="text-xs font-semibold uppercase tracking-wider text-brand">{eyebrow}</p>}
-        <h1 className="mt-1 text-2xl font-bold">{title}</h1>
+        {eyebrow && <p className="text-sm font-medium text-slate-500">{eyebrow}</p>}
+        <h1 className="font-display text-4xl leading-none font-black tracking-[0.01em]">{title}</h1>
         {children && <div className="mt-1 text-sm text-slate-600">{children}</div>}
       </div>
       {actions && <div className="flex gap-2">{actions}</div>}
@@ -26,10 +26,10 @@ export function Card({ title, actions, children, className = "" }: {
   className?: string;
 }) {
   return (
-    <section className={`rounded-xl border border-slate-200 bg-white ${className}`}>
+    <section className={`rounded-xl bg-white ${className}`}>
       {(title || actions) && (
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3">
-          {title && <h2 className="font-semibold">{title}</h2>}
+        <div className="flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-3">
+          {title && <h2 className="font-display text-xl leading-tight font-extrabold tracking-[0.01em]">{title}</h2>}
           {actions}
         </div>
       )}
@@ -40,12 +40,13 @@ export function Card({ title, actions, children, className = "" }: {
 
 const btn = {
   primary: "bg-brand text-white hover:bg-brand-dark",
-  secondary: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
+  accent: "bg-accent text-brand hover:brightness-95",
+  secondary: "border-[1.5px] border-brand bg-white text-brand hover:bg-slate-50",
   danger: "bg-red-600 text-white hover:bg-red-700",
   ghost: "text-slate-600 hover:bg-slate-100",
 };
 const btnBase =
-  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition disabled:opacity-50";
+  "inline-flex items-center justify-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition disabled:opacity-50";
 
 export function Button({ variant = "primary", className = "", ...props }: ComponentProps<"button"> & {
   variant?: keyof typeof btn;
@@ -108,15 +109,15 @@ export function Checkbox({ label, ...props }: ComponentProps<"input"> & { label:
 
 const badgeTone = {
   gray: "bg-slate-100 text-slate-700",
-  blue: "bg-blue-50 text-blue-700",
-  green: "bg-emerald-50 text-emerald-700",
-  amber: "bg-amber-50 text-amber-800",
-  red: "bg-red-50 text-red-700",
+  blue: "bg-[#E3EAF7] text-[#244A8F]",
+  green: "bg-[#E5F5EC] text-[#168A4D]",
+  amber: "bg-[#FFF1C7] text-[#8A5A00]",
+  red: "bg-[#FDE7EA] text-[#C21F35]",
 };
 
 export function Badge({ tone = "gray", children }: { tone?: keyof typeof badgeTone; children: ReactNode }) {
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${badgeTone[tone]}`}>
+    <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold ${badgeTone[tone]}`}>
       {children}
     </span>
   );
@@ -124,12 +125,12 @@ export function Badge({ tone = "gray", children }: { tone?: keyof typeof badgeTo
 
 export function Table({ head, children, empty }: { head: string[]; children: ReactNode; empty?: string }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl bg-white">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+        <thead className="border-b border-slate-200 text-[13px] text-slate-500">
           <tr>
             {head.map((h) => (
-              <th key={h} className="whitespace-nowrap px-4 py-2.5 font-medium">
+              <th key={h} className="whitespace-nowrap px-4 py-2.5 font-semibold">
                 {h}
               </th>
             ))}
