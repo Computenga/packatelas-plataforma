@@ -91,3 +91,4 @@ export * from "./offboarding.ts";
 export * from "./drive-files.ts";
 export * from "./tasks.ts";
 export * from "./portal-invite.ts";
+export * from "./gate.ts";

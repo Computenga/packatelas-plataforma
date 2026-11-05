@@ -11,6 +11,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   CLIENTE: "Cliente",
   EMPLEADO: "Empleado",
   MECANICO: "Mecánico",
+  RECEPCION: "Recepción",
 };
 
 /** Página de inicio de cada rol. */
@@ -24,6 +25,8 @@ export function homeFor(role: Role): string {
       return "/empleado";
     case "MECANICO":
       return "/mecanico";
+    case "RECEPCION":
+      return "/recepcion";
     default:
       return "/admin";
   }
@@ -31,6 +34,9 @@ export function homeFor(role: Role): string {
 
 /** Roles con acceso al panel de administración y qué secciones ve cada uno. */
 export const STAFF_ROLES: Role[] = ["ADMIN", "OPERADOR", "DESPACHADOR"];
+
+/** Quién usa la pantalla de recepción (vigilante) [A46]. */
+export const GATE_ROLES: Role[] = ["RECEPCION", "ADMIN", "DESPACHADOR"];
 
 const OP = "Operación", CLI = "Clientes", PER = "Personal", GES = "Gestión", SIS = "Sistema";
 const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
@@ -41,6 +47,7 @@ const ADMIN_NAV: (NavItem & { roles: Role[] })[] = [
   { section: OP, href: "/admin/recolecciones", label: "Recolecciones", roles: ["ADMIN", "DESPACHADOR"] },
   { section: OP, href: "/admin/inventario", label: "Inventario", roles: ["ADMIN", "DESPACHADOR"] },
   { section: OP, href: "/admin/devoluciones", label: "Devoluciones", roles: ["ADMIN", "OPERADOR", "DESPACHADOR"] },
+  { section: OP, href: "/admin/recepcion", label: "Recepción", roles: ["ADMIN", "DESPACHADOR"] },
   { section: OP, href: "/admin/repartidores", label: "Repartidores", roles: ["ADMIN", "DESPACHADOR"] },
   { section: OP, href: "/admin/tareas", label: "Tareas", roles: STAFF_ROLES },
   { section: CLI, href: "/admin/clientes", label: "Clientes", roles: ["ADMIN"] },

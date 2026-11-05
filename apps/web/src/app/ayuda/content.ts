@@ -471,6 +471,17 @@ const admin: Guide = {
       device: "desk",
     },
     {
+      id: "recepcion",
+      title: "Recepción (vigilante)",
+      intro: "El vigilante usa una tablet con el usuario de rol «Recepción». Sustituye la lista de papel: llegada en la mañana con firma y revisión de salida a ruta. Lo registrado se ve en Operación → Recepción.",
+      steps: [
+        "Al empezar el turno, toca «Activar el sonido de alertas» (el zumbido avisa cuando algo no cuadra).",
+        "Identifica al repartidor escaneando el llavero de la moto con la que hizo su check matutino, o búscalo en la lista. Los de baja salen con «SIN ACCESO».",
+        "Llegada: escanea todos los paquetes que trae. Cada uno debe estar a su nombre; si no, zumbido y revisión manual. Firma en pantalla y «Firmar y dar acceso».",
+        "Salida a ruta: escanea un paquete al azar. Si es suyo, puede salir; si no, zumbido y auditoría uno por uno. Despacho recibe el aviso.",
+      ],
+    },
+    {
       id: "repartidores",
       title: "Repartidores",
       intro: "La ficha de cada repartidor: si está en turno, cuántos pedidos lleva, su teléfono, vehículo, placa y su identidad de Mercado Libre Flex.",

@@ -20,6 +20,7 @@ enum Role {
   CLIENTE
   EMPLEADO
   MECANICO
+  RECEPCION // vigilante: control de paquetes al llegar y salir
 }
 
 model User {
@@ -214,6 +215,7 @@ model Driver {
 
   flexIdentities FlexIdentity[]
   custodies      DriverCustody[]
+  gateChecks     GateCheck[]
   orders         Order[]
   routes         Route[]
   pickups        Pickup[]
@@ -1650,4 +1652,31 @@ model TaskFile {
   createdAt    DateTime   @default(now())
 
   @@index([taskId])
+}
+
+enum GateKind {
+  LLEGADA // en la mañana: escanea todos los paquetes que trae de regreso
+  SALIDA // a ruta: un paquete al azar; si no es suyo, auditoría uno por uno
+}
+
+/** Revisión del vigilante en recepción (sustituye la lista de papel firmada). */
+model GateCheck {
+  id           String   @id @default(cuid())
+  kind         GateKind
+  driverId     String
+  driver       Driver   @relation(fields: [driverId], references: [id])
+  guardId      String? // usuario de recepción que lo registró
+  at           DateTime @default(now())
+  ymd          String // día en CDMX (AAAA-MM-DD)
+  identifiedBy String // "llavero M-09" o "lista"
+  expected     Json // [{ orderId, code }] lo que el sistema dice que trae
+  scanned      Json // [{ raw, code, orderId, assigned }]
+  extra        Json // escaneados que no son suyos
+  missing      Json // suyos que no se escanearon
+  ok           Boolean
+  audited      Boolean  @default(false) // salida: el paquete al azar no era suyo y se revisó todo
+  signatureKey String?
+
+  @@index([ymd, kind])
+  @@index([driverId, at])
 }

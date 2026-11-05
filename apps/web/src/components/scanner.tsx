@@ -17,8 +17,8 @@ declare global {
 /** Evita procesar dos veces la misma etiqueta mientras sigue frente a la cámara. */
 const REPEAT_WINDOW_MS = 3000;
 
-export function Scanner({ onScan, busy }: { onScan: (raw: string) => void; busy?: boolean }) {
-  const [mode, setMode] = useState<Mode>("camera");
+export function Scanner({ onScan, busy, initialMode = "camera" }: { onScan: (raw: string) => void; busy?: boolean; initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [cameraError, setCameraError] = useState<string>();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
