@@ -1,22 +1,51 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { ActionForm } from "@/components/action-form";
 import { PhotoSlots } from "@/components/photo-slots";
+import { Scanner } from "@/components/scanner";
+import { parseVehicleQr } from "@/lib/vehicle-qr";
 import { beforeRouteAction, morningCheckAction } from "./actions";
 
 type V = { id: string; code: string; plate: string | null; km: number };
 const input = "mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base";
 
+/** Moto: se elige de la lista o escaneando el QR del llavero. */
 function VehicleSelect({ vehicles, defaultId }: { vehicles: V[]; defaultId?: string }) {
+  const [value, setValue] = useState(defaultId ?? "");
+  const [scanning, setScanning] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const onScan = useCallback(
+    (raw: string) => {
+      const code = parseVehicleQr(raw);
+      const v = code ? vehicles.find((x) => x.code.toUpperCase() === code) : undefined;
+      if (!v) {
+        navigator.vibrate?.([80, 60, 80]);
+        setMsg({ ok: false, text: code ? `${code} no está activa o no existe; avisa al mecánico` : "Ese QR no es de un llavero de moto" });
+        return;
+      }
+      navigator.vibrate?.(60);
+      setValue(v.id);
+      setScanning(false);
+      setMsg({ ok: true, text: `Moto ${v.code} seleccionada` });
+    },
+    [vehicles],
+  );
   return (
-    <label className="block text-sm font-medium">
-      Moto
-      <select name="vehicleId" required defaultValue={defaultId ?? ""} className={input}>
-        <option value="" disabled>Elige la moto</option>
-        {vehicles.map((v) => <option key={v.id} value={v.id}>{v.code}{v.plate ? ` · ${v.plate}` : ""} (último km {v.km.toLocaleString("es-MX")})</option>)}
-      </select>
-    </label>
+    <div className="space-y-2">
+      <label className="block text-sm font-medium">
+        Moto
+        <select name="vehicleId" required value={value} onChange={(e) => { setValue(e.target.value); setMsg(null); }} className={input}>
+          <option value="" disabled>Elige la moto</option>
+          {vehicles.map((v) => <option key={v.id} value={v.id}>{v.code}{v.plate ? ` · ${v.plate}` : ""} (último km {v.km.toLocaleString("es-MX")})</option>)}
+        </select>
+      </label>
+      <button type="button" onClick={() => { setScanning((s) => !s); setMsg(null); }} className="w-full rounded-lg border border-slate-300 py-2.5 text-sm font-medium">
+        {scanning ? "Cerrar escáner" : "📷 Escanear llavero"}
+      </button>
+      {scanning && <Scanner onScan={onScan} />}
+      {msg && <p className={`text-sm ${msg.ok ? "text-emerald-700" : "text-red-600"}`}>{msg.text}</p>}
+    </div>
   );
 }
 

@@ -32,14 +32,18 @@ export default async function MotosPage() {
   const vehicles = await prisma.vehicle.findMany({ orderBy: { code: "asc" } });
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <h1 className="text-xl font-bold">Motos ({vehicles.length})</h1>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h1 className="text-xl font-bold">Motos ({vehicles.length})</h1>
+        <a href="/etiqueta-moto" target="_blank" rel="noreferrer" className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium">🏷️ Imprimir QR de todas las activas</a>
+      </div>
       {vehicles.map((v) => (
         <details key={v.id} className="rounded-xl border border-slate-200 bg-white">
           <summary className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm">
             <span><span className="font-semibold">{v.code}</span> · {[v.plate, v.brand, v.model].filter(Boolean).join(" ")} · {v.km.toLocaleString("es-MX")} km · {v.size}</span>
             <Badge tone={v.status === "ACTIVO" ? "green" : v.status === "TALLER" ? "amber" : "gray"}>{v.status === "ACTIVO" ? "Activa" : v.status === "TALLER" ? "En taller" : "Baja"}</Badge>
           </summary>
-          <div className="border-t border-slate-100 p-4">
+          <div className="space-y-3 border-t border-slate-100 p-4">
+            <a href={`/etiqueta-moto?ids=${v.id}`} target="_blank" rel="noreferrer" className="inline-block rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium">🏷️ Imprimir QR del llavero</a>
             <ActionForm action={saveVehicleAction.bind(null, v.id)} submitLabel="Guardar"><VehicleFields v={v} /></ActionForm>
           </div>
         </details>

@@ -78,7 +78,7 @@ export async function saveVehicleAction(id: string | null, _: ActionState, fd: F
     throw e;
   }
   revalidatePath("/mecanico/motos");
-  return { ok: id ? "Guardado" : "Moto dada de alta" };
+  return { ok: id ? "Guardado" : `Moto ${p.data.code} dada de alta. Imprime el QR de su llavero desde su renglón en la lista (🏷️).` };
 }
 
 /**

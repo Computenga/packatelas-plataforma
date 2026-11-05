@@ -128,25 +128,25 @@ export function Scanner({ onScan, busy }: { onScan: (raw: string) => void; busy?
           <canvas ref={canvasRef} className="hidden" />
         </div>
       ) : (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            const input = pdaRef.current;
-            if (!input) return;
-            emit(input.value);
-            input.value = "";
-          }}
-          className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-6 text-center"
-        >
+        // Sin <form>: el escáner también vive dentro de otros formularios (p. ej. el check de la moto)
+        // y un Enter aquí no debe enviarlos.
+        <div className="rounded-xl border-2 border-dashed border-slate-300 bg-white p-6 text-center">
           <p className="font-medium">Modo lector activo</p>
           <p className="text-sm text-slate-500">Dispara el lector sobre la etiqueta. También puedes escribir el número y dar Enter.</p>
           <input
             ref={pdaRef}
             autoComplete="off"
+            enterKeyHint="done"
+            onKeyDown={(e) => {
+              if (e.key !== "Enter") return;
+              e.preventDefault();
+              emit(e.currentTarget.value);
+              e.currentTarget.value = "";
+            }}
             className="mt-3 w-full rounded-lg border border-slate-300 px-3 py-2 text-center font-mono"
             placeholder="Esperando lectura…"
           />
-        </form>
+        </div>
       )}
     </div>
   );

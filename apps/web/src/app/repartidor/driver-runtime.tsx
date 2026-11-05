@@ -25,6 +25,8 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   const [queue, setQueue] = useState<QueuedEvent[]>([]);
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
   const [wake, setWake] = useState(false);
+  // Solo en el navegador (en el servidor no hay navigator): evita el desajuste al hidratar.
+  const canWake = useSyncExternalStore(noopSubscribe, () => "wakeLock" in navigator, () => false);
   const [gps, setGps] = useState<"ok" | "denied" | "off">("off");
   const [nativeLoc, setNativeLoc] = useState<string>("ok");
   const [awayMin, setAwayMin] = useState(0);
@@ -190,7 +192,7 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
             {pending.length} por enviar · reintentar
           </button>
         )}
-        {onDuty && "wakeLock" in (globalThis.navigator ?? {}) && (
+        {onDuty && canWake && (
           <button type="button" onClick={() => setWake((w) => !w)} className={`rounded-full px-2 py-1 ${wake ? "bg-brand text-white" : "bg-slate-100 text-slate-700"}`}>
             {wake ? "Pantalla siempre encendida" : "Mantener pantalla encendida"}
           </button>
