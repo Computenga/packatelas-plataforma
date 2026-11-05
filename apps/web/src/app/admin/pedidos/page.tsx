@@ -107,7 +107,16 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
         ))}
       </nav>
 
-      {attention && <Atencion sel={motivo} canAssign={user.role === "ADMIN" || user.role === "DESPACHADOR"} />}
+      {attention && (
+        <>
+          <form className="mb-3 flex gap-2 text-sm">
+            <input type="hidden" name="vista" value="historico" />
+            <input name="q" placeholder="Busca lo que sea: folio, venta o envío ML, calle, colonia, CP, teléfono, tienda, repartidor o estado" className="min-w-0 flex-1 rounded-lg border-[1.5px] border-slate-200 bg-white px-3 py-2.5" />
+            <button className="rounded-lg bg-brand px-4 py-2 font-semibold text-white">Buscar</button>
+          </form>
+          <Atencion sel={motivo} canAssign={user.role === "ADMIN" || user.role === "DESPACHADOR"} />
+        </>
+      )}
       {recovered && !attention && <RecuperadosList f={f} clients={clients} />}
 
       {live && (
@@ -115,7 +124,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
           <form className="mb-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-4 [&>*]:min-w-0">
             <input type="hidden" name="vista" value="vivo" />
             {typeof sp.dia === "string" && <input type="hidden" name="dia" value={sp.dia} />}
-            <input name="q" defaultValue={f.q} placeholder="Envío, destinatario, dirección, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
+            <input name="q" defaultValue={f.q} placeholder="Busca lo que sea: folio, venta o envío ML, calle, colonia, CP, teléfono, tienda, repartidor o estado" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
             <select name="clientId" defaultValue={f.clientId} className="rounded-lg border border-slate-300 px-3 py-2">
               <option value="">Todos los clientes</option>
               {clients.map((c) => (
@@ -147,7 +156,7 @@ export default async function PedidosPage({ searchParams }: PageProps<"/admin/pe
 
       <form className="mb-4 grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 text-sm md:grid-cols-6 [&>*]:min-w-0 [&_input]:min-w-0">
         {f.view && <input type="hidden" name="vista" value={f.view} />}
-        <input name="q" defaultValue={f.q} placeholder="Envío, pedido, destinatario, dirección, CP" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
+        <input name="q" defaultValue={f.q} placeholder="Busca lo que sea: folio, venta o envío ML, calle, colonia, CP, teléfono, tienda, repartidor o estado" className="rounded-lg border border-slate-300 px-3 py-2 md:col-span-2" />
         <select name="status" defaultValue={f.status} disabled={!statusOptions.length} className="rounded-lg border border-slate-300 px-3 py-2 disabled:bg-slate-50">
           <option value="">Todos los estados</option>
           {statusOptions.map((k) => (

@@ -134,7 +134,7 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
 
       <form className="flex gap-2 text-sm">
         <input type="hidden" name="vista" value={view.key} />
-        <input name="q" defaultValue={f.q} placeholder="Buscar por folio, venta de Mercado Libre, destinatario, colonia o CP" className="min-w-0 flex-1 rounded-lg border-[1.5px] border-slate-200 bg-white px-3 py-2.5" />
+        <input name="q" defaultValue={f.q} placeholder="Busca lo que sea: folio, venta o envío ML, destinatario, teléfono, calle, colonia, CP, repartidor o estado" className="min-w-0 flex-1 rounded-lg border-[1.5px] border-slate-200 bg-white px-3 py-2.5" />
         <button className="rounded-lg bg-brand px-4 py-2 font-semibold text-white">Buscar</button>
       </form>
 

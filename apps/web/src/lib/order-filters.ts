@@ -1,4 +1,5 @@
 import type { OrderStatus, Prisma } from "@packatelas/db";
+import { STATUS_LABEL } from "./format";
 
 export const PAGE_SIZE = 50;
 const STATUSES = new Set<OrderStatus>([
@@ -37,22 +38,45 @@ export function buildWhere(f: OrderFilters, restrictClientId?: string): Prisma.O
     };
   }
   if (f.q) {
-    const digits = f.q.replace(/\D/g, "");
-    // Un código completo (PK-000123, ML-48323149259) se busca directo, sin recorrer textos.
-    if (/^(PK|ML|PF|RC)-\d+$/i.test(f.q.trim())) {
-      where.code = f.q.trim().toUpperCase();
+    const q = f.q.trim();
+    // Un código completo (PK-000123, ML-48323149259, DV-00001) se busca directo, sin recorrer textos.
+    if (/^(PK|ML|PF|RC|DV)-\d+$/i.test(q)) {
+      where.code = q.toUpperCase();
       return where;
     }
-    where.OR = [
-      { code: { contains: f.q, mode: "insensitive" } },
-      { recipientName: { contains: f.q, mode: "insensitive" } },
-      { addressLine: { contains: f.q, mode: "insensitive" } },
-      { neighborhood: { contains: f.q, mode: "insensitive" } },
-      { zip: { startsWith: f.q } },
-      ...(digits.length >= 10 && digits.length <= 15 ? [{ mlShipmentId: BigInt(digits) }, { mlOrderId: BigInt(digits) }] : []),
-    ];
+    // Cada palabra debe aparecer en algún campo («del valle juan» = colonia Del Valle y repartidor Juan).
+    const terms = q.split(/\s+/).filter(Boolean).slice(0, 6);
+    where.AND = terms.map((t) => ({ OR: termMatch(t) }));
   }
   return where;
+}
+
+const norm = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+
+/** Campos donde busca una palabra: folios, venta/envío/paquete ML, dirección, persona, tienda, repartidor y estado. */
+function termMatch(t: string): Prisma.OrderWhereInput[] {
+  const text = { contains: t, mode: "insensitive" as const };
+  const digits = t.replace(/\D/g, "");
+  const n = norm(t);
+  const statuses = (Object.keys(STATUS_LABEL) as OrderStatus[]).filter((k) => n.length >= 3 && norm(STATUS_LABEL[k]).includes(n));
+  return [
+    { code: text },
+    { externalRef: text },
+    { recipientName: text },
+    { recipientPhone: { contains: t } },
+    { addressLine: text },
+    { neighborhood: text },
+    { city: text },
+    { state: text },
+    { zip: { startsWith: t } },
+    { instructions: text },
+    { itemsSummary: text },
+    { client: { name: text } },
+    { client: { publicId: { contains: t.toLowerCase() } } },
+    { driver: { user: { name: text } } },
+    ...(statuses.length ? [{ status: { in: statuses } }] : []),
+    ...(digits.length >= 8 && digits.length <= 18 && digits === t ? [{ mlShipmentId: BigInt(digits) }, { mlOrderId: BigInt(digits) }, { mlPackId: BigInt(digits) }] : []),
+  ];
 }
 
 export function filtersToQuery(f: OrderFilters, page = f.page) {

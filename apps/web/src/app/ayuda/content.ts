@@ -441,7 +441,7 @@ const admin: Guide = {
         "Filtra con los botones: sin asignar más de 2 h, 2º intento o más, ML entregado sin foto, no visitados en ML y en ruta más de 24 h. Cada uno muestra cuántos hay.",
         "Asigna o cambia el repartidor desde el mismo renglón, sin abrir el pedido.",
         "Los casos graves (no visitado, ML entregado sin foto) salen en rojo.",
-        "En «Histórico» está todo, con búsqueda por folio, venta, destinatario, teléfono o CP; «En vivo» muestra lo que pasa en la calle.",
+        "El buscador encuentra cualquier dato: folio, número de venta o de envío de ML, calle, colonia, CP, teléfono, destinatario, tienda, repartidor o estado. Puedes combinar palabras («del valle juan» = colonia Del Valle con el repartidor Juan). «En vivo» muestra lo que pasa en la calle.",
       ],
       shot: "a-pedidos",
       device: "desk",
