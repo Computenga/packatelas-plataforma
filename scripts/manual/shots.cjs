@@ -12,8 +12,8 @@ const desk = { viewport: { width: 1366, height: 860 }, deviceScaleFactor: 1.5 };
 // [usuario, archivo, ruta, dispositivo, acción opcional]
 const SHOTS = require("./shots-list.cjs");
 
-async function login(browser, user, dev) {
-  const ctx = await browser.newContext({ ...dev, locale: "es-MX", timezoneId: "America/Mexico_City", geolocation: { latitude: 19.3884, longitude: -99.1857 }, permissions: ["geolocation"] });
+async function login(browser, user, dev, gps = true) {
+  const ctx = await browser.newContext({ ...dev, locale: "es-MX", timezoneId: "America/Mexico_City", geolocation: { latitude: 19.3884, longitude: -99.1857 }, permissions: gps ? ["geolocation"] : [] });
   await ctx.addInitScript(() => { try { localStorage.setItem("pk-tour-done", "1"); localStorage.setItem("pk-push-dismissed", "1"); } catch {} });
   if (user) {
     const p = await ctx.newPage();
@@ -32,12 +32,13 @@ async function login(browser, user, dev) {
   const ctxs = {};
   for (const [user, file, path, devName, act] of SHOTS) {
     if (ONLY && !file.includes(ONLY)) continue;
-    const dev = devName === "phone" ? phone : desk;
+    const dev = devName === "phone" ? phone : devName === "iphone-nogps" ? { ...devices["iPhone 13"], deviceScaleFactor: 2 } : desk;
     const key = `${user}-${devName}`;
-    ctxs[key] ??= await login(browser, user, dev);
+    ctxs[key] ??= await login(browser, user, dev, devName !== "iphone-nogps");
     const page = await ctxs[key].newPage();
     try {
       await page.goto(`${BASE}${path}`, { waitUntil: "networkidle", timeout: 90000 });
+      await page.waitForTimeout(1500); // hidratación
       await page.addStyleTag({ content: HIDE });
       if (act) await act(page);
       await page.waitForTimeout(600);

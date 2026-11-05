@@ -18,10 +18,21 @@ const pda = (...codes) => async (p) => {
   const inp = p.locator('input:visible').first();
   for (const c of codes) { await inp.fill(c); await inp.press("Enter"); await p.waitForTimeout(1500); }
 };
+/** Abre el link de rastreo del comprador desde la tabla de la tienda y confirma los 4 dígitos. */
+const tracking = async (p) => {
+  await p.goto(`${process.env.BASE ?? "http://localhost:3100"}/cliente?vista=todos&q=PK-000001`, { waitUntil: "networkidle" });
+  const m = (await p.content()).match(/\/s\/[a-z0-9]{20,40}\.[A-Za-z0-9_-]{16}/);
+  await p.goto(`${process.env.BASE ?? "http://localhost:3100"}${m[0]}`, { waitUntil: "networkidle" });
+  await p.fill('input[name="last4"]', "1000"); await p.click("text=Continuar"); await p.waitForTimeout(2000);
+  await p.click("text=Cambiar fecha"); await p.waitForTimeout(500);
+  await p.getByRole("heading", { name: "¿No vas a estar?" }).scrollIntoViewIfNeeded();
+  await p.addStyleTag({ content: "nextjs-portal{display:none!important}" });
+};
 module.exports = [
   [null, "t-acceso", "/acceso", "phone"],
-  ["cliente", "t-inicio", "/cliente", "phone"],
+  ["cliente", "t-inicio", "/cliente?vista=todos", "desk", async (p) => { await p.locator("tbody input[type=checkbox]").nth(0).check(); await p.locator("tbody input[type=checkbox]").nth(1).check(); await p.locator("h1").scrollIntoViewIfNeeded(); }],
   ["cliente", "t-menu", "/cliente", "phone", menu],
+  ["cliente", "t-rastreo", "/cliente", "phone", tracking],
   ["cliente", "t-envio", `/cliente/envio/${I.pk1}`, "phone"],
   ["cliente", "t-nuevo", "/cliente/nuevo", "phone"],
   ["cliente", "t-carga", "/cliente/carga", "phone"],
@@ -38,6 +49,7 @@ module.exports = [
   ["repartidor", "r-ruta", "/repartidor", "phone"],
   ["repartidor", "r-parada", "/repartidor", "phone", stop],
   ["repartidor", "r-foto", "/repartidor", "phone", deliver],
+  ["repartidor", "r-bloqueo", "/repartidor", "iphone-nogps"],
   ["repartidor", "r-escanear", "/repartidor/escanear", "phone", pda("PK-000006")],
   ["repartidor", "r-recolecciones", "/repartidor/recolecciones", "phone"],
   ["repartidor", "r-moto", "/repartidor/moto", "phone"],
@@ -46,7 +58,7 @@ module.exports = [
   ["repartidor", "r-asistencia", "/repartidor/asistencia", "phone"],
   ["admin", "a-resumen", "/admin", "desk"],
   ["admin", "a-escanear", "/admin/escanear", "desk", pda("PK-000009", "PK-000010")],
-  ["admin", "a-despacho", "/admin/despacho", "desk"],
+  ["admin", "a-despacho", "/admin/despacho", "desk", async (p) => { await p.getByLabel("Seleccionar Del Valle").check().catch(() => {}); }],
   ["admin", "a-pedidos", "/admin/pedidos", "desk"],
   ["admin", "a-pedido", `/admin/pedidos/${I.pk6}`, "desk"],
   ["admin", "a-recolecciones", "/admin/recolecciones", "desk"],

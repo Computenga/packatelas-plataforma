@@ -50,11 +50,12 @@ async function main() {
     ["Jorge Ortiz", "Av. Cuauhtémoc 600, Narvarte", "Benito Juárez", 19.3995, -99.1555],
     ["Karla Ríos", "Tehuantepec 50, Roma Sur", "Cuauhtémoc", 19.4111, -99.1617],
   ] as const;
+  const ZIPS: Record<string, string> = { "Crédito Constructor": "03940", Portales: "03300", "Del Valle": "03100", Narvarte: "03020", "Roma Nte.": "06700", "San Pedro de los Pinos": "03800", Doctores: "06720", "Roma Sur": "06760" };
   const orders = [];
   for (const [i, [name, addr, city, lat, lng]] of people.entries()) {
     orders.push(await createManualOrder(prisma, {
       clientId: client.id, branchId: branch.id, recipientName: name, recipientPhone: `55000010${String(i).padStart(2, "0")}`,
-      addressLine: addr, city, state: "CDMX", lat, lng, itemsSummary: ["1× Audífonos inalámbricos", "1× Cargador USB-C", "2× Cable HDMI", "1× Mouse"][i % 4],
+      addressLine: addr.split(", ")[0], neighborhood: addr.split(", ")[1], zip: ZIPS[addr.split(", ")[1]], city, state: "CDMX", lat, lng, itemsSummary: ["1× Audífonos inalámbricos", "1× Cargador USB-C", "2× Cable HDMI", "1× Mouse"][i % 4],
       instructions: i === 1 ? "Dejar en recepción del edificio" : undefined, eventSource: "CLIENT",
     }, admin.id));
   }
@@ -79,6 +80,13 @@ async function main() {
   await prisma.vehicle.create({ data: { code: "M-01", plate: "A1B2C3", brand: "Italika", model: "FT150", year: 2024, km: 12850 } }).catch((e) => console.log("moto:", e.message));
   for (const [i, [name, category, price]] of ([["Bolsa de envío 30×40 (50 pzas)", "Empaque", 189], ["Etiquetas térmicas 4×6 (500)", "Etiquetas", 249], ["Cinta canela 48 mm (6 pzas)", "Empaque", 159], ["Playo 18\" (1 rollo)", "Empaque", 139]] as const).entries()) {
     await prisma.storeProduct.create({ data: { wooId: 9000 + i, name, category, price, inStock: true } });
+  }
+  // Para «Necesitan atención»: dos sin asignar desde hace horas, un 2º intento y uno que ML ya marcó entregado.
+  await prisma.$executeRaw`UPDATE "Order" SET "updatedAt" = now() - interval '5 hours' WHERE id IN (${orders[8].id}, ${orders[9].id})`;
+  await prisma.order.update({ where: { id: orders[2].id }, data: { attempts: 1 } });
+  await prisma.order.update({ where: { id: orders[3].id }, data: { mlStatus: "delivered" } });
+  for (const [i, nb] of [[10, "Del Valle"], [11, "Del Valle"], [12, "Narvarte"]] as const) {
+    await createManualOrder(prisma, { clientId: client.id, branchId: branch.id, recipientName: `Cliente ${i}`, addressLine: `Calle ${i} 10${i}`, neighborhood: nb, zip: ZIPS[nb], city: "Benito Juárez", lat: 19.38 + i / 1000, lng: -99.16 }, admin.id);
   }
   console.log("Datos del manual listos");
 }
