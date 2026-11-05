@@ -3,7 +3,7 @@ import Link from "next/link";
 import { packagesToReturn, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, startOfTodayMx } from "@/lib/format";
-import { toggleShift } from "./actions";
+import { ShiftButton } from "./shift-button";
 import { RouteList } from "./route-list";
 
 export const metadata: Metadata = { title: "Mi ruta" };
@@ -50,13 +50,7 @@ export default async function RepartidorHome() {
             {driver.onDuty ? `En turno desde ${fecha(driver.shiftStartedAt)}` : "Fuera de turno"}
           </p>
         </div>
-        <form action={toggleShift}>
-          <button
-            className={`rounded-lg px-4 py-2.5 text-sm font-semibold ${driver.onDuty ? "border border-slate-300 bg-white text-slate-700" : "bg-emerald-600 text-white"}`}
-          >
-            {driver.onDuty ? "Terminar turno" : "Iniciar turno"}
-          </button>
-        </form>
+        <ShiftButton onDuty={driver.onDuty} />
       </div>
       <section aria-label="Mi día" className="mb-4 grid grid-cols-4 gap-2 text-center">
         {[

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { addOrderEvent, createManualOrder, parseScan, prisma, registerScan, setShift, windowCount, linkFlexScan } from "@packatelas/db";
+import { addOrderEvent, createManualOrder, parseScan, prisma, recordLocations, registerScan, setShift, windowCount, linkFlexScan } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -17,6 +17,15 @@ async function requireDriver() {
 export async function toggleShift() {
   const { user, driver } = await requireDriver();
   await setShift(prisma, driver.id, !driver.onDuty, user.id);
+  revalidatePath("/repartidor");
+}
+
+/** Inicia turno con la primera ubicación (el botón ya revisó que el GPS funciona). */
+export async function startShift(pos: { lat: number; lng: number; accuracy?: number } | null) {
+  const { user, driver } = await requireDriver();
+  if (!driver.onDuty) await setShift(prisma, driver.id, true, user.id);
+  const ok = pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng) && Math.abs(pos.lat) <= 90 && Math.abs(pos.lng) <= 180;
+  if (ok) await recordLocations(prisma, driver.id, [{ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, at: new Date() }]).catch(() => null);
   revalidatePath("/repartidor");
 }
 

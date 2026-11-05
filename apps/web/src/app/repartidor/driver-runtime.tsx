@@ -4,6 +4,8 @@
 // cola sin conexión, ubicación en vivo, pantalla encendida y service worker [R10, R11, P04].
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { dismiss, flush, listQueue, onQueueChange, type QueuedEvent } from "@/lib/offline-queue";
+import { LocationBlock, NATIVE_BLOCKING, type NativeBridge } from "./location-help";
+import { toggleShift } from "./actions";
 
 const SEND_EVERY_MS = 30_000;
 
@@ -18,8 +20,6 @@ function subscribeOnline(cb: () => void) {
 const MIN_MOVE_MS = 10_000;
 const noopSubscribe = () => () => {};
 
-/** Puente que expone la app Android (window.PackatelasNative). */
-type NativeBridge = { setOnDuty: (on: boolean) => void; hasLocation: () => boolean; locationStatus?: () => string; openLocationSettings?: () => void };
 
 export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
   const [queue, setQueue] = useState<QueuedEvent[]>([]);
@@ -169,6 +169,12 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
     () => false,
   );
   const pending = queue.filter((q) => !q.error);
+  // Desde la pantalla de bloqueo se puede terminar el turno (p. ej. ya acabó y apagó el GPS).
+  const endShift = (
+    <form action={toggleShift} className="text-center">
+      <button className="text-sm text-slate-300 underline">Ya terminé: cerrar mi turno</button>
+    </form>
+  );
   const failed = queue.filter((q) => q.error);
 
   return (
@@ -198,30 +204,25 @@ export function DriverRuntime({ onDuty }: { onDuty: boolean }) {
           </button>
         )}
       </div>
-      {onDuty && native && ["gps_off", "approx", "foreground"].includes(nativeLoc) && (
-        <div role="alert" className={`rounded-lg px-3 py-2 text-sm ${nativeLoc === "gps_off" ? "bg-red-50 text-red-800" : "bg-amber-50 text-amber-900"}`}>
-          <p className="font-semibold">
-            {nativeLoc === "gps_off" ? "La ubicación del teléfono está apagada" : nativeLoc === "approx" ? "Solo diste ubicación aproximada" : "Falta «Permitir todo el tiempo»"}
-          </p>
-          <p>
-            {nativeLoc === "gps_off"
-              ? "Enciéndela para que despacho vea dónde vas."
-              : nativeLoc === "approx"
-                ? "Activa «Usar ubicación precisa» en el permiso de ubicación de la app."
-                : "Con «Solo mientras se usa la app» la ubicación puede detenerse al bloquear el teléfono. En Permisos → Ubicación elige «Permitir todo el tiempo»."}
-          </p>
-          {native.openLocationSettings && (
-            <button type="button" onClick={() => native.openLocationSettings?.()} className="mt-1 text-sm font-semibold underline">
-              Abrir ajustes
-            </button>
-          )}
-        </div>
+      {/* Sin ubicación no se trabaja: pantalla que bloquea hasta que se arregle. */}
+      {onDuty && native && NATIVE_BLOCKING[nativeLoc] && (
+        <LocationBlock
+          {...NATIVE_BLOCKING[nativeLoc]}
+          native={native}
+          extra={endShift}
+          onRetry={() => {
+            try {
+              const st = native.locationStatus?.() ?? (native.hasLocation() ? "ok" : "denied");
+              setNativeLoc(st);
+              setGps(st === "denied" ? "denied" : st === "gps_off" ? "off" : "ok");
+            } catch {
+              /* se vuelve a revisar solo */
+            }
+          }}
+        />
       )}
-      {onDuty && gps === "denied" && (
-        <div role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">
-          <p className="font-semibold">Despacho no puede ver tu ubicación</p>
-          <p>Activa el permiso de ubicación para esta app en los ajustes del teléfono y vuelve a abrirla.</p>
-        </div>
+      {onDuty && !native && gps === "denied" && (
+        <LocationBlock title="Permite tu ubicación para seguir trabajando" onRetry={() => window.location.reload()} extra={endShift} />
       )}
       {awayMin > 0 && (
         <div className="flex items-start justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">

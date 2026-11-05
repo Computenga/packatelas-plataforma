@@ -95,6 +95,8 @@ export async function driversWithoutLocation(db: Db, minutes = 10, now = new Dat
     select: { id: true, lastLocationAt: true, shiftStartedAt: true, user: { select: { name: true } } },
     orderBy: { lastLocationAt: { sort: "asc", nulls: "first" } },
   });
-  // Recién iniciado el turno todavía no tiene por qué haber reportado.
-  return drivers.filter((d) => d.lastLocationAt || !d.shiftStartedAt || d.shiftStartedAt < limit);
+  // Recién iniciado el turno todavía no tiene por qué haber reportado; y un turno de otro día
+  // es un turno olvidado (lo cierra el proceso de fondo), no un repartidor perdido.
+  const startOfDay = new Date(`${new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(now)}T00:00:00-06:00`);
+  return drivers.filter((d) => d.shiftStartedAt && d.shiftStartedAt >= startOfDay && (d.lastLocationAt || d.shiftStartedAt < limit));
 }

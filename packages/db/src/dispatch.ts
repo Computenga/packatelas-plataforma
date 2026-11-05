@@ -87,6 +87,31 @@ export async function setShift(db: Db, driverId: string, onDuty: boolean, actorU
   return d;
 }
 
+const YMD_MX = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" });
+const HOUR_MX = new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hourCycle: "h23" });
+/** Hora de cierre automático de turnos (CDMX). */
+export const SHIFT_AUTO_CLOSE_HOUR = 23;
+
+/**
+ * Turnos que se quedaron abiertos: a las 23:00 se cierran todos y, a cualquier hora, los que
+ * empezaron otro día. Así un repartidor que no tocó «Terminar turno» no amanece «en turno»
+ * (y no dispara el aviso de «sin ubicación» antes de empezar a trabajar).
+ */
+export async function closeStaleShifts(prisma: PrismaClient, now = new Date()) {
+  const today = YMD_MX.format(now);
+  const startOfDay = new Date(`${today}T00:00:00-06:00`);
+  const late = Number(HOUR_MX.format(now)) >= SHIFT_AUTO_CLOSE_HOUR;
+  const open = await prisma.driver.findMany({
+    where: { onDuty: true, ...(late ? {} : { OR: [{ shiftStartedAt: null }, { shiftStartedAt: { lt: startOfDay } }] }) },
+    select: { id: true },
+  });
+  for (const d of open) {
+    await prisma.driver.update({ where: { id: d.id }, data: { onDuty: false, shiftStartedAt: null } });
+    await audit(prisma, { action: "driver.shift_auto_closed", entity: "Driver", entityId: d.id, summary: late ? "Turno cerrado automáticamente a las 23:00" : "Turno de otro día cerrado automáticamente" });
+  }
+  return open.length;
+}
+
 export type DriverEventInput = {
   driverId: string;
   actorUserId: string;

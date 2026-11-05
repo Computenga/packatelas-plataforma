@@ -2,7 +2,7 @@ import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   prisma, applyDriverEvent, assignOrders, createManualOrder, hashPassword, getMaxAttempts, mustReturn,
-  sendToWarehouse, rescheduleOrder, packagesToReturn, receiveReturn, returnToSeller, driversWithoutLocation, setShift,
+  sendToWarehouse, rescheduleOrder, packagesToReturn, receiveReturn, returnToSeller, driversWithoutLocation, setShift, closeStaleShifts,
 } from "./index.ts";
 
 const tag = `fl${Date.now()}`;
@@ -110,5 +110,19 @@ describe("repartidores sin ubicación", () => {
     await prisma.driver.update({ where: { id: drv.id }, data: { lastLocationAt: now } });
     expect((await driversWithoutLocation(prisma, 10, now)).map((d) => d.id)).not.toContain(drv.id);
     await setShift(prisma, drv.id, false);
+  });
+});
+
+describe("turnos olvidados", () => {
+  it("se cierran si empezaron otro día y a las 23:00 todos; no avisan de «sin ubicación»", async () => {
+    await setShift(prisma, drv.id, true);
+    const yesterday = new Date(Date.now() - 30 * 3600_000);
+    await prisma.driver.update({ where: { id: drv.id }, data: { shiftStartedAt: yesterday, lastLocationAt: yesterday } });
+    expect((await driversWithoutLocation(prisma, 10)).map((d) => d.id)).not.toContain(drv.id);
+    expect(await closeStaleShifts(prisma)).toBeGreaterThanOrEqual(1);
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: drv.id } })).onDuty).toBe(false);
+    await setShift(prisma, drv.id, true);
+    await closeStaleShifts(prisma, new Date("2026-11-05T05:30:00Z")); // 23:30 CDMX del día 4
+    expect((await prisma.driver.findUniqueOrThrow({ where: { id: drv.id } })).onDuty).toBe(false);
   });
 });
