@@ -226,7 +226,7 @@ const tienda: Guide = {
     {
       id: "insumos",
       title: "Tienda de insumos",
-      intro: "Bolsas, etiquetas, cinta, playo y más. Pagas en el portal (con saldo o tarjeta) y el repartidor te lo lleva en tu siguiente recolección, sin costo de envío.",
+      intro: "Bolsas, etiquetas, cinta, playo y más. Pagas en el portal con tu saldo a favor o con tarjeta y un repartidor te lo lleva a la dirección que elijas, sin costo de envío. Tu compra aparece con folio IN- y te avisamos cuando vaya en camino.",
       shot: "t-tienda",
       device: "phone",
     },
@@ -350,7 +350,7 @@ const repartidor: Guide = {
       intro: "Las tiendas donde debes pasar por paquetes aparecen en «Recolectas», con dirección y cuántos paquetes esperan.",
       steps: [
         "Toca la recolección para ver la dirección, llamar a la tienda o abrir Maps o Waze.",
-        "Si la tienda compró insumos, verás «Lleva y entrega insumos»: entrégaselos en esa visita.",
+        "Los insumos que compran las tiendas llegan a tu ruta como un pedido normal con folio IN-: se entregan con foto y nombre de quien recibe.",
         "Al recibir los paquetes, escribe cuántos son, toma las fotos de lo que recolectas (obligatorio) y toca «Confirmar recolección».",
         "Si no se pudo, toca «No se pudo recolectar» y elige el motivo. Todo lo recolectado va a la bodega Packatelas.",
       ],

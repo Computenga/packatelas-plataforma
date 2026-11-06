@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AssignSelect } from "../pedidos/assign-select";
 import { getMaxAttempts, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, startOfTodayMx, STATUS_LABEL } from "@/lib/format";
@@ -31,18 +32,21 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
   const tab = String((await searchParams).tab ?? "recibir");
   const select = { id: true, code: true, status: true, updatedAt: true, client: { select: { id: true, name: true } }, driver: { select: { user: { select: { name: true } } } } } as const;
 
-  const [toReceive, inWarehouse, returnedToday, maxAttempts, dvs] = await Promise.all([
+  const canAssign = user.role === "ADMIN" || user.role === "DESPACHADOR";
+  const [toReceive, inWarehouse, returnedToday, maxAttempts, dvs, drivers] = await Promise.all([
     prisma.order.findMany({ where: { status: { in: ["FAILED", "RETURNING", "CANCELLED"] } }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
     prisma.order.findMany({ where: { status: "RETURNED_TO_WAREHOUSE", OR: [{ returnOrderId: null }, { returnOrder: { status: "CANCELLED" } }] }, select, orderBy: { updatedAt: "asc" }, take: 3000 }),
     prisma.returnCustody.count({ where: { status: "RETURNED_TO_SELLER", returnedAt: { gte: startOfTodayMx() } } }),
     getMaxAttempts(prisma),
     prisma.order.findMany({
       where: { kind: "RETURN", OR: [{ status: { notIn: ["DELIVERED", "CANCELLED"] } }, { updatedAt: { gte: weekAgo() } }] },
-      select: { id: true, code: true, status: true, updatedAt: true, client: { select: { name: true } }, branch: { select: { name: true } }, driver: { select: { user: { select: { name: true } } } }, _count: { select: { returnItems: true } } },
+      select: { id: true, code: true, status: true, updatedAt: true, driverId: true, client: { select: { name: true } }, branch: { select: { name: true } }, driver: { select: { user: { select: { name: true } } } }, _count: { select: { returnItems: true } } },
       orderBy: { createdAt: "desc" },
       take: 100,
     }),
+    canAssign ? prisma.driver.findMany({ where: { active: true, user: { active: true } }, select: { id: true, onDuty: true, user: { select: { name: true } } } }) : Promise.resolve([]),
   ]);
+  const driverOpts = drivers.map((d) => ({ id: d.id, name: d.user.name, onDuty: d.onDuty })).sort((a, b) => Number(b.onDuty) - Number(a.onDuty) || a.name.localeCompare(b.name, "es"));
   const inWarehouseTab = tab === "almacen";
   const groups = byClient(tab === "almacen" ? inWarehouse : toReceive);
 
@@ -70,8 +74,13 @@ export default async function DevolucionesPage({ searchParams }: PageProps<"/adm
                   <Link href={`/admin/pedidos/${d.id}`} className="font-mono font-semibold text-brand hover:underline">{d.code}</Link> · {d.client.name}
                   {d.branch && <span className="text-slate-500"> ({d.branch.name})</span>} · {d._count.returnItems} paquete(s)
                 </span>
-                <span className="flex items-center gap-3 text-xs text-slate-500">
-                  {STATUS_LABEL[d.status]}{d.driver ? ` · ${d.driver.user.name}` : " · sin asignar"} · {fecha(d.updatedAt)}
+                <span className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                  {canAssign && ["CREATED", "ASSIGNED", "RESCHEDULED", "FAILED"].includes(d.status) ? (
+                    <AssignSelect orderId={d.id} current={d.driverId} drivers={driverOpts} />
+                  ) : (
+                    <span>{d.driver ? d.driver.user.name : "sin asignar"}</span>
+                  )}
+                  {STATUS_LABEL[d.status]} · {fecha(d.updatedAt)}
                   {!["DELIVERED", "CANCELLED"].includes(d.status) && (
                     <form action={cancelReturnAction.bind(null, d.id)} className="flex items-center gap-1">
                       <input name="reason" required minLength={3} placeholder="Motivo" className="w-28 rounded border border-slate-300 px-2 py-1" />

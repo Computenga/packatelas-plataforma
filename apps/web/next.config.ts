@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@packatelas/db"],
   serverExternalPackages: ["pg", "@prisma/adapter-pg"],
   poweredByHeader: false,
+  // Fotos de productos de la tienda (se reducen en el navegador antes de subirlas; hasta 10 por producto).
+  experimental: { serverActions: { bodySizeLimit: "15mb" } },
   // Encabezados de seguridad: nadie puede meter la plataforma en un iframe (clickjacking),
   // el navegador no adivina tipos de archivo y siempre usa HTTPS.
   async headers() {

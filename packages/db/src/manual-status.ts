@@ -2,6 +2,7 @@
 // (cuando el repartidor no pudo hacerlo en la app), y cancelar recolecciones repetidas.
 // Todo queda en el historial con quién lo hizo y por qué.
 import { completeReturnOrder } from "./returns.ts";
+import { storeDeliveryDone } from "./store.ts";
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { FAIL_REASONS, type FailReason } from "./dispatch.ts";
@@ -21,7 +22,7 @@ export async function adminMarkOrder(
 ) {
   const note = input.note.trim();
   if (note.length < 3) throw new Error("Escribe por qué se marca a mano (queda en el historial)");
-  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, kind: true, status: true, code: true, pickupId: true } });
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, kind: true, source: true, status: true, code: true, pickupId: true } });
   if (!order) throw new Error("Pedido no encontrado");
   if (order.kind === "PICKUP" && order.pickupId) return adminMarkPickup(prisma, order.pickupId, { collected: input.outcome === "delivered", note }, actorUserId);
   if (!OPEN_DELIVERY.includes(order.status)) throw new Error("Este pedido ya está cerrado");
@@ -34,6 +35,7 @@ export async function adminMarkOrder(
       await tx.order.update({ where: { id: orderId }, data: { attempts: { increment: 1 } } });
       await reconcileCustody(tx, orderId);
       if (order.kind === "RETURN") await completeReturnOrder(tx, orderId, actorUserId, input.receiverName);
+      if (order.source === "TIENDA") await storeDeliveryDone(tx, orderId);
     } else {
       const reason = input.reason && input.reason in FAIL_REASONS ? input.reason : "otro";
       await addOrderEvent(tx, { orderId, type: "failed", source: "ADMIN", toStatus: "FAILED", actorUserId, note: `Marcado no entregado a mano: ${FAIL_REASONS[reason]} · ${note}`, data: { reason, manual: true } });

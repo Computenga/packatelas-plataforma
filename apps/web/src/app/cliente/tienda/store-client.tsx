@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { checkoutAction, type CheckoutState } from "./actions";
 
-type P = { id: string; name: string; category: string; price: number; imageUrl: string | null; description: string | null };
+type P = { id: string; name: string; category: string; price: number; regular: number | null; stock: number; images: string[]; description: string | null };
 type B = { id: string; name: string; address: string };
 const money = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 const KEY = "pk_cart";
@@ -28,7 +28,8 @@ export function StoreClient({ products, branches, favor, cardEnabled, deliveryTe
   const count = lines.reduce((s, l) => s + l.qty, 0);
   const cats = ["Todos", ...Array.from(new Set(products.map((p) => p.category)))];
   const shown = products.filter((p) => (cat === "Todos" || p.category === cat) && (!q || p.name.toLowerCase().includes(q.toLowerCase())));
-  const add = (id: string, d: number) => setCart((c) => ({ ...c, [id]: Math.max(0, Math.min(500, (c[id] ?? 0) + d)) }));
+  const add = (id: string, d: number) => setCart((c) => ({ ...c, [id]: Math.max(0, Math.min(byId.get(id)?.stock ?? 0, 500, (c[id] ?? 0) + d)) }));
+  const [view, setView] = useState<P | null>(null);
   const canSaldo = favor + 0.005 >= total && total > 0;
 
   return (
@@ -42,17 +43,23 @@ export function StoreClient({ products, branches, favor, cardEnabled, deliveryTe
       <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         {shown.map((p) => (
           <li key={p.id} className="flex flex-col rounded-xl border border-slate-200 bg-white p-3">
-            {p.imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={p.imageUrl} alt="" loading="lazy" className="aspect-square w-full rounded-lg bg-slate-50 object-contain" />
-            ) : <div className="aspect-square w-full rounded-lg bg-slate-100" />}
-            <p className="mt-2 line-clamp-3 flex-1 text-sm font-medium">{p.name}</p>
-            <p className="mt-1 font-bold text-brand">{money(p.price)}</p>
+            <button type="button" onClick={() => setView(p)} className="text-left" aria-label={`Ver ${p.name}`}>
+              {p.images[0] ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={p.images[0]} alt="" loading="lazy" className="aspect-square w-full rounded-lg bg-slate-50 object-contain" />
+              ) : <div className="aspect-square w-full rounded-lg bg-slate-100" />}
+              <p className="mt-2 line-clamp-3 text-sm font-medium">{p.name}</p>
+            </button>
+            <p className="mt-1 flex-1">
+              <span className="font-bold text-brand">{money(p.price)}</span>
+              {p.regular && <span className="ml-2 text-xs text-slate-400 line-through">{money(p.regular)}</span>}
+              {p.stock <= 5 && <span className="block text-xs text-amber-700">Quedan {p.stock}</span>}
+            </p>
             {cart[p.id] ? (
               <div className="mt-2 flex items-center justify-between rounded-lg border border-slate-300">
                 <button type="button" onClick={() => add(p.id, -1)} className="px-3 py-1.5 text-lg" aria-label="Quitar uno">−</button>
                 <span className="text-sm font-semibold">{cart[p.id]}</span>
-                <button type="button" onClick={() => add(p.id, 1)} className="px-3 py-1.5 text-lg" aria-label="Agregar uno">+</button>
+                <button type="button" onClick={() => add(p.id, 1)} disabled={cart[p.id] >= p.stock} className="px-3 py-1.5 text-lg disabled:opacity-30" aria-label="Agregar uno">+</button>
               </div>
             ) : (
               <button type="button" onClick={() => add(p.id, 1)} className="mt-2 rounded-lg bg-brand py-1.5 text-sm font-semibold text-white">Agregar</button>
@@ -60,6 +67,31 @@ export function StoreClient({ products, branches, favor, cardEnabled, deliveryTe
           </li>
         ))}
       </ul>
+
+      {view && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/50 p-3 sm:items-center" role="dialog" aria-modal="true" aria-label={view.name} onClick={() => setView(null)}>
+          <div className="max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+            {view.images.length > 0 && (
+              <div className="flex snap-x gap-2 overflow-x-auto">
+                {view.images.map((src) => (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img key={src} src={src} alt="" className="aspect-square w-full shrink-0 snap-center rounded-lg bg-slate-50 object-contain" />
+                ))}
+              </div>
+            )}
+            <h2 className="mt-3 text-lg font-bold">{view.name}</h2>
+            <p className="mt-1">
+              <span className="text-xl font-bold text-brand">{money(view.price)}</span>
+              {view.regular && <span className="ml-2 text-sm text-slate-400 line-through">{money(view.regular)}</span>}
+            </p>
+            {view.description && <p className="mt-2 whitespace-pre-line text-sm text-slate-700">{view.description}</p>}
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => { add(view.id, 1); setView(null); }} disabled={(cart[view.id] ?? 0) >= view.stock} className="flex-1 rounded-xl bg-brand py-3 font-semibold text-white disabled:opacity-50">Agregar al carrito</button>
+              <button type="button" onClick={() => setView(null)} className="rounded-xl border border-slate-300 px-4">Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {count > 0 && !open && (
         <button type="button" onClick={() => setOpen(true)} className="fixed inset-x-4 bottom-20 z-30 rounded-xl bg-brand px-4 py-3 text-base font-semibold text-white shadow-lg md:bottom-6 md:left-auto md:right-8 md:w-96">
@@ -81,7 +113,7 @@ export function StoreClient({ products, branches, favor, cardEnabled, deliveryTe
                   <span className="flex items-center gap-1">
                     <button type="button" onClick={() => add(l.p.id, -1)} className="h-7 w-7 rounded border border-slate-300">−</button>
                     <span className="w-6 text-center">{l.qty}</span>
-                    <button type="button" onClick={() => add(l.p.id, 1)} className="h-7 w-7 rounded border border-slate-300">+</button>
+                    <button type="button" onClick={() => add(l.p.id, 1)} disabled={l.qty >= l.p.stock} className="h-7 w-7 rounded border border-slate-300 disabled:opacity-30">+</button>
                   </span>
                   <span className="w-20 text-right tabular-nums">{money(l.p.price * l.qty)}</span>
                 </li>

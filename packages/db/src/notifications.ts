@@ -118,7 +118,7 @@ export async function notifyOrderStatus(db: Db, orderId: string, opts: { trackin
   const o = await db.order.findUnique({
     where: { id: orderId },
     select: {
-      id: true, code: true, kind: true, status: true, mlShipmentId: true, recipientName: true, recipientPhone: true, attempts: true, clientId: true,
+      id: true, code: true, kind: true, source: true, status: true, mlShipmentId: true, recipientName: true, recipientPhone: true, attempts: true, clientId: true,
       client: { select: { name: true, phone: true } },
       events: { where: { type: { in: ["failed", "return_required"] } }, orderBy: { occurredAt: "desc" }, take: 1, select: { note: true } },
     },
@@ -126,7 +126,8 @@ export async function notifyOrderStatus(db: Db, orderId: string, opts: { trackin
   if (!o || o.kind !== "DELIVERY") return;
   // Envíos de MercadoLibre: al comprador lo avisa ML; solo avisamos en pedidos externos.
   if (o.mlShipmentId != null) return;
-  const store = o.client.name;
+  // Insumos de la tienda del portal: el remitente es Packatelas, no la propia tienda.
+  const store = o.source === "TIENDA" ? "Packatelas (insumos)" : o.client.name;
   const reason = o.events[0]?.note?.split(" · ")[0] ?? "no fue posible";
   const base = { orderId: o.id, clientId: o.clientId };
   if (o.status === "OUT_FOR_DELIVERY") {

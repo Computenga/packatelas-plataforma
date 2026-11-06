@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import type { ReturnCandidate } from "@packatelas/db";
 import { Scanner } from "@/components/scanner";
+import { AssignSelect } from "../../pedidos/assign-select";
 import { branchesAction, candidateAction, createReturnAction, searchAction } from "./actions";
 
 type Branch = { id: string; name: string; address: string };
 
 /** Arma una orden de devolución: escáner/PDA, cámara o búsqueda en el histórico. */
-export function ReturnBuilder({ initial }: { initial: ReturnCandidate[] }) {
+export function ReturnBuilder({ initial, drivers = [] }: { initial: ReturnCandidate[]; drivers?: { id: string; name: string; onDuty: boolean }[] }) {
   const [items, setItems] = useState<ReturnCandidate[]>(initial);
   const [msg, setMsg] = useState<{ tone: "ok" | "err"; text: string } | null>(null);
   const [q, setQ] = useState("");
@@ -54,7 +55,12 @@ export function ReturnBuilder({ initial }: { initial: ReturnCandidate[] }) {
     return (
       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 text-sm">
         <p className="text-lg font-bold text-emerald-800">Orden de devolución {created.code} creada</p>
-        <p className="mt-1">Asígnala a un repartidor en Despacho, como cualquier pedido. Al entregarla, sus paquetes quedan «Devuelto al vendedor».</p>
+        <p className="mt-1">Al entregarla, sus paquetes quedan «Devuelto al vendedor».</p>
+        {drivers.length > 0 ? (
+          <p className="mt-3 flex flex-wrap items-center gap-2"><span className="font-medium">Asignar a:</span> <AssignSelect orderId={created.id} current={null} drivers={drivers} /></p>
+        ) : (
+          <p className="mt-1">El despacho la asigna a un repartidor desde Devoluciones o Despacho.</p>
+        )}
         <div className="mt-3 flex flex-wrap gap-2">
           <Link href={`/admin/pedidos/${created.id}`} className="rounded-lg bg-brand px-4 py-2 font-semibold text-white">Ver orden</Link>
           <Link href={`/etiqueta/${created.id}`} target="_blank" className="rounded-lg border border-slate-300 bg-white px-4 py-2">Imprimir etiqueta</Link>

@@ -6,7 +6,7 @@ export type ScanResult =
   | { kind: "INVALID"; reason: string };
 
 const ML_ID = /^\d{10,13}$/;
-const OWN_CODE = /^(PK|RC|DV)-\d{4,}$/i;
+const OWN_CODE = /^(PK|RC|DV|IN)-\d{4,}$/i;
 
 /**
  * Limpia lo que llega de lectores que «teclean» (iPad/iPhone con puntuación inteligente cambian

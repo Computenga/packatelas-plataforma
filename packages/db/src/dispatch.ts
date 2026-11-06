@@ -1,5 +1,6 @@
 // Despacho y acciones del repartidor [A04, A05, R01, R03, R06, R07, R10, R11, R14].
 import { completeReturnOrder } from "./returns.ts";
+import { storeDeliveryDone } from "./store.ts";
 import type { Prisma, PrismaClient, OrderStatus } from "../generated/prisma/client.ts";
 import { addOrderEvent, audit } from "./orders.ts";
 import { getMaxAttempts, markReturning, mustReturn } from "./failures.ts";
@@ -223,6 +224,7 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
       await tx.order.update({ where: { id: order.id }, data: { attempts: { increment: 1 } } });
       await reconcileCustody(tx, order.id);
       if (order.kind === "RETURN") await completeReturnOrder(tx, order.id, e.actorUserId, e.receiverName);
+      if (order.source === "TIENDA") await storeDeliveryDone(tx, order.id);
       return { ok: true as const, duplicate: false, status: "DELIVERED" as OrderStatus };
     }
 

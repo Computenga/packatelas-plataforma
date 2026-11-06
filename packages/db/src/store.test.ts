@@ -1,15 +1,9 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, Prisma, getClientBalance, placeStoreOrder, storeOrdersAfterPickup, syncStoreCatalog } from "./index.ts";
+import { prisma, Prisma, adminMarkOrder, getClientBalance, placeStoreOrder, saveStoreProduct, storePrice } from "./index.ts";
 
 const tag = `st${Date.now()}`;
 let clientId: string, branchId: string, userId: string, productId: string;
-const res = (b: unknown) => new Response(JSON.stringify(b));
-const woo = (async () => res([
-  { id: 990001, name: "Bolsas 28&#215;40", type: "simple", sku: "B2840", is_in_stock: true, prices: { price: "13500", currency_minor_unit: 2 }, categories: [{ name: "Insumos" }], images: [{ src: "https://x/b.jpg" }] },
-  { id: 990002, name: "Prepago de Envíos", type: "simple", sku: "", prices: { price: "500", currency_minor_unit: 2 } },
-  { id: 990003, name: "Despachador", type: "variable", sku: "", prices: { price: "82000", currency_minor_unit: 2 } },
-])) as unknown as typeof fetch;
 
 beforeAll(async () => {
   clientId = (await prisma.client.create({ data: { publicId: tag, name: "Tienda insumos", paymentReference: tag, tariffAmount: 85 } })).id;
@@ -17,45 +11,41 @@ beforeAll(async () => {
   userId = (await prisma.user.findFirstOrThrow({ select: { id: true } })).id;
 });
 afterAll(async () => {
-  const orders = await prisma.storeOrder.findMany({ where: { clientId }, select: { pickupId: true } });
+  const orders = await prisma.storeOrder.findMany({ where: { clientId }, select: { orderId: true } });
   await prisma.storeOrder.deleteMany({ where: { clientId } });
-  for (const o of orders) if (o.pickupId) { await prisma.order.deleteMany({ where: { pickupId: o.pickupId } }); await prisma.pickup.deleteMany({ where: { id: o.pickupId } }); }
+  const ids = orders.map((o) => o.orderId).filter((x): x is string => !!x);
+  await prisma.orderEvent.deleteMany({ where: { orderId: { in: ids } } });
   await prisma.order.deleteMany({ where: { clientId } });
   await prisma.ledgerEntry.deleteMany({ where: { clientId } });
   await prisma.branch.deleteMany({ where: { clientId } });
   await prisma.client.delete({ where: { id: clientId } });
-  await prisma.storeProduct.deleteMany({ where: { wooId: { in: [990001, 990002, 990003] } } });
+  await prisma.storeProduct.deleteMany({ where: { sku: `B-${tag}` } });
   await prisma.$disconnect();
 });
 
 describe("tienda de insumos [P17]", () => {
-  it("copia solo productos simples y vendibles de WooCommerce", async () => {
-    await syncStoreCatalog(prisma, woo);
-    const p = await prisma.storeProduct.findUniqueOrThrow({ where: { wooId: 990001 } });
-    expect(p.name).toBe("Bolsas 28×40");
-    expect(Number(p.price)).toBe(135);
-    expect(await prisma.storeProduct.count({ where: { wooId: { in: [990002, 990003] } } })).toBe(0);
+  it("alta de producto con precio normal, oferta y stock", async () => {
+    await expect(saveStoreProduct(prisma, null, { name: "Bolsas", price: 100, salePrice: 120, stock: 5, images: [], active: true })).rejects.toThrow(/oferta/);
+    const p = await saveStoreProduct(prisma, null, { name: "Bolsas 28×40", price: 150, salePrice: 135, sku: `B-${tag}`, stock: 3, description: "Paquete de 100", images: [], active: true });
+    expect(storePrice(p)).toBe(135);
+    await expect(saveStoreProduct(prisma, null, { name: "Otra", price: 10, sku: `B-${tag}`, stock: 1, images: [], active: true })).rejects.toThrow(/SKU/);
     productId = p.id;
   });
 
-  it("con saldo a favor: se paga, se agenda con la recolección y se entrega al recolectar", async () => {
+  it("con saldo: se paga, descuenta stock y crea un pedido IN- asignable; al entregarlo queda entregado", async () => {
     await expect(placeStoreOrder(prisma, { clientId, userId, branchId, cart: [{ productId, qty: 2 }], pay: "saldo", baseUrl: "x" })).rejects.toThrow(/no alcanza/);
+    await expect(placeStoreOrder(prisma, { clientId, userId, branchId, cart: [{ productId, qty: 4 }], pay: "saldo", baseUrl: "x" })).rejects.toThrow(/solo quedan 3/);
     await prisma.ledgerEntry.create({ data: { clientId, type: "PAYMENT", amount: new Prisma.Decimal(-300), description: "abono" } });
     const r = await placeStoreOrder(prisma, { clientId, userId, branchId, cart: [{ productId, qty: 2 }], pay: "saldo", baseUrl: "x" });
-    const o = await prisma.storeOrder.findUniqueOrThrow({ where: { id: r.id } });
-    expect(o.status).toBe("PAID");
-    expect(Number(o.total)).toBe(270);
-    expect(o.pickupId).toBeTruthy();
+    const so = await prisma.storeOrder.findUniqueOrThrow({ where: { id: r.id }, include: { order: true } });
+    expect(so.status).toBe("PAID");
+    expect(Number(so.total)).toBe(270);
+    expect(so.order).toMatchObject({ code: `IN-${String(so.number).padStart(5, "0")}`, source: "TIENDA", kind: "DELIVERY", status: "CREATED", branchId });
     expect(Number(await getClientBalance(prisma, clientId))).toBe(-30);
-    await storeOrdersAfterPickup(prisma, o.pickupId!, true);
+    expect((await prisma.storeProduct.findUniqueOrThrow({ where: { id: productId } })).stock).toBe(1);
+    // No genera cargo de envío.
+    expect(await prisma.ledgerEntry.count({ where: { clientId, type: "CHARGE" } })).toBe(0);
+    await adminMarkOrder(prisma, so.orderId!, { outcome: "delivered", note: "prueba", receiverName: "Ana" }, userId);
     expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("DELIVERED");
-  });
-});
-
-describe("precio del portal", () => {
-  it("usa el del portal si lo hay; si no, el de WooCommerce", async () => {
-    const { storePrice } = await import("./store.ts");
-    expect(storePrice({ price: "120.00", portalPrice: null })).toBe(120);
-    expect(storePrice({ price: "120.00", portalPrice: "99.50" })).toBe(99.5);
   });
 });

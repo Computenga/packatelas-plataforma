@@ -259,6 +259,7 @@ enum OrderSource {
   EXTERNAL_SCAN // paquete externo escaneado por el repartidor [R14]
   IMPORT
   API // creado por el sistema del cliente [I08]
+  TIENDA // entrega de insumos comprados en la tienda del portal (folio IN-00001)
 }
 
 // Entrega normal o recolección en la tienda del cliente (origen: su sucursal; destino: bodega).
@@ -350,6 +351,7 @@ model Order {
   guestShipment GuestShipment?
   tickets       Ticket[]
   ledger        LedgerEntry[]
+  storeOrder    StoreOrder?     @relation("StoreDelivery")
 
   @@unique([clientId, externalRef])
   @@index([clientId, createdAt])
@@ -1523,16 +1525,18 @@ model GuestShipment {
 // Catálogo copiado de WooCommerce (packatelas.com.mx); los pedidos se entregan con la recolección.
 model StoreProduct {
   id          String   @id @default(cuid())
-  wooId       Int      @unique
+  wooId       Int?     @unique // solo los que venían de WooCommerce (ya no se sincroniza)
   sku         String?
   name        String
   category    String
-  price       Decimal  @db.Decimal(12, 2) // precio en WooCommerce (se copia cada hora)
-  portalPrice Decimal? @db.Decimal(12, 2) // precio distinto para el portal (si el admin lo pone)
-  imageUrl    String?
+  price       Decimal  @db.Decimal(12, 2) // precio normal
+  salePrice   Decimal? @db.Decimal(12, 2) // precio de oferta (si es menor al normal, es el que se cobra)
+  stock       Int      @default(0)
+  images      String[] @default([]) // fotos subidas al portal (llaves de almacenamiento), la primera es la portada
+  imageUrl    String? // foto externa heredada de WooCommerce
   description String?
   url         String?
-  inStock     Boolean  @default(true)
+  inStock     Boolean  @default(true) // stock > 0
   active      Boolean  @default(true) // el admin puede ocultarlo del portal
   updatedAt   DateTime @updatedAt
   createdAt   DateTime @default(now())
@@ -1567,6 +1571,8 @@ model StoreOrder {
   checkout    MpCheckout?      @relation(fields: [checkoutId], references: [id])
   pickupId    String?
   pickup      Pickup?          @relation(fields: [pickupId], references: [id], onDelete: SetNull)
+  orderId     String?          @unique // pedido de entrega IN-00001 que se asigna a un repartidor
+  order       Order?           @relation("StoreDelivery", fields: [orderId], references: [id], onDelete: SetNull)
   createdById String?
   paidAt      DateTime?
   deliveredAt DateTime?
@@ -1663,7 +1669,9 @@ enum GateKind {
   SALIDA // a ruta: un paquete al azar; si no es suyo, auditoría uno por uno
 }
 
-/** Revisión del vigilante en recepción (sustituye la lista de papel firmada). */
+/**
+ * Revisión del vigilante en recepción (sustituye la lista de papel firmada).
+ */
 model GateCheck {
   id           String   @id @default(cuid())
   kind         GateKind
