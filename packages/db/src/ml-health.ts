@@ -79,7 +79,7 @@ export type ProbeRow = {
   liveSub: string | null;
   http: number; // 0 = sin respuesta
   ms: number;
-  verdict: "ok" | "desfasado" | "solo_app" | "solo_ml" | "cerrado_ml" | "pendiente" | "error";
+  verdict: "ok" | "desfasado" | "solo_app" | "solo_ml" | "cerrado_ml" | "pendiente" | "sin_permiso" | "error";
 };
 
 /** Pedidos ML de hoy que vale la pena revisar: en ruta, o entregados/fallidos hoy en la app. */
@@ -91,7 +91,8 @@ async function todaysMlOrders(prisma: PrismaClient, limit: number, now: Date) {
   } as const;
   const ml = { mlShipmentId: { not: null }, mlAccountId: { not: null } };
   // Primero lo que sigue en ruta (es lo que se discute), luego lo cerrado hoy en la app.
-  const open = await prisma.order.findMany({ where: { ...ml, status: { in: IN_ROUTE } }, orderBy: { updatedAt: "desc" }, take: limit, select });
+  const recent = new Date(since.getTime() - 24 * 3600_000); // asignados ayer u hoy
+  const open = await prisma.order.findMany({ where: { ...ml, status: { in: IN_ROUTE }, updatedAt: { gte: recent } }, orderBy: { updatedAt: "desc" }, take: limit, select });
   const closed = open.length >= limit ? [] : await prisma.order.findMany({
     where: { ...ml, status: { in: ["DELIVERED", "FAILED", "RESCHEDULED"] }, updatedAt: { gte: since } },
     orderBy: { updatedAt: "desc" }, take: limit - open.length, select,
@@ -121,7 +122,7 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
       const base = { orderId: o.id, code: o.code, driver: o.driver?.user.name ?? null, ours: o.status, stored: o.mlStatus };
       const tk = await token(o.mlAccountId!);
       if (!tk) {
-        rows.push({ ...base, live: null, liveSub: null, http: 401, ms: 0, verdict: "error" });
+        rows.push({ ...base, live: null, liveSub: null, http: 0, ms: 0, verdict: "sin_permiso" });
         continue;
       }
       const t0 = Date.now();
@@ -161,10 +162,12 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
   }
 
   const ok = rows.filter((r) => r.http >= 200 && r.http < 300);
+  const asked = rows.filter((r) => r.verdict !== "sin_permiso").length;
   const times = ok.map((r) => r.ms).sort((a, b) => a - b);
   const pct = (p: number) => (times.length ? times[Math.min(times.length - 1, Math.floor(p * times.length))] : 0);
   const byHttp: Record<string, number> = {};
   for (const r of rows) {
+    if (r.verdict === "sin_permiso") continue;
     const k = r.http ? String(r.http) : "sin respuesta";
     byHttp[k] = (byHttp[k] ?? 0) + 1;
   }
@@ -187,12 +190,13 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
   return {
     at: now,
     checked: rows.length,
+    asked,
     answered: ok.length,
     rateLimited,
     byHttp,
     p50: pct(0.5),
     p95: pct(0.95),
-    verdicts: { ok: count("ok"), desfasado: count("desfasado"), solo_app: count("solo_app"), solo_ml: count("solo_ml"), cerrado_ml: count("cerrado_ml"), pendiente: count("pendiente"), error: count("error") },
+    verdicts: { ok: count("ok"), desfasado: count("desfasado"), solo_app: count("solo_app"), solo_ml: count("solo_ml"), cerrado_ml: count("cerrado_ml"), pendiente: count("pendiente"), sin_permiso: count("sin_permiso"), error: count("error") },
     drivers: [...drivers.values()].sort((a, b) => b.total - a.total),
     rows: rows.sort((a, b) => a.verdict.localeCompare(b.verdict) || a.code.localeCompare(b.code)),
   };

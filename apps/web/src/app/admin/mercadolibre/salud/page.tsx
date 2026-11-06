@@ -16,7 +16,8 @@ const VERDICT: Record<string, { label: string; tone: "gray" | "blue" | "green" |
   cerrado_ml: { label: "Cancelado o devuelto en ML", tone: "amber", help: "ML lo canceló o lo dio por no entregado/devuelto, pero en el portal sigue en ruta: hay que regresarlo a bodega o quitarlo de la ruta." },
   pendiente: { label: "Pendiente", tone: "blue", help: "Sin entregar en ninguno de los dos: el paquete sigue en ruta." },
   ok: { label: "Coincide", tone: "green", help: "Entregado en los dos." },
-  error: { label: "Sin respuesta", tone: "gray", help: "ML no respondió o la cuenta no está autorizada." },
+  sin_permiso: { label: "Tienda sin autorizar", tone: "gray", help: "La cuenta ML de la tienda no ha autorizado a Packatelas: no se puede consultar (no es falla de ML)." },
+  error: { label: "Sin respuesta", tone: "gray", help: "ML no respondió o respondió con error." },
 };
 const ML_ES: Record<string, string> = { shipped: "en camino", delivered: "entregado", not_delivered: "no entregado", ready_to_ship: "listo para enviar", cancelled: "cancelado", pending: "pendiente", handling: "en preparación" };
 const ml = (s: string | null, sub?: string | null) => (s ? `${ML_ES[s] ?? s}${sub ? ` · ${sub.replace(/_/g, " ")}` : ""}` : "—");
@@ -89,7 +90,7 @@ export default async function MlHealthPage({ searchParams }: PageProps<"/admin/m
         <>
           <Card title={`3. Prueba en vivo · ${fecha(live.at)}`}>
             <div className="grid gap-3 text-sm sm:grid-cols-4">
-              <div><p className="text-2xl font-bold">{live.answered}/{live.checked}</p><p className="text-slate-500">respondió ML</p></div>
+              <div><p className="text-2xl font-bold">{live.answered}/{live.asked}</p><p className="text-slate-500">respondió ML{live.checked > live.asked ? ` (${live.checked - live.asked} de tiendas sin autorizar, no se consultan)` : ""}</p></div>
               <div><p className={`text-2xl font-bold ${live.rateLimited ? "text-red-600" : ""}`}>{live.rateLimited}</p><p className="text-slate-500">bloqueos por intentos (429)</p></div>
               <div><p className="text-2xl font-bold">{live.p50} ms</p><p className="text-slate-500">respuesta típica (p95 {live.p95} ms)</p></div>
               <div><p className={`text-2xl font-bold ${live.verdicts.desfasado ? "text-red-600" : ""}`}>{live.verdicts.desfasado}</p><p className="text-slate-500">desfasados en el portal</p></div>
@@ -98,15 +99,15 @@ export default async function MlHealthPage({ searchParams }: PageProps<"/admin/m
             <div className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
               <p className="font-semibold">Diagnóstico</p>
               <p className="mt-1">
-                {live.checked === 0
+                {live.asked === 0
                   ? "No hay pedidos ML de hoy para revisar."
                   : live.rateLimited > 0
                     ? "MercadoLibre nos está limitando por número de consultas (429): los estados pueden atrasarse."
-                    : live.answered < live.checked * 0.9
+                    : live.answered < live.asked * 0.9
                       ? "MercadoLibre está fallando o respondiendo intermitente: revisa los códigos de respuesta."
                       : live.verdicts.desfasado > 0
                         ? "La API de ML responde bien, pero el portal tenía estados atrasados: los avisos o la cola se retrasaron. Usa «Volver a sincronizar los desfasados»."
-                        : "La API de ML responde bien y el portal coincide con ML. Lo que no está entregado en ML de verdad no se ha marcado entregado en la app Flex."}
+                        : `La API de ML responde bien y el portal coincide con ML: lo que no figura entregado en ML no se ha marcado en la app Flex.${live.verdicts.solo_ml ? ` Hay ${live.verdicts.solo_ml} entregado(s) en ML sin foto en nuestra app (ver por repartidor).` : ""}`}
               </p>
               {live.verdicts.desfasado > 0 && (
                 <Link href="/admin/mercadolibre/salud?probar=1&resync=1" className="mt-2 inline-block text-brand hover:underline">Volver a sincronizar los desfasados →</Link>
