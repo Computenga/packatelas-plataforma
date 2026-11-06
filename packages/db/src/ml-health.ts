@@ -79,25 +79,24 @@ export type ProbeRow = {
   liveSub: string | null;
   http: number; // 0 = sin respuesta
   ms: number;
-  verdict: "ok" | "desfasado" | "solo_app" | "solo_ml" | "pendiente" | "error";
+  verdict: "ok" | "desfasado" | "solo_app" | "solo_ml" | "cerrado_ml" | "pendiente" | "error";
 };
 
 /** Pedidos ML de hoy que vale la pena revisar: en ruta, o entregados/fallidos hoy en la app. */
 async function todaysMlOrders(prisma: PrismaClient, limit: number, now: Date) {
   const since = startOfTodayMx(now);
-  return prisma.order.findMany({
-    where: {
-      mlShipmentId: { not: null },
-      mlAccountId: { not: null },
-      OR: [{ status: { in: IN_ROUTE } }, { status: { in: ["DELIVERED", "FAILED", "RESCHEDULED"] }, updatedAt: { gte: since } }],
-    },
-    orderBy: { updatedAt: "desc" },
-    take: limit,
-    select: {
-      id: true, code: true, status: true, mlStatus: true, mlSubstatus: true, mlShipmentId: true, mlAccountId: true,
-      driver: { select: { user: { select: { name: true } } } },
-    },
+  const select = {
+    id: true, code: true, status: true, mlStatus: true, mlSubstatus: true, mlShipmentId: true, mlAccountId: true,
+    driver: { select: { user: { select: { name: true } } } },
+  } as const;
+  const ml = { mlShipmentId: { not: null }, mlAccountId: { not: null } };
+  // Primero lo que sigue en ruta (es lo que se discute), luego lo cerrado hoy en la app.
+  const open = await prisma.order.findMany({ where: { ...ml, status: { in: IN_ROUTE } }, orderBy: { updatedAt: "desc" }, take: limit, select });
+  const closed = open.length >= limit ? [] : await prisma.order.findMany({
+    where: { ...ml, status: { in: ["DELIVERED", "FAILED", "RESCHEDULED"] }, updatedAt: { gte: since } },
+    orderBy: { updatedAt: "desc" }, take: limit - open.length, select,
   });
+  return [...open, ...closed];
 }
 
 /**
@@ -146,6 +145,7 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
       else if (o.status === "DELIVERED" && live !== "delivered") verdict = "solo_app";
       else if (live === "delivered" && o.status !== "DELIVERED") verdict = "solo_ml";
       else if (live === "delivered" || o.status === "DELIVERED") verdict = "ok";
+      else if ((live === "cancelled" || live === "not_delivered") && (IN_ROUTE as string[]).includes(o.status)) verdict = "cerrado_ml";
       else verdict = "pendiente";
       rows.push({ ...base, live, liveSub, http, ms, verdict });
     }
@@ -171,15 +171,16 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
   const count = (v: ProbeRow["verdict"]) => rows.filter((r) => r.verdict === v).length;
 
   // Por repartidor: lo que marcó en la app vs lo que ML dice entregado.
-  const drivers = new Map<string, { name: string; total: number; appDelivered: number; mlDelivered: number; soloApp: number; enRuta: number }>();
+  const drivers = new Map<string, { name: string; total: number; appDelivered: number; mlDelivered: number; soloApp: number; soloMl: number; enRuta: number }>();
   for (const r of rows) {
     const k = r.driver ?? "Sin repartidor";
-    const d = drivers.get(k) ?? { name: k, total: 0, appDelivered: 0, mlDelivered: 0, soloApp: 0, enRuta: 0 };
+    const d = drivers.get(k) ?? { name: k, total: 0, appDelivered: 0, mlDelivered: 0, soloApp: 0, soloMl: 0, enRuta: 0 };
     d.total++;
     if (r.ours === "DELIVERED") d.appDelivered++;
     if (r.live === "delivered") d.mlDelivered++;
     if (r.verdict === "solo_app") d.soloApp++;
-    if ((IN_ROUTE as string[]).includes(r.ours) && r.live !== "delivered") d.enRuta++;
+    if (r.verdict === "pendiente") d.enRuta++;
+    if (r.verdict === "solo_ml") d.soloMl++;
     drivers.set(k, d);
   }
 
@@ -191,7 +192,7 @@ export async function mlLiveProbe(prisma: PrismaClient, opts: { limit?: number; 
     byHttp,
     p50: pct(0.5),
     p95: pct(0.95),
-    verdicts: { ok: count("ok"), desfasado: count("desfasado"), solo_app: count("solo_app"), solo_ml: count("solo_ml"), pendiente: count("pendiente"), error: count("error") },
+    verdicts: { ok: count("ok"), desfasado: count("desfasado"), solo_app: count("solo_app"), solo_ml: count("solo_ml"), cerrado_ml: count("cerrado_ml"), pendiente: count("pendiente"), error: count("error") },
     drivers: [...drivers.values()].sort((a, b) => b.total - a.total),
     rows: rows.sort((a, b) => a.verdict.localeCompare(b.verdict) || a.code.localeCompare(b.code)),
   };

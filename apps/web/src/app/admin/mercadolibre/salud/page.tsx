@@ -13,6 +13,7 @@ const VERDICT: Record<string, { label: string; tone: "gray" | "blue" | "green" |
   desfasado: { label: "Desfasado", tone: "red", help: "ML ya cambió el estado y el portal no se enteró (falla de avisos o de la cola)." },
   solo_app: { label: "Solo en la app", tone: "amber", help: "El repartidor lo entregó en nuestra app pero en ML no figura entregado (no lo marcó en la app Flex)." },
   solo_ml: { label: "Solo en ML", tone: "amber", help: "ML dice entregado pero en nuestra app no hay evidencia." },
+  cerrado_ml: { label: "Cancelado o devuelto en ML", tone: "amber", help: "ML lo canceló o lo dio por no entregado/devuelto, pero en el portal sigue en ruta: hay que regresarlo a bodega o quitarlo de la ruta." },
   pendiente: { label: "Pendiente", tone: "blue", help: "Sin entregar en ninguno de los dos: el paquete sigue en ruta." },
   ok: { label: "Coincide", tone: "green", help: "Entregado en los dos." },
   error: { label: "Sin respuesta", tone: "gray", help: "ML no respondió o la cuenta no está autorizada." },
@@ -33,7 +34,7 @@ export default async function MlHealthPage({ searchParams }: PageProps<"/admin/m
   const [notif, queue, live] = await Promise.all([
     mlNotificationStats(prisma),
     mlQueueHealth(prisma),
-    probe ? mlLiveProbe(prisma, { limit: 80, resync: sp.resync === "1" }) : Promise.resolve(null),
+    probe ? mlLiveProbe(prisma, { limit: 150, resync: sp.resync === "1" }) : Promise.resolve(null),
   ]);
 
   const notifLevel = !notif.lastAt ? "gray" : now - notif.lastAt.getTime() < 20 * 60_000 ? "green" : now - notif.lastAt.getTime() < 60 * 60_000 ? "amber" : "red";
@@ -81,7 +82,7 @@ export default async function MlHealthPage({ searchParams }: PageProps<"/admin/m
 
       {!live ? (
         <Card title="3. Prueba en vivo">
-          <p className="text-sm text-slate-600">Consulta directo a MercadoLibre (solo lectura) el estado de hasta 80 pedidos ML de hoy —en ruta o cerrados hoy en la app— y lo compara con el portal y con lo que marcó cada repartidor. Mide tiempos de respuesta y detecta bloqueos por intentos (429).</p>
+          <p className="text-sm text-slate-600">Consulta directo a MercadoLibre (solo lectura) el estado de hasta 150 pedidos ML: primero los que siguen en ruta y luego los cerrados hoy en la app, y lo compara con el portal y con lo que marcó cada repartidor. Mide tiempos de respuesta y detecta bloqueos por intentos (429).</p>
           <ButtonLink href="/admin/mercadolibre/salud?probar=1" className="mt-3">Probar ahora</ButtonLink>
         </Card>
       ) : (
@@ -119,11 +120,12 @@ export default async function MlHealthPage({ searchParams }: PageProps<"/admin/m
           </Card>
 
           <Card title="Por repartidor (pedidos ML de hoy revisados)">
-            <Table head={["Repartidor", "Revisados", "Entregados en la app", "Entregados en ML", "Solo en la app", "Siguen en ruta"]} empty={live.drivers.length ? undefined : "Sin datos"}>
+            <Table head={["Repartidor", "Revisados", "Entregados en la app", "Entregados en ML", "Solo en la app", "Entregado en ML sin foto", "Siguen en ruta"]} empty={live.drivers.length ? undefined : "Sin datos"}>
               {live.drivers.map((d) => (
                 <tr key={d.name}>
                   <Td>{d.name}</Td><Td>{d.total}</Td><Td>{d.appDelivered}</Td><Td>{d.mlDelivered}</Td>
-                  <Td className={d.soloApp ? "font-semibold text-amber-700" : ""}>{d.soloApp}</Td><Td>{d.enRuta}</Td>
+                  <Td className={d.soloApp ? "font-semibold text-amber-700" : ""}>{d.soloApp}</Td>
+                  <Td className={d.soloMl ? "font-semibold text-amber-700" : ""}>{d.soloMl}</Td><Td>{d.enRuta}</Td>
                 </tr>
               ))}
             </Table>
