@@ -33,6 +33,25 @@ export function isFullMlQr(raw: string | null | undefined): raw is string {
   }
 }
 
+/**
+ * ¿Es el QR de una etiqueta ML (JSON con el número de envío)? Se guarda tal cual al escanearlo,
+ * traiga o no hash: es exactamente lo que imprimió MercadoLibre para ese envío.
+ */
+export function isMlLabelQr(raw: string | null | undefined): raw is string {
+  if (!raw) return false;
+  try {
+    const j = JSON.parse(raw.trim()) as Record<string, unknown>;
+    return /^\d{10,13}$/.test(String(j.id ?? ""));
+  } catch {
+    return false;
+  }
+}
+
+/** El mejor QR conocido: primero uno con hash, luego cualquier QR de etiqueta escaneado. */
+export function bestMlQr(...qrs: (string | null | undefined)[]): string | null {
+  return qrs.find((q) => isFullMlQr(q))?.trim() ?? qrs.find((q) => isMlLabelQr(q))?.trim() ?? null;
+}
+
 /** Decodifica los escapes de ^FH (por omisión «_» seguido de dos dígitos hexadecimales). */
 function decodeFh(data: string, indicator = "_") {
   const esc = indicator.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -96,8 +115,8 @@ export function firstFileFromZip(buf: Buffer): Buffer | null {
 /**
  * Pide la etiqueta ZPL a ML y devuelve el contenido del QR solo si trae hash. Comprobado en
  * producción (oct 2026): las etiquetas por API llegan con hash_code y security_digit en null, así
- * que normalmente devuelve null; se deja por si ML lo cambia. Si el envío no estaba impreso, ML lo
- * marca como impreso.
+ * que el QR sale sin hash; es el mismo que trae la etiqueta que imprime el vendedor desde ML. Si el
+ * envío no estaba impreso, ML lo marca como impreso.
  */
 export async function fetchLabelQr(token: string, shipmentId: bigint, fetchImpl: Fetch = fetch): Promise<string | null> {
   const res = await fetchImpl(`${API}/shipment_labels?shipment_ids=${shipmentId}&response_type=zpl2`, {
@@ -108,7 +127,7 @@ export async function fetchLabelQr(token: string, shipmentId: bigint, fetchImpl:
   const buf = Buffer.from(await res.arrayBuffer());
   const text = (firstFileFromZip(buf) ?? buf).toString("utf8");
   const qr = qrFromZpl(text);
-  return qr && isFullMlQr(qr) ? qr : null;
+  return qr && isMlLabelQr(qr) ? qr : null;
 }
 
 /**
@@ -225,9 +244,8 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
     buyerNickname = ((o?.buyer as { nickname?: string } | undefined)?.nickname ?? null) || null;
     packId = o?.pack_id != null ? BigInt(String(o.pack_id)) : null;
   }
-  // El hash del QR NO viene en las etiquetas que entrega la API (hash_code: null): solo en la que
-  // imprime el vendedor. Se obtiene al escanearla; aquí solo se conserva si ya lo teníamos.
-  const qrRaw = prev?.qrRaw ?? (isFullMlQr(order?.mlQrRaw) ? order!.mlQrRaw : null);
+  // El QR se obtiene al escanear la etiqueta; aquí solo se conserva el mejor que ya tuviéramos.
+  const qrRaw = bestMlQr(prev?.qrRaw, order?.mlQrRaw);
 
   const lead = (j.lead_time ?? {}) as { estimated_delivery_time?: { date?: string } };
   const data = {
@@ -265,10 +283,18 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
 /** Al escanear un envío ML: se liga a su registro de Recuperados (pasa al histórico) y se guarda el QR. */
 export async function linkFlexScan(db: Db, orderId: string, shipmentId: bigint, raw: string) {
   await enqueueCourierReport(db, shipmentId).catch(() => false);
-  const qr = isFullMlQr(raw) ? raw.trim() : null;
-  if (qr) await db.order.updateMany({ where: { id: orderId, mlQrRaw: null }, data: { mlQrRaw: qr } });
+  const qr = isMlLabelQr(raw) ? raw.trim() : null;
+  // Uno con hash reemplaza a uno sin hash; uno sin hash solo llena el vacío.
+  const replaceable = isFullMlQr(qr);
+  if (qr) {
+    const [o, f] = await Promise.all([
+      db.order.findUnique({ where: { id: orderId }, select: { mlQrRaw: true } }),
+      db.mlFlexShipment.findUnique({ where: { shipmentId }, select: { qrRaw: true } }),
+    ]);
+    if (o && (o.mlQrRaw == null || (replaceable && !isFullMlQr(o.mlQrRaw)))) await db.order.update({ where: { id: orderId }, data: { mlQrRaw: qr } });
+    if (f && (f.qrRaw == null || (replaceable && !isFullMlQr(f.qrRaw)))) await db.mlFlexShipment.update({ where: { shipmentId }, data: { qrRaw: qr } });
+  }
   await db.mlFlexShipment.updateMany({ where: { shipmentId, orderId: null }, data: { orderId, scannedAt: new Date() } });
-  if (qr) await db.mlFlexShipment.updateMany({ where: { shipmentId, qrRaw: null }, data: { qrRaw: qr } });
 }
 
 /**
@@ -357,7 +383,7 @@ export type GuiaData = {
 
 /**
  * Datos de la guía de un envío ML. Si la cuenta está conectada se refrescan de la API antes de
- * armarla; si falta el QR con hash y `fetchQr` es true se pide la etiqueta a ML (si el vendedor no
+ * armarla; si no hay QR escaneado y `fetchQr` es true se pide la etiqueta a ML (si el vendedor no
  * la había impreso, ML la marca como impresa).
  */
 export async function guiaData(prisma: PrismaClient, shipmentId: bigint, opts: { refresh?: boolean; fetchQr?: boolean; fetchImpl?: Fetch } = {}): Promise<GuiaData | null> {
@@ -374,7 +400,7 @@ export async function guiaData(prisma: PrismaClient, shipmentId: bigint, opts: {
     await captureShipment(prisma, accountId, shipmentId, fetchImpl).catch(() => null);
     [cap, order] = await load();
   }
-  let qrRaw = [order?.mlQrRaw, cap?.qrRaw].find((q) => isFullMlQr(q)) ?? null;
+  let qrRaw = bestMlQr(order?.mlQrRaw, cap?.qrRaw);
   if (!qrRaw && opts.fetchQr && accountId) {
     const token = await mlAccessToken(prisma, accountId, fetchImpl).catch(() => null);
     qrRaw = token ? await fetchLabelQr(token, shipmentId, fetchImpl).catch(() => null) : null;

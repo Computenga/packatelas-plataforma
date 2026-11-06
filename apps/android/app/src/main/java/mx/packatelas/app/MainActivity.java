@@ -11,7 +11,14 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.CancellationSignal;
 import android.os.Environment;
+import android.os.ParcelFileDescriptor;
+import android.print.PageRange;
+import android.print.PrintAttributes;
+import android.print.PrintDocumentAdapter;
+import android.print.PrintDocumentInfo;
+import android.print.PrintManager;
 import android.provider.MediaStore;
 import android.webkit.CookieManager;
 import android.webkit.GeolocationPermissions;
@@ -27,6 +34,13 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -203,6 +217,16 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public String version() {
             return BuildConfig.VERSION_NAME;
+        }
+
+        /** Imprimir la página actual (etiquetas, recibos, QR de motos): diálogo de impresión de Android. */
+        @JavascriptInterface
+        public void print(String title) {
+            runOnUiThread(() -> {
+                String name = title == null || title.isEmpty() ? "Packatelas" : title;
+                PrintManager pm = getSystemService(PrintManager.class);
+                if (pm != null) pm.print(name, web.createPrintDocumentAdapter(name), new PrintAttributes.Builder().build());
+            });
         }
 
         /** Buscar actualización ahora (botón en la web). */
@@ -408,6 +432,11 @@ public class MainActivity extends Activity {
     // ——— Descargas (CSV, recibos, documentos) con la sesión ———
 
     private void download(String url, String ua, String disposition, String mime) {
+        // Los PDF de la plataforma (guías, recibos) van directo a imprimir: el WebView no los muestra.
+        if ("application/pdf".equalsIgnoreCase(mime) && Api.isInternal(Uri.parse(url))) {
+            printPdf(url, ua, URLUtil.guessFileName(url, disposition, mime));
+            return;
+        }
         try {
             DownloadManager.Request r = new DownloadManager.Request(Uri.parse(url));
             String cookie = CookieManager.getInstance().getCookie(url);
@@ -423,6 +452,66 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Descargando " + name, Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "No se pudo descargar", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    /** Descarga el PDF con la sesión del usuario y abre el diálogo de impresión (o guardar como PDF). */
+    private void printPdf(String url, String ua, String name) {
+        Toast.makeText(this, "Preparando " + name + "…", Toast.LENGTH_SHORT).show();
+        new Thread(() -> {
+            File f = new File(getCacheDir(), "imprimir.pdf");
+            try {
+                HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                String cookie = CookieManager.getInstance().getCookie(url);
+                if (cookie != null) c.setRequestProperty("Cookie", cookie);
+                c.setRequestProperty("User-Agent", ua);
+                c.setConnectTimeout(20_000);
+                c.setReadTimeout(60_000);
+                if (c.getResponseCode() != 200) throw new Exception("HTTP " + c.getResponseCode());
+                try (InputStream in = c.getInputStream(); OutputStream out = new FileOutputStream(f)) {
+                    byte[] buf = new byte[16384];
+                    int n;
+                    while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                }
+                runOnUiThread(() -> {
+                    PrintManager pm = getSystemService(PrintManager.class);
+                    if (pm != null) pm.print(name, new PdfAdapter(f, name), new PrintAttributes.Builder().build());
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> Toast.makeText(this, "No se pudo abrir el PDF", Toast.LENGTH_LONG).show());
+            }
+        }).start();
+    }
+
+    /** Pasa un PDF ya hecho al sistema de impresión tal cual (sin volver a maquetarlo). */
+    static final class PdfAdapter extends PrintDocumentAdapter {
+        private final File file;
+        private final String name;
+
+        PdfAdapter(File file, String name) {
+            this.file = file;
+            this.name = name;
+        }
+
+        @Override
+        public void onLayout(PrintAttributes oldA, PrintAttributes newA, CancellationSignal cancel, LayoutResultCallback cb, Bundle extras) {
+            if (cancel.isCanceled()) {
+                cb.onLayoutCancelled();
+                return;
+            }
+            cb.onLayoutFinished(new PrintDocumentInfo.Builder(name).setContentType(PrintDocumentInfo.CONTENT_TYPE_DOCUMENT).build(), true);
+        }
+
+        @Override
+        public void onWrite(PageRange[] pages, ParcelFileDescriptor dest, CancellationSignal cancel, WriteResultCallback cb) {
+            try (InputStream in = new FileInputStream(file); OutputStream out = new FileOutputStream(dest.getFileDescriptor())) {
+                byte[] buf = new byte[16384];
+                int n;
+                while ((n = in.read(buf)) > 0) out.write(buf, 0, n);
+                cb.onWriteFinished(new PageRange[]{PageRange.ALL_PAGES});
+            } catch (Exception e) {
+                cb.onWriteFailed(e.getMessage());
+            }
         }
     }
 

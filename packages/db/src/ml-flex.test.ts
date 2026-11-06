@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { deflateRawSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { captureShipment, encryptSecret, firstFileFromZip, isFullMlQr, prisma, qrFromZpl, registerScan, sweepFlexShipments } from "./index.ts";
+import { bestMlQr, captureShipment, encryptSecret, firstFileFromZip, isFullMlQr, isMlLabelQr, prisma, qrFromZpl, registerScan, sweepFlexShipments } from "./index.ts";
 
 process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
 process.env.ML_CLIENT_ID = "123";
@@ -80,6 +80,12 @@ describe("QR de la etiqueta", () => {
     expect(isFullMlQr(JSON.stringify({ id: String(FLEX), sender_id: seller }))).toBe(false);
     // Como llega de la API de ML: hash en null → no sirve para la guía.
     expect(isFullMlQr(JSON.stringify({ id: String(FLEX), sender_id: seller, hash_code: null, security_digit: null }))).toBe(false);
+    // Pero sí es QR de etiqueta: se guarda tal cual al escanearlo y sirve para reimprimir.
+    const sinHash = JSON.stringify({ id: String(FLEX), sender_id: seller, hash_code: null, security_digit: null });
+    expect(isMlLabelQr(sinHash)).toBe(true);
+    expect(isMlLabelQr(String(FLEX))).toBe(false);
+    expect(bestMlQr(sinHash, QR(FLEX))).toBe(QR(FLEX));
+    expect(bestMlQr(null, sinHash)).toBe(sinHash);
   });
 });
 
@@ -112,6 +118,9 @@ describe("Recuperados", () => {
     expect(row.qrRaw).toBe(QR(FLEX2));
     // Una lectura de PDA (solo número) no borra el QR guardado.
     await registerScan(prisma, { raw: String(FLEX2) });
+    expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).mlQrRaw).toBe(QR(FLEX2));
+    // Tampoco lo reemplaza un QR sin hash.
+    await registerScan(prisma, { raw: JSON.stringify({ id: String(FLEX2), sender_id: seller, hash_code: null }) });
     expect((await prisma.order.findUniqueOrThrow({ where: { id: order.id } })).mlQrRaw).toBe(QR(FLEX2));
   });
 

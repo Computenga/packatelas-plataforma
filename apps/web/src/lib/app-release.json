@@ -1,5 +1,5 @@
 {
-  "versionCode": 7,
-  "versionName": "1.6",
-  "notes": "El menú de abajo y el encabezado ya no quedan tapados por las barras del teléfono."
+  "versionCode": 8,
+  "versionName": "1.7",
+  "notes": "«Reimprimir guía» y los botones de imprimir abren el diálogo de impresión del teléfono."
 }

@@ -4,7 +4,7 @@ import { chargeOrder } from "./ledger.ts";
 import { parseScan } from "./scan.ts";
 import { pickRoute } from "./ml-routes.ts";
 import { enqueueMlJob } from "./ml-api.ts";
-import { isFullMlQr, linkFlexScan } from "./ml-flex.ts";
+import { bestMlQr, linkFlexScan } from "./ml-flex.ts";
 import { enqueueWebhook } from "./client-api.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
@@ -144,7 +144,7 @@ export async function registerScan(
           branchId: route?.branchId,
           mlAccountId: account.id,
           mlShipmentId: parsed.shipmentId,
-          mlQrRaw: isFullMlQr(input.raw) ? input.raw.trim() : (known?.qrRaw ?? null),
+          mlQrRaw: bestMlQr(input.raw, known?.qrRaw),
           ...fromKnown,
         },
       });

@@ -5,7 +5,7 @@ import { guiaPdf } from "@/lib/guia-pdf";
 
 /**
  * Reimpresión de la guía de un envío ML en PDF 4×6 [Recuperados]. Personal de Packatelas: cualquier
- * envío; cliente: solo los suyos. Requiere el QR original con hash (se guarda al escanear la etiqueta).
+ * envío; cliente: solo los suyos. El QR sale del escaneo de la etiqueta o, si no hay, de la etiqueta de ML.
  */
 export async function GET(request: Request, ctx: { params: Promise<{ shipment: string }> }) {
   const user = await getSessionUser();
@@ -30,21 +30,21 @@ export async function GET(request: Request, ctx: { params: Promise<{ shipment: s
     const l = await rawMlLabel(prisma, id, "pdf");
     return l ? new Response(new Uint8Array(l.bytes), { headers: { "Content-Type": l.contentType, "Cache-Control": "no-store" } }) : new Response("Sin etiqueta", { status: 404 });
   }
-  const g = await guiaData(prisma, id);
+  // Sin QR escaneado se toma el de la etiqueta que genera ML (el mismo que imprime el vendedor).
+  const g = await guiaData(prisma, id, { fetchQr: true });
   if (!g) return new Response("No encontrado", { status: 404 });
   if (!g.qrRaw) {
     return new Response(
-      `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:system-ui;max-width:32rem;margin:3rem auto;padding:0 1rem;color:#0f1e4a">
-<h1 style="font-size:1.2rem">Aún no tenemos el QR original del envío ${g.shipmentId}</h1>
-<p>El QR de la guía lleva un código de seguridad (hash) que MercadoLibre <strong>no entrega por su API</strong>: solo viene en la etiqueta que imprime el vendedor.</p>
-<p>Se guarda en cuanto un repartidor o la bodega escanea esa etiqueta con la cámara o el lector. Después de eso ya se puede reimprimir aquí con el mismo QR.</p>
-<p>No generamos guías con el hash vacío porque la app de MercadoLibre Flex no las acepta.</p></body>`,
+      `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><body style="font-family:system-ui;max-width:32rem;margin:3rem auto;padding:0 1rem;color:#0e1b33">
+<h1 style="font-size:1.2rem">No pudimos obtener la guía del envío ${g.shipmentId}</h1>
+<p>MercadoLibre no entregó la etiqueta de este envío (puede estar cancelado, entregado hace tiempo o la cuenta del vendedor desconectada).</p>
+<p>Escanea la etiqueta original con la cámara o el lector y vuelve a intentarlo.</p></body>`,
       { status: 409, headers: { "Content-Type": "text/html; charset=utf-8" } },
     );
   }
   const pdf = await guiaPdf(g);
   await audit(prisma, { actorUserId: user.id, action: "guia.reprinted", entity: "MlShipment", entityId: g.shipmentId, summary: `Reimprimió la guía ${g.shipmentId}` }).catch(() => {});
   return new Response(Buffer.from(pdf), {
-    headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="guia-${g.shipmentId}.pdf"`, "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/pdf", "Content-Disposition": `${/PackatelasAndroid/.test(request.headers.get("user-agent") ?? "") ? "attachment" : "inline"}; filename="guia-${g.shipmentId}.pdf"`, "Cache-Control": "no-store" },
   });
 }

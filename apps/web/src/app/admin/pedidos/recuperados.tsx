@@ -98,10 +98,10 @@ export async function RecuperadosList({ f, clients }: { f: OrderFilters; clients
               {r.zip && <span className="block text-xs text-slate-500">CP {r.zip} · {r.city}</span>}
             </Td>
             <Td>
-              {r.qrRaw ? (
+              {r.qrRaw || r.mlSubstatus === "printed" ? (
                 <a href={`/guia/${r.shipmentId}`} target="_blank" rel="noopener" className="text-brand hover:underline">Reimprimir</a>
               ) : (
-                <span className="text-xs text-slate-500">Se habilita al escanear la etiqueta</span>
+                <span className="text-xs text-slate-500">Cuando el vendedor la imprima</span>
               )}
             </Td>
           </tr>
