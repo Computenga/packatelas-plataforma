@@ -254,3 +254,73 @@ export async function keepAutoEmployee(prisma: PrismaClient, autoId: string, act
   await prisma.employee.update({ where: { id: autoId }, data: { notes: (e.notes ?? "").replace(AUTO_NOTE, "Alta automática (revisada: es otra persona).") } });
   await audit(prisma, { actorUserId, action: "employee.auto_confirmed", entity: "Employee", entityId: autoId, summary: `Empleado #${e.employeeNo}: confirmado como persona distinta` });
 }
+
+/**
+ * Misma persona con varios expedientes: `keepEmployeeId` se queda (con el usuario `keepUserId`) y
+ * recibe las checadas, justificaciones, documentos, recibos, cargos y registros de flotilla de los
+ * demás. Los que sobran: si son altas automáticas vacías se borran; si no, quedan de baja como
+ * «duplicado». Los otros usuarios se desactivan.
+ */
+export async function mergeEmployees(prisma: PrismaClient, input: { keepEmployeeId: string; dropEmployeeIds: string[]; keepUserId: string | null }, actorUserId: string) {
+  const ids = [...new Set(input.dropEmployeeIds)].filter((x) => x !== input.keepEmployeeId);
+  if (!ids.length) throw new Error("Elige qué número(s) se quitan");
+  const all = await prisma.employee.findMany({
+    where: { id: { in: [input.keepEmployeeId, ...ids] } },
+    select: { id: true, employeeNo: true, name: true, userId: true, notes: true, _count: { select: { punches: true, employeeDocuments: true, payroll: true } } },
+  });
+  const keep = all.find((e) => e.id === input.keepEmployeeId);
+  if (!keep || all.length !== ids.length + 1) throw new Error("Algún empleado ya no existe; recarga");
+  const users = all.map((e) => e.userId).filter((u): u is string => !!u);
+  if (input.keepUserId && !users.includes(input.keepUserId)) throw new Error("El usuario elegido no es de estos expedientes");
+  const keepUser = input.keepUserId ?? keep.userId;
+  const drops = all.filter((e) => e.id !== keep.id);
+
+  await prisma.$transaction(async (tx) => {
+    // El usuario que se queda se libera de su expediente actual para ligarlo al que se queda.
+    await tx.employee.updateMany({ where: { id: { in: ids } }, data: { userId: null } });
+    for (const d of drops) {
+      // Checadas: las que caen en el mismo instante ya existen en el que se queda.
+      const punches = await tx.punch.findMany({ where: { employeeId: d.id }, select: { id: true, at: true } });
+      for (const p of punches) {
+        const clash = await tx.punch.findUnique({ where: { employeeId_at: { employeeId: keep.id, at: p.at } }, select: { id: true } });
+        if (clash) await tx.punch.delete({ where: { id: p.id } });
+        else await tx.punch.update({ where: { id: p.id }, data: { employeeId: keep.id } });
+      }
+      const receipts = await tx.payrollReceipt.findMany({ where: { employeeId: d.id }, select: { id: true, quincena: true } });
+      for (const r of receipts) {
+        const clash = await tx.payrollReceipt.findUnique({ where: { employeeId_quincena: { employeeId: keep.id, quincena: r.quincena } }, select: { id: true } });
+        if (!clash) await tx.payrollReceipt.update({ where: { id: r.id }, data: { employeeId: keep.id } });
+      }
+      await tx.justification.updateMany({ where: { employeeId: d.id }, data: { employeeId: keep.id } });
+      await tx.employeeDocument.updateMany({ where: { employeeId: d.id }, data: { employeeId: keep.id } });
+      await tx.employeeCharge.updateMany({ where: { employeeId: d.id }, data: { employeeId: keep.id } });
+      await tx.vehicleCheck.updateMany({ where: { employeeId: d.id }, data: { employeeId: keep.id } });
+      await tx.fuelLoad.updateMany({ where: { employeeId: d.id }, data: { employeeId: keep.id } });
+      await tx.fault.updateMany({ where: { reportedById: d.id }, data: { reportedById: keep.id } });
+      await tx.fault.updateMany({ where: { responsibleId: d.id }, data: { responsibleId: keep.id } });
+      await tx.repair.updateMany({ where: { responsibleId: d.id }, data: { responsibleId: keep.id } });
+      const left = await tx.payrollReceipt.count({ where: { employeeId: d.id } });
+      const empty = d.notes?.startsWith(AUTO_NOTE) && d._count.punches + d._count.employeeDocuments + d._count.payroll === 0 && !left;
+      if (empty) {
+        await tx.hireApplication.updateMany({ where: { employeeId: d.id }, data: { employeeId: null } });
+        await tx.employee.delete({ where: { id: d.id } });
+      } else {
+        await tx.employee.update({
+          where: { id: d.id },
+          data: { status: "BAJA", endDate: new Date(), notes: `Duplicado: es la misma persona que el #${keep.employeeNo}; su historial pasó a ese número.${d.notes ? ` ${d.notes}` : ""}`.slice(0, 1000) },
+        });
+      }
+    }
+    await tx.employee.update({ where: { id: keep.id }, data: { userId: keepUser, status: "ACTIVO", endDate: null, kind: "repartidor" } });
+    for (const u of users.filter((x) => x !== keepUser)) {
+      await tx.user.update({ where: { id: u }, data: { active: false } });
+      await tx.driver.updateMany({ where: { userId: u }, data: { active: false, onDuty: false } });
+      await tx.session.deleteMany({ where: { userId: u } });
+    }
+  });
+  await audit(prisma, {
+    actorUserId, action: "employee.merged", entity: "Employee", entityId: keep.id,
+    summary: `Misma persona: se queda el #${keep.employeeNo} ${keep.name}; se quitaron ${drops.map((d) => `#${d.employeeNo}`).join(", ")}; usuarios desactivados: ${users.filter((x) => x !== keepUser).length}`,
+  });
+  return { kept: keep.employeeNo, dropped: drops.map((d) => d.employeeNo) };
+}

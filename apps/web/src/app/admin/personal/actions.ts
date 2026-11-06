@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
-  audit, hashPassword, importEmployees, offboardEmployee, rehireEmployee, importPunches, normalizePunchKind, parseClock, parseWorkdays, prisma, Prisma,
+  mergeEmployees, audit, hashPassword, importEmployees, offboardEmployee, rehireEmployee, importPunches, normalizePunchKind, parseClock, parseWorkdays, prisma, Prisma,
 } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { parseEmployees, parsePunches } from "@/lib/personnel-import";
@@ -147,4 +147,30 @@ export async function rehireAction(id: string, _: ActionState, fd: FormData): Pr
   }
   revalidatePath(`/admin/personal/${id}`);
   return { ok: "Reingreso registrado; su acceso volvió a quedar activo." };
+}
+
+/** Misma persona con otro(s) expediente(s): este se queda y recibe su historial. */
+export async function mergeEmployeesAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const admin = await requireUser(["ADMIN"]);
+  const nums = String(fd.get("numbers") ?? "").split(/[^0-9]+/).filter(Boolean).map(Number);
+  if (!nums.length) return { error: "Escribe los números que se quitan (ej. 109, 116)" };
+  const drops = await prisma.employee.findMany({ where: { employeeNo: { in: nums } }, select: { id: true, employeeNo: true } });
+  const missing = nums.filter((n) => !drops.some((d) => d.employeeNo === n));
+  if (missing.length) return { error: `No existe el #${missing.join(", #")}` };
+  const username = String(fd.get("username") ?? "").trim().toLowerCase();
+  let keepUserId: string | null = null;
+  if (username) {
+    const u = await prisma.user.findUnique({ where: { username }, select: { id: true } });
+    if (!u) return { error: `No existe el usuario ${username}` };
+    keepUserId = u.id;
+  }
+  try {
+    const r = await mergeEmployees(prisma, { keepEmployeeId: id, dropEmployeeIds: drops.map((d) => d.id), keepUserId }, admin.id);
+    revalidatePath("/admin/personal");
+    revalidatePath(`/admin/personal/${id}`);
+    revalidatePath("/admin/repartidores");
+    return { ok: `Listo: queda el #${r.kept}; se quitaron #${r.dropped.join(", #")}` };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo fusionar" };
+  }
 }

@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, describe, expect, it } from "vitest";
-import { driverDuplicateCases, ensureDriverEmployee, mergeDriverDuplicate, missingEmployeeData, nextEmployeeNo, prisma, reconcileAutoEmployees, sameName } from "./index.ts";
+import { mergeEmployees, driverDuplicateCases, ensureDriverEmployee, mergeDriverDuplicate, missingEmployeeData, nextEmployeeNo, prisma, reconcileAutoEmployees, sameName } from "./index.ts";
 
 const tag = String(Date.now()).slice(-7);
 const users: string[] = [];
@@ -75,5 +75,21 @@ describe("repartidor → empleado", () => {
     await mergeDriverDuplicate(prisma, { autoId: cases[0].autoId, employeeId: oldEmp.id, keepUserId: dupUser }, admin);
     expect((await prisma.employee.findUniqueOrThrow({ where: { id: oldEmp.id } })).userId).toBe(dupUser);
     expect((await prisma.user.findUniqueOrThrow({ where: { id: old } })).active).toBe(false);
+  });
+
+  it("fusiona expedientes de la misma persona conservando checadas", async () => {
+    const admin = (await prisma.user.findFirstOrThrow({ where: { role: "ADMIN" }, select: { id: true } })).id;
+    const u1 = await mkDriver(`Gabinox${tag} Emiliano`);
+    const keep = await prisma.employee.create({ data: { employeeNo: 885000 + Number(tag.slice(-3)), name: `Gabinox${tag} Emiliano Bonilla`, status: "BAJA" } });
+    const oldBaja = await prisma.employee.create({ data: { employeeNo: 886000 + Number(tag.slice(-3)), name: `Gabinox${tag} Emiliano Bonilla`, status: "BAJA", punches: { create: { at: new Date("2026-01-05T15:00:00Z") } } } });
+    const auto = await prisma.employee.create({ data: { employeeNo: 887000 + Number(tag.slice(-3)), name: `Gabinox${tag} Emiliano`, userId: u1, notes: "Alta automática al crear su usuario de repartidor. Falta registrar su huella en el checador." } });
+    emps.push(keep.id, oldBaja.id, auto.id);
+    const r = await mergeEmployees(prisma, { keepEmployeeId: keep.id, dropEmployeeIds: [oldBaja.id, auto.id], keepUserId: u1 }, admin);
+    expect(r.dropped).toHaveLength(2);
+    const k = await prisma.employee.findUniqueOrThrow({ where: { id: keep.id }, include: { _count: { select: { punches: true } } } });
+    expect(k).toMatchObject({ userId: u1, status: "ACTIVO" });
+    expect(k._count.punches).toBe(1);
+    expect(await prisma.employee.findUnique({ where: { id: auto.id } })).toBeNull();
+    expect((await prisma.employee.findUniqueOrThrow({ where: { id: oldBaja.id } })).notes).toMatch(/Duplicado/);
   });
 });

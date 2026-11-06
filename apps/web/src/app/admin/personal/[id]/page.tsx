@@ -9,7 +9,7 @@ import { Badge, Card, Field, PageHeader, Select } from "@/components/ui";
 import { EmployeeForm } from "../employee-form";
 import { DocListAdmin } from "@/components/doc-list-admin";
 import { DocUploader } from "@/components/doc-uploader";
-import { linkUserAction, offboardAction, rehireAction, updateEmployee } from "../actions";
+import { linkUserAction, mergeEmployeesAction, offboardAction, rehireAction, updateEmployee } from "../actions";
 
 export const metadata: Metadata = { title: "Empleado" };
 const today = () => ymdMx(new Date());
@@ -95,6 +95,13 @@ export default async function EmpleadoPage({ params }: PageProps<"/admin/persona
           </ActionForm>
         </Card>
       )}
+      <Card title="Misma persona que otro expediente">
+        <ActionForm action={mergeEmployeesAction.bind(null, e.id)} submitLabel={`Fusionar en el #${e.employeeNo}`}>
+          <p className="text-sm text-slate-600">Este expediente (#{e.employeeNo}) se queda y recibe las checadas, documentos, recibos y registros de los números que escribas. Esos números quedan de baja como duplicados (o se borran si eran altas automáticas vacías) y sus otros usuarios se desactivan.</p>
+          <Field label="Números que se quitan" name="numbers" required placeholder="ej. 109, 116" />
+          <Field label="Usuario que se queda (vacío = el de este expediente)" name="username" placeholder={e.user?.username ?? "usuario"} />
+        </ActionForm>
+      </Card>
     </div>
   );
 }
