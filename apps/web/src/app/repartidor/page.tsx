@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { packagesToReturn, prisma } from "@packatelas/db";
+import { missingEmployeeData, packagesToReturn, prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { fecha, startOfTodayMx } from "@/lib/format";
 import { ShiftButton } from "./shift-button";
@@ -16,7 +16,7 @@ export default async function RepartidorHome() {
   }
   const today = startOfTodayMx();
   // Resumen del día [R12]: lo que cerró él hoy (aunque lo haya enviado sin señal).
-  const [toReturn, dayEvents, inRoute, pickupsDone, flexLinked] = await Promise.all([
+  const [toReturn, dayEvents, inRoute, pickupsDone, flexLinked, emp] = await Promise.all([
     packagesToReturn(prisma, driver.id),
     prisma.orderEvent.groupBy({
       by: ["type"],
@@ -30,13 +30,20 @@ export default async function RepartidorHome() {
       _sum: { collectedCount: true },
     }),
     prisma.flexIdentity.count({ where: { driverId: driver.id } }),
+    prisma.employee.findUnique({ where: { userId: user.id }, select: { rfc: true, curp: true, nss: true, address: true, clabe: true, emergency: true, phone: true } }),
   ]);
+  const missingData = emp ? missingEmployeeData(emp) : [];
   const delivered = dayEvents.find((e) => e.type === "delivered")?._count._all ?? 0;
   const failedToday = dayEvents.find((e) => e.type === "failed")?._count._all ?? 0;
   const done = delivered + failedToday;
 
   return (
     <div>
+      {missingData.length > 0 && (
+        <Link href="/repartidor/perfil#expediente" className="mb-4 block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+          <strong>Completa tus datos de expediente</strong>: te falta {missingData.join(", ")}. Toca para llenarlos →
+        </Link>
+      )}
       {flexLinked === 0 && (
         <Link href="/repartidor/perfil" className="mb-4 block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
           <strong>Vincula tu Mercado Libre Flex</strong> (una sola vez): escanea aquí un paquete que ya tomaste en Flex y se te asignarán solos. Toca para hacerlo →

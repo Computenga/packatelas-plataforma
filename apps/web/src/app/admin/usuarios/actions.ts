@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { audit, hashPassword, prisma, Prisma } from "@packatelas/db";
+import { audit, hashPassword, prisma, Prisma, ensureDriverEmployee, notifyDriverData } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import type { ActionState } from "@/components/action-form";
 
@@ -21,6 +21,7 @@ export async function createUser(_: ActionState, fd: FormData): Promise<ActionSt
   const parsed = createSchema.safeParse(Object.fromEntries(fd));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const d = parsed.data;
+  let created = "";
   try {
     const user = await prisma.user.create({
       data: {
@@ -32,13 +33,20 @@ export async function createUser(_: ActionState, fd: FormData): Promise<ActionSt
       },
     });
     await audit(prisma, { actorUserId: admin.id, action: "user.created", entity: "User", entityId: user.id, summary: `Usuario ${d.username} (${d.role}) creado` });
+    if (d.role === "REPARTIDOR") {
+      // Su empleado (expediente y número del checador) se vincula o se crea al momento.
+      const r = await ensureDriverEmployee(prisma, user.id, admin.id).catch(() => null);
+      if (r?.status === "created") created = ` Empleado #${r.employeeNo} creado: regístrale su huella en el checador con ese número.`;
+      if (r?.status === "linked") created = ` Vinculado al empleado #${r.employeeNo} ${r.name} (coincide por ${r.by}).`;
+      if (r) await notifyDriverData(prisma, user.id).catch(() => null);
+    }
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { error: "Ese usuario ya existe" };
     throw e;
   }
   revalidatePath("/admin/usuarios");
   revalidatePath("/admin/repartidores");
-  return { ok: `Usuario ${d.username} creado` };
+  return { ok: `Usuario ${d.username} creado.${created}` };
 }
 
 export async function resetPassword(userId: string, _: ActionState, fd: FormData): Promise<ActionState> {

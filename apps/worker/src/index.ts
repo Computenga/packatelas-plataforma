@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { requeueStaleMlOrders, closeStaleShifts, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { syncDriverEmployees, requeueStaleMlOrders, closeStaleShifts, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -119,6 +119,20 @@ function startMlRefresh() {
   };
   setTimeout(run, 90_000);
   setInterval(run, 10 * 60_000);
+}
+
+/** Cada 15 min (y al arrancar): todo repartidor tiene su empleado (vincula o crea con el siguiente número). */
+function startDriverEmployees() {
+  const run = async () => {
+    try {
+      const r = await syncDriverEmployees(prisma);
+      if (r.created.length || r.linked.length) console.log(`[worker] Repartidores → empleados: ${r.created.length} creados, ${r.linked.length} vinculados`);
+    } catch (e) {
+      console.error("[worker] Repartidores → empleados:", e instanceof Error ? e.message : e);
+    }
+  };
+  setTimeout(run, 45_000);
+  setInterval(run, 15 * 60_000);
 }
 
 /** Webhooks de estado a sistemas de clientes [I08], cada 15 s. */
@@ -422,6 +436,7 @@ async function main() {
   startClientPush();
   startMlSync();
   startMlRefresh();
+  startDriverEmployees();
   startNotifier();
   startBackups();
   startWebhooks();

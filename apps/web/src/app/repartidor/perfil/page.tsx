@@ -7,6 +7,7 @@ import { ActionForm } from "@/components/action-form";
 import { PhotoForm } from "./photo-form";
 import { updatePhone } from "./actions";
 import { FlexLink } from "./flex-link";
+import { MyData } from "@/components/my-data";
 
 export const metadata: Metadata = { title: "Mi perfil" };
 
@@ -23,6 +24,7 @@ export default async function PerfilPage() {
         <Link href="/ayuda/repartidor" className="text-sm font-medium text-brand">📖 Manual de uso</Link>
       </div>
       <p className="text-sm text-slate-600">Cuando vas en camino a una recolección, la tienda ve tu nombre, tu foto y tu teléfono en el enlace de seguimiento.</p>
+      <MyData userId={user.id} />
       <Card title="Mercado Libre Flex">
         {flex.length > 0 && (
           <p className="mb-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
