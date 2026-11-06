@@ -7,7 +7,8 @@ export async function scanAction(raw: string, branchHint?: string): Promise<Scan
   const user = await requireUser(["ADMIN", "OPERADOR"]);
   if (typeof raw !== "string" || raw.length > 2000) return { status: "invalid", message: "Lectura inválida" };
   const hint = typeof branchHint === "string" && branchHint.length < 40 ? branchHint : undefined;
-  return registerScan(prisma, { raw, actorUserId: user.id, source: "SCAN", branchHint: hint });
+  // El administrador liga al vendedor en el momento; operación lo registra en «ML por identificar».
+  return registerScan(prisma, { raw, actorUserId: user.id, source: "SCAN", branchHint: hint, allowUnknown: user.role !== "ADMIN" });
 }
 
 /** Cuenta ML desconocida al escanear: el administrador la liga a su cliente y se registra el envío. */

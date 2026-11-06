@@ -24,6 +24,8 @@ export type Stop = {
   etaMin?: number | null;
   /** Mercado Libre ya lo marcó entregado y aquí falta la evidencia. */
   mlDelivered?: boolean;
+  /** Tienda sin ML autorizado: falta la dirección (se escribe de la etiqueta). */
+  pendingAddress?: boolean;
 };
 
 /** Distancia en metros entre dos puntos. */
@@ -195,12 +197,14 @@ export function RouteList() {
                   {s.mlDelivered && <span className="mr-1 rounded bg-red-100 px-1 font-semibold text-red-800">ENTREGADO EN ML · FALTA FOTO</span>}
                   {s.id === nearId && <span className="mr-1 rounded bg-emerald-100 px-1 font-semibold text-emerald-800">ESTÁS AQUÍ</span>}
                   {s.kind === "RETURN" && <span className="mr-1 rounded bg-amber-100 px-1 font-semibold text-amber-800">DEVOLUCIÓN</span>}
+                  {s.pendingAddress && <span className="mr-1 rounded bg-amber-100 px-1 font-semibold text-amber-800">SIN DIRECCIÓN</span>}
                   <span className="font-mono">{s.code}</span> · {s.client}
                   {s.etaMin != null && <span className="ml-1 text-slate-600">· ~{s.etaMin} min</span>}
                   {s.status === "ASSIGNED" && !loadedIds.has(s.id) && <span className="ml-1 text-amber-700">· falta escanear al cargar</span>}
                 </span>
               </span>
             </button>
+            {open === s.id && s.pendingAddress && <AddressCapture stop={s} />}
             {open === s.id && <StopActions stop={s} onDone={() => closeStop(s.id)} />}
           </li>
         ))}
@@ -211,6 +215,36 @@ export function RouteList() {
         </p>
       )}
     </section>
+  );
+}
+
+/** Tienda sin ML autorizado: el repartidor escribe la dirección de la etiqueta para ubicarlo en su ruta. */
+function AddressCapture({ stop }: { stop: Stop }) {
+  const [address, setAddress] = useState("");
+  const [recipient, setRecipient] = useState(stop.recipient ?? "");
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    setSaving(true);
+    try {
+      const r = await fetch("/api/driver/address", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ orderId: stop.id, address, recipient }) });
+      const j = (await r.json().catch(() => ({}))) as { error?: string; located?: boolean };
+      setMsg(r.ok ? { ok: true, text: j.located ? "Dirección guardada y ubicada en el mapa. Actualiza tu ruta." : "Dirección guardada (no se pudo ubicar en el mapa; revisa que esté completa)." } : { ok: false, text: j.error ?? "No se pudo guardar" });
+    } catch {
+      setMsg({ ok: false, text: "Sin conexión; intenta de nuevo" });
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (msg?.ok) return <p className="mx-3 mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{msg.text}</p>;
+  return (
+    <div className="mx-3 mb-2 space-y-2 rounded-lg bg-amber-50 p-3 text-sm">
+      <p className="text-amber-900">La tienda no ha conectado su Mercado Libre: escribe lo que dice la etiqueta.</p>
+      <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Calle, número, colonia, alcaldía/municipio, CP" className="w-full rounded-lg border border-slate-300 px-3 py-2" />
+      <input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Nombre de quien recibe" className="w-full rounded-lg border border-slate-300 px-3 py-2" />
+      <button type="button" disabled={saving || address.trim().length < 8} onClick={save} className="w-full rounded-lg bg-brand py-2 font-semibold text-white disabled:opacity-50">{saving ? "Guardando…" : "Guardar dirección"}</button>
+      {msg && !msg.ok && <p className="text-red-700">{msg.text}</p>}
+    </div>
   );
 }
 

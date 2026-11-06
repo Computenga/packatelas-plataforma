@@ -79,7 +79,11 @@ export type ScanOutcome =
  */
 export async function registerScan(
   prisma: PrismaClient,
-  input: { raw: string; actorUserId?: string; source?: EventSource; /** sucursal que se está recibiendo [A02] */ branchHint?: string | null },
+  input: {
+    raw: string; actorUserId?: string; source?: EventSource; /** sucursal que se está recibiendo [A02] */ branchHint?: string | null;
+    /** Si la cuenta de ML no está ligada a ningún cliente, registrarlo igual en «ML por identificar». */
+    allowUnknown?: boolean;
+  },
 ): Promise<ScanOutcome> {
   const parsed = parseScan(input.raw);
   const source = input.source ?? "SCAN";
@@ -101,6 +105,25 @@ export async function registerScan(
     await addOrderEvent(prisma, { orderId: existing.id, type: "scanned", source, actorUserId: input.actorUserId });
     await linkFlexScan(prisma, existing.id, parsed.shipmentId, input.raw);
     return { status: "existing", orderId: existing.id, code: existing.code, clientName: existing.client.name };
+  }
+
+  // Vendedor que no está ligado a ningún cliente: se registra en la cuenta interna «ML por
+  // identificar» para que el paquete se pueda llevar y entregar; al ligar al vendedor con su
+  // cliente, sus envíos pasan a ese cliente y se le cobran.
+  if (input.allowUnknown && parsed.senderId && !(await prisma.mlAccount.findUnique({ where: { mlUserId: parsed.senderId }, select: { id: true } }))) {
+    const { unlinkedMlClient } = await import("./ml-unlinked.ts");
+    const holder = await unlinkedMlClient(prisma);
+    await prisma.mlAccount.upsert({
+      where: { mlUserId: parsed.senderId },
+      update: {},
+      create: { mlUserId: parsed.senderId, nickname: `Vendedor ${parsed.senderId}`, clientId: holder.id, status: "TOKEN_EXPIRED" },
+    });
+    const { adminUserIds, sendPush } = await import("./push.ts");
+    await sendPush(prisma, await adminUserIds(prisma), {
+      title: "Paquete de un vendedor de ML sin ligar",
+      body: `Envío ${parsed.shipmentId} del vendedor ${parsed.senderId}: quedó en «ML por identificar». Liga al vendedor con su cliente (Clientes → Importar cuentas ML) para que se le cobre.`,
+      url: "/admin/clientes/importar-ml", tag: `ml-unknown-${parsed.senderId}`,
+    }).catch(() => null);
   }
 
   const account = parsed.senderId

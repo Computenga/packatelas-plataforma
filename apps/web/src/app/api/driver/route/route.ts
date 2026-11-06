@@ -1,4 +1,4 @@
-import { IN_ROUTE, orderStops, prisma } from "@packatelas/db";
+import { IN_ROUTE, ML_PENDING_ADDRESS, orderStops, prisma } from "@packatelas/db";
 import { getDriverSession, unauthorized } from "@/lib/driver-api";
 
 /** Pedidos en ruta del repartidor, ordenados desde su ubicación actual [R02]. */
@@ -29,7 +29,9 @@ export async function GET(request: Request) {
       client: o.client.name,
       recipient: o.recipientName,
       phone: o.recipientPhone,
-      address: [o.addressLine, o.neighborhood, o.city].filter(Boolean).join(", "),
+      /** Cuenta de ML sin autorizar: no hay datos del comprador; el repartidor los escribe de la etiqueta. */
+      pendingAddress: o.addressLine === ML_PENDING_ADDRESS,
+      address: o.addressLine === ML_PENDING_ADDRESS ? "Sin dirección: escríbela de la etiqueta" : [o.addressLine, o.neighborhood, o.city].filter(Boolean).join(", "),
       zip: o.zip,
       instructions: o.instructions,
       lat: o.lat,

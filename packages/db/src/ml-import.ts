@@ -1,6 +1,7 @@
 // Importar cuentas MercadoLibre → cliente desde el sistema actual [A21, A02].
 // Re-ejecutable: una cuenta ya ligada se mueve al cliente indicado; si el cliente tiene
 // sucursal activa y la cuenta no tiene ninguna, llega a la primera como predeterminada.
+import { claimUnlinkedOrders } from "./ml-unlinked.ts";
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
 import { normalizePublicId } from "./public-id.ts";
@@ -51,6 +52,8 @@ export async function importMlAccounts(prisma: PrismaClient, rows: (MlImportRow 
         create: { mlUserId, nickname: p.row.nickname || `Vendedor ${p.row.sellerId}`, clientId: client.id, status: "TOKEN_EXPIRED" },
         update: { clientId: client.id, ...(p.row.nickname ? { nickname: p.row.nickname } : {}) },
       });
+      // Envíos que se registraron en «ML por identificar» antes de ligar al vendedor.
+      await claimUnlinkedOrders(tx, acc.id, client.id, actorUserId);
       if (p.action === "mover") {
         await tx.mlAccountRoute.deleteMany({ where: { mlAccountId: acc.id } });
         moved++;

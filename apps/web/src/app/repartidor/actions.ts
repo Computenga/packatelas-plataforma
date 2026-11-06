@@ -55,7 +55,8 @@ export async function driverScan(raw: string): Promise<DriverScanResult> {
 
   if (!order && parsed.kind === "ML") {
     // Paquete ML aún no registrado: se crea con el cargo del cliente, como en bodega.
-    const r = await registerScan(prisma, { raw, actorUserId: user.id, source: "DRIVER_APP" });
+    // Aunque el vendedor no esté ligado a un cliente, se registra (en «ML por identificar») para poder llevarlo.
+    const r = await registerScan(prisma, { raw, actorUserId: user.id, source: "DRIVER_APP", allowUnknown: true });
     if (r.status === "created" || r.status === "existing") order = await prisma.order.findUnique({ where: { id: r.orderId } });
     else if (r.status === "unknown_account") return { status: "error", message: `${r.message}. Entrégalo en bodega o avisa al despachador.` };
   }

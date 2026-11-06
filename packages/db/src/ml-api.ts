@@ -2,6 +2,7 @@
 // - OAuth por cuenta de vendedor: el cliente autoriza con su cuenta ML y guardamos los tokens cifrados.
 // - Al escanear (o al llegar una notificación) se trae el envío: destinatario, dirección, pin y estado ML.
 // Todo lo de red pasa por `fetchImpl` para poder probarlo sin internet.
+import { claimUnlinkedOrders, UNLINKED_PUBLIC_ID } from "./ml-unlinked.ts";
 import { alertNotVisited, isNotVisited } from "./faltas.ts";
 import { reconcileCustody } from "./custody.ts";
 import { createHmac, timingSafeEqual } from "node:crypto";
@@ -93,7 +94,9 @@ export async function connectMlAccount(prisma: PrismaClient, input: { code: stri
   // La cuenta ya estaba registrada con otro cliente (p. ej. migrada del sistema anterior): quien
   // inició sesión en MercadoLibre es su dueño, así que se guarda la autorización donde está y se
   // avisa a administración por si hay que moverla. Nunca se mueve sola de cliente.
-  const elsewhere = existing && existing.clientId !== client.id ? existing.client : null;
+  // Si estaba en «ML por identificar» (sus paquetes se escanearon antes de ligarla), es de este cliente.
+  const fromHolder = existing?.client.publicId === UNLINKED_PUBLIC_ID;
+  const elsewhere = existing && existing.clientId !== client.id && !fromHolder ? existing.client : null;
   const tokens = {
     accessTokenEnc: encryptSecret(t.access_token),
     refreshTokenEnc: t.refresh_token ? encryptSecret(t.refresh_token) : null,
@@ -103,7 +106,10 @@ export async function connectMlAccount(prisma: PrismaClient, input: { code: stri
   };
   const nickname = me.nickname || existing?.nickname || `Vendedor ${t.user_id}`;
   const acc = existing
-    ? await prisma.mlAccount.update({ where: { id: existing.id }, data: { ...tokens, nickname } })
+    ? await prisma.mlAccount.update({
+        where: { id: existing.id },
+        data: { ...tokens, nickname, ...(fromHolder ? { clientId: client.id, routes: client.branches[0] ? { deleteMany: {}, create: { branchId: client.branches[0].id, isDefault: true } } : undefined } : {}) },
+      })
     : await prisma.mlAccount.create({
         data: { mlUserId, nickname, clientId: client.id, ...tokens, routes: client.branches[0] ? { create: { branchId: client.branches[0].id, isDefault: true } } : undefined },
       });
@@ -120,6 +126,7 @@ export async function connectMlAccount(prisma: PrismaClient, input: { code: stri
       url: `/admin/clientes/${elsewhere.id}`,
     });
   }
+  if (fromHolder) await claimUnlinkedOrders(prisma, acc.id, client.id).catch((e) => console.error("[ml] reclamar envíos", e));
   // Los envíos de esta cuenta que esperaban datos se vuelven a intentar.
   const waiting = await prisma.order.findMany({ where: { mlAccountId: acc.id, addressLine: ML_PENDING_ADDRESS, mlShipmentId: { not: null } }, select: { mlShipmentId: true }, take: 500 });
   for (const o of waiting) await enqueueMlJob(prisma, { topic: "shipments", resource: `/shipments/${o.mlShipmentId}`, mlUserId });
