@@ -9,7 +9,9 @@ type Db = PrismaClient | Prisma.TransactionClient;
 export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_bodega" | "recoleccion_asignada" | "recoleccion_en_camino" | "recoleccion_bloqueada" | "recordatorio_pago" | "bienvenida_registro" | "recoleccion_creada" | "acceso_portal" | "conectar_ml" | "invitacion_flex";
 
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
-export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[]; category?: "UTILITY" | "MARKETING"; buttons?: string[] }> = {
+export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[]; category?: "UTILITY" | "MARKETING";
+  /** Botones: enlace con el primer parámetro al final (urlParam) y respuestas rápidas. */
+  urlButton?: { text: string; url: string; example: string }; buttons?: string[] }> = {
   // Reglas de Meta: el texto no puede empezar ni terminar con una variable.
   en_camino: { label: "Envío en camino", audience: "Comprador", template: "pk_en_camino", text: "Hola {{1}}, tu pedido de {{2}} ({{3}}) ya va en camino. Puedes seguirlo aquí: {{4}} ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826", "https://nuevo.packatelas.mx/s/abc"] },
   entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_envio_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826"] },
@@ -25,8 +27,11 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   conectar_ml: { label: "Recordatorio: conectar Mercado Libre (campaña)", audience: "Tienda", template: "pk_conectar_ml", text: "Hola {{1}}, gracias por activar tu acceso al nuevo portal de Packatelas. Falta un paso: entra a portal.packatelas.mx, ve a «Conectar Mercado Libre» y autoriza tu cuenta {{2}}. Sin esto no vemos tus ventas Flex y no podemos recolectarlas a tiempo.", example: ["Ana", "cmx00151"] },
   invitacion_flex: {
     label: "Invitación a usar Flex (campaña a vendedores de ML)", audience: "Tienda", template: "pk_invitacion_flex", category: "MARKETING",
-    text: "Hola {{1}}, somos Packatelas, mensajería para envíos Flex de Mercado Libre en CDMX y Estado de México. Recolectamos en tu domicilio y entregamos el mismo día, con rastreo en vivo y foto de entrega. ¿Te gustaría que llevemos tus envíos Flex? Toca «Me interesa» y te compartimos tarifas.",
-    example: ["TIENDA_EJEMPLO"], buttons: ["Me interesa", "No me interesa"],
+    text: "Hola {{1}}, somos Packatelas, mensajería para envíos Flex de Mercado Libre en CDMX y Estado de México. Recolectamos en tu domicilio y entregamos el mismo día, con rastreo en vivo y foto de entrega. ¿Te gustaría que llevemos tus envíos Flex? Escríbenos a nuestro WhatsApp oficial 56 6427 5415 con el botón de abajo y te damos de alta con tarifas.",
+    example: ["TIENDA_EJEMPLO"],
+    // El botón abre el chat del número oficial con un mensaje que ya trae la cuenta de ML del vendedor.
+    urlButton: { text: "Escribir a Packatelas", url: "https://wa.me/525664275415?text=Hola%2C%20me%20interesa%20Flex%20con%20Packatelas.%20Mi%20cuenta%20de%20Mercado%20Libre%3A%20{{1}}", example: "https://wa.me/525664275415?text=Hola%2C%20me%20interesa%20Flex%20con%20Packatelas.%20Mi%20cuenta%20de%20Mercado%20Libre%3A%20TIENDA_EJEMPLO" },
+    buttons: ["No me interesa"],
   },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
@@ -36,8 +41,12 @@ export function whatsappTemplatePayload(event: NotifyEvent, language = "es_MX") 
   const e = NOTIFY_EVENTS[event];
   // allow_category_change: si Meta cree que la categoría no corresponde, la cambia en vez de rechazarla.
   const body = { type: "BODY" as const, text: e.text, example: { body_text: [e.example] } };
-  const components: [typeof body, ...{ type: "BUTTONS"; buttons: { type: "QUICK_REPLY"; text: string }[] }[]] = [body];
-  if (e.buttons?.length) components.push({ type: "BUTTONS", buttons: e.buttons.map((text) => ({ type: "QUICK_REPLY" as const, text })) });
+  type Button = { type: "URL"; text: string; url: string; example?: string[] } | { type: "QUICK_REPLY"; text: string };
+  const buttons: Button[] = [];
+  if (e.urlButton) buttons.push({ type: "URL", text: e.urlButton.text, url: e.urlButton.url, example: [e.urlButton.example] });
+  for (const text of e.buttons ?? []) buttons.push({ type: "QUICK_REPLY", text });
+  const components: [typeof body, ...{ type: "BUTTONS"; buttons: Button[] }[]] = [body];
+  if (buttons.length) components.push({ type: "BUTTONS", buttons });
   return { name: e.template, language, category: e.category ?? "UTILITY", allow_category_change: true, components };
 }
 
@@ -169,6 +178,16 @@ export async function sendWeeklyReminders(prisma: PrismaClient, now = new Date()
   return n;
 }
 
+/** Componentes al mandar la plantilla: cuerpo y, si tiene enlace con variable, el final del enlace. */
+export function templateSendComponents(template: string, params: string[]) {
+  const comps: Record<string, unknown>[] = params.length ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] : [];
+  const ev = Object.values(NOTIFY_EVENTS).find((x) => x.template === template);
+  if (ev?.urlButton?.url.includes("{{1}}")) {
+    comps.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: encodeURIComponent(params[0] ?? "") }] });
+  }
+  return comps;
+}
+
 export type Sender = (n: { to: string; template: string; params: string[] }) => Promise<{ ok: true; id?: string } | { ok: false; error: string; permanent?: boolean }>;
 
 /** Envía lo pendiente. Sin `sender` (sin credenciales) lo marca como omitido. */
@@ -250,7 +269,7 @@ const WA_ERROR_ES: Record<number, string> = {
 const RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 };
 
 /** Aplica los estados (entregado, leído, falló) que reporta WhatsApp por webhook. */
-export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown) {
+export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown, reply?: (to: string, text: string) => Promise<unknown>) {
   const statuses: WaStatus[] = [];
   const inbound: { from?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string } } }[] = [];
   for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[]; messages?: typeof inbound } }[] }[] })?.entry ?? [])) {
@@ -265,8 +284,15 @@ export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown)
     const t = raw.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     if (!m.from) continue;
     // Respuesta a la invitación a Flex (listado de vendedores de ML): la maneja el CRM.
-    const { handleFlexInviteReply } = await import("./ml-sellers.ts");
-    if (raw && (await handleFlexInviteReply(prisma, m.from, raw).catch(() => false))) continue;
+    const { handleFlexInviteReply, flexInviteAutoReply } = await import("./ml-sellers.ts");
+    const kind = raw ? await handleFlexInviteReply(prisma, m.from, raw).catch(() => false as const) : false;
+    if (kind) {
+      if (reply) {
+        const lead = await prisma.lead.findFirst({ where: { phoneKey: m.from.replace(/\D/g, "").slice(-10), source: "LISTA_ML" }, select: { businessName: true } });
+        await reply(m.from, flexInviteAutoReply(kind, lead?.businessName ?? "")).catch(() => null);
+      }
+      continue;
+    }
     if (/^(BAJA|STOP|ALTO|CANCELAR AVISOS)$/.test(t)) await setOptOut(prisma, m.from, true);
     else if (/^(ALTA|START)$/.test(t)) await setOptOut(prisma, m.from, false);
   }

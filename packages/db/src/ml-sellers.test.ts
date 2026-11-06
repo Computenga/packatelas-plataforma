@@ -71,3 +71,18 @@ describe("listado de vendedores de ML", () => {
     expect(await isOptedOut(prisma, `52${ph(2)}`)).toBe(true);
   });
 });
+
+describe("plantilla de invitación", () => {
+  it("lleva botón al WhatsApp oficial con la cuenta del vendedor", async () => {
+    const { whatsappTemplatePayload, templateSendComponents } = await import("./notifications.ts");
+    const p = whatsappTemplatePayload("invitacion_flex");
+    expect(JSON.stringify(p.components[1])).toContain("wa.me/525664275415");
+    const c = templateSendComponents("pk_invitacion_flex", ["MI TIENDA"]);
+    expect(c[1]).toMatchObject({ type: "button", sub_type: "url", index: "0", parameters: [{ text: "MI%20TIENDA" }] });
+    expect(templateSendComponents("pk_en_camino", ["a", "b"])).toHaveLength(1);
+  });
+  it("responde solo con el número oficial", async () => {
+    const { flexInviteAutoReply } = await import("./ml-sellers.ts");
+    expect(flexInviteAutoReply("otro", "TIENDA X")).toMatch(/56 6427 5415.*wa\.me\/525664275415/);
+  });
+});

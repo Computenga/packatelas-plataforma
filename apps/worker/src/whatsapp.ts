@@ -1,5 +1,5 @@
 // Envío por la API oficial de WhatsApp (Cloud API de Meta) con plantillas aprobadas [I04].
-import type { Sender } from "@packatelas/db";
+import { templateSendComponents, type Sender } from "@packatelas/db";
 
 export function whatsappSender(env = process.env): Sender | null {
   const token = env.WHATSAPP_TOKEN?.trim();
@@ -18,7 +18,7 @@ export function whatsappSender(env = process.env): Sender | null {
           template: {
             name: template,
             language: { code: lang },
-            components: params.length ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] : [],
+            components: templateSendComponents(template, params),
           },
         }),
         signal: AbortSignal.timeout(15_000),

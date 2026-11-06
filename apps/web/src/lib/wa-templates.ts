@@ -119,3 +119,16 @@ export async function subscribeWebhook(): Promise<{ ok: boolean; error?: string 
   const j = (await res.json().catch(() => ({}))) as { success?: boolean; error?: { message?: string } };
   return res.ok && j.success ? { ok: true } : { ok: false, error: j.error?.message ?? `HTTP ${res.status}` };
 }
+
+/** Mensaje de texto libre (solo válido dentro de las 24 h después de que la persona nos escribió). */
+export async function sendWhatsappText(to: string, text: string) {
+  const c = phoneCfg();
+  if (!c) return false;
+  const res = await fetch(`${GRAPH}/${c.phone}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text.slice(0, 4000), preview_url: true } }),
+    signal: AbortSignal.timeout(15_000),
+  });
+  return res.ok;
+}

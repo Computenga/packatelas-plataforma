@@ -179,6 +179,17 @@ export async function flexInviteStats(prisma: PrismaClient) {
   return { sent: Object.values(s).reduce((a, b) => a + b, 0), status: s, replied, interested, lost };
 }
 
+/** Número oficial de contacto (lo atiende el equipo de altas). La invitación sale de otro número que no se atiende. */
+export const OFFICIAL_WA = "525664275415";
+export const officialWaLink = (seller?: string) =>
+  `https://wa.me/${OFFICIAL_WA}?text=${encodeURIComponent(`Hola, me interesa Flex con Packatelas.${seller ? ` Mi cuenta de Mercado Libre: ${seller}` : ""}`)}`;
+
+/** Respuesta automática (dentro de la ventana de 24 h que abre la persona al escribir). */
+export function flexInviteAutoReply(kind: "si" | "no" | "otro", seller: string) {
+  if (kind === "no") return "Gracias por avisarnos. No te volveremos a escribir por este medio.";
+  return `¡Gracias! Este número solo envía avisos y no recibe mensajes. Para darte de alta y compartirte tarifas escríbenos a nuestro WhatsApp oficial 56 6427 5415: ${officialWaLink(seller)}`;
+}
+
 const NO = /^(NO ME INTERESA|NO GRACIAS|NO,? GRACIAS|NO|BAJA|STOP|ALTO)\b/;
 const YES = /^(ME INTERESA|SI|SÍ|CLARO|INFO|INFORMES|TARIFAS|COTIZA)/;
 
@@ -187,7 +198,7 @@ const YES = /^(ME INTERESA|SI|SÍ|CLARO|INFO|INFORMES|TARIFAS|COTIZA)/;
  * interesa» o BAJA → Perdido y no se le vuelve a escribir; cualquier otra cosa → Contactado. Avisa
  * a los administradores para darle seguimiento.
  */
-export async function handleFlexInviteReply(prisma: PrismaClient, from: string, text: string) {
+export async function handleFlexInviteReply(prisma: PrismaClient, from: string, text: string): Promise<false | "si" | "no" | "otro"> {
   const key = phoneKey(from);
   if (!key) return false;
   const lead = await prisma.lead.findFirst({ where: { phoneKey: key, source: "LISTA_ML" }, orderBy: { createdAt: "desc" }, select: { id: true, businessName: true, stage: true } });
@@ -197,19 +208,23 @@ export async function handleFlexInviteReply(prisma: PrismaClient, from: string, 
   const t = text.trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   await addLeadActivity(prisma, lead.id, "whatsapp", `Respondió a la invitación: «${text.trim().slice(0, 500)}»`);
   let what: string;
+  let kind: "si" | "no" | "otro";
   if (NO.test(t)) {
     await setOptOut(prisma, from, true);
     await setLeadStage(prisma, lead.id, "PERDIDO", null, { lostReason: "No le interesa (respondió a la invitación por WhatsApp)" }).catch(() => false);
     what = "no le interesa";
+    kind = "no";
   } else if (YES.test(t)) {
     if (["NUEVO", "CONTACTADO"].includes(lead.stage)) await setLeadStage(prisma, lead.id, "INTERESADO");
     await prisma.lead.update({ where: { id: lead.id }, data: { nextAction: "Mandar tarifas y agendar alta", nextActionAt: new Date() } });
     what = "¡le interesa!";
+    kind = "si";
   } else {
     if (lead.stage === "NUEVO") await setLeadStage(prisma, lead.id, "CONTACTADO");
     await prisma.lead.update({ where: { id: lead.id }, data: { nextAction: "Contestar su mensaje de WhatsApp", nextActionAt: new Date() } });
     what = "escribió";
+    kind = "otro";
   }
   await sendPush(prisma, await adminUserIds(prisma), { title: `Invitación Flex: ${lead.businessName} ${what}`, body: text.trim().slice(0, 120), url: `/admin/crm/${lead.id}`, tag: `flex-${lead.id}` }).catch(() => null);
-  return true;
+  return kind;
 }

@@ -27,7 +27,7 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
     <div className="mx-auto max-w-4xl space-y-6">
       <Link href="/admin/crm" className="text-sm text-brand hover:underline">← CRM</Link>
       <PageHeader eyebrow="CRM" title="Invitar a Flex">
-        WhatsApp a los vendedores del listado de MercadoLibre que aún no son clientes. Un solo mensaje por vendedor; quien toca «No me interesa» o responde BAJA no vuelve a recibir nada. Las respuestas mueven al prospecto en el CRM y te avisan.
+        WhatsApp a los vendedores del listado de MercadoLibre que aún no son clientes. Un solo mensaje por vendedor. El botón «Escribir a Packatelas» abre el chat del WhatsApp oficial (56 6427 5415) con su cuenta de ML ya escrita. Si alguien contesta al número de avisos, se le responde solo con el enlace al oficial; quien toca «No me interesa» o responde BAJA no vuelve a recibir nada.
       </PageHeader>
 
       <Card title="Plantilla en Meta">
@@ -61,7 +61,7 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
           </form>
         </div>
         <p className="mb-2 text-xs text-slate-500">Recomendado: lotes de 100 a 200 al día para cuidar la calificación del número en Meta. Se manda en este orden:</p>
-        {targets[0] && <p className="mb-3 rounded-lg bg-slate-50 p-3 text-xs">«{targets[0].preview}» <span className="text-slate-500">[Me interesa] [No me interesa]</span></p>}
+        {targets[0] && <p className="mb-3 rounded-lg bg-slate-50 p-3 text-xs">«{targets[0].preview}» <span className="text-slate-500">[Escribir a Packatelas → WhatsApp oficial 56 6427 5415] [No me interesa]</span></p>}
         <ul className="divide-y divide-slate-100 text-sm">
           {targets.map((t) => (
             <li key={t.leadId} className="flex flex-wrap items-center gap-2 py-1.5">

@@ -1,5 +1,5 @@
 import { applyWhatsappStatuses, prisma } from "@packatelas/db";
-import { validWebhookSignature, webhookVerifyToken } from "@/lib/wa-templates";
+import { sendWhatsappText, validWebhookSignature, webhookVerifyToken } from "@/lib/wa-templates";
 
 /** Verificación del webhook que hace Meta al configurarlo. */
 export function GET(request: Request) {
@@ -19,6 +19,6 @@ export async function POST(request: Request) {
   } catch {
     return new Response("ok");
   }
-  await applyWhatsappStatuses(prisma, body).catch((e) => console.error("[whatsapp webhook]", e instanceof Error ? e.message : e));
+  await applyWhatsappStatuses(prisma, body, sendWhatsappText).catch((e) => console.error("[whatsapp webhook]", e instanceof Error ? e.message : e));
   return new Response("ok");
 }
