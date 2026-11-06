@@ -32,6 +32,8 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
   const mine = sp.mios === "1";
   const zona = sp.zona === "cmx" || sp.zona === "emx" || sp.zona === "-" ? sp.zona : "";
   const muni = typeof sp.mun === "string" ? sp.mun : "";
+  // El listado de ML (cientos de vendedores sin contactar) no se mezcla con el embudo normal salvo que se pida.
+  const origen = sp.origen === "LISTA_ML" ? "LISTA_ML" : "";
   const now = requestTime();
   const endToday = new Date(startOfTodayMx().getTime() + 86400_000);
   const monthStart = new Date(startOfTodayMx().getTime() - 30 * 86400_000);
@@ -40,6 +42,7 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
     ...(q ? { OR: [{ businessName: { contains: q, mode: "insensitive" } }, { contactName: { contains: q, mode: "insensitive" } }, { phone: { contains: q } }, { email: { contains: q, mode: "insensitive" } }, { municipality: { contains: q, mode: "insensitive" } }] } : {}),
     ...(mine ? { ownerId: me.id } : {}),
     ...(zona === "-" ? { zone: null } : zona ? { zone: zona } : {}),
+    ...(origen ? { source: origen } : { NOT: { source: "LISTA_ML", stage: "NUEVO" } }),
   };
   const where: Prisma.LeadWhereInput = { ...base, ...(muni === "-" ? { municipality: null } : muni ? { municipality: muni } : {}) };
   // Para el filtro: alcaldías/municipios con prospectos abiertos (respetando zona y búsqueda).
@@ -61,13 +64,14 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
     if (mine) p.set("mios", "1");
     if (zona) p.set("zona", zona);
     if (muni) p.set("mun", muni);
+    if (origen) p.set("origen", origen);
     const s = p.toString();
     return `/admin/crm${s ? `?${s}` : ""}`;
   };
 
   return (
     <div className="mx-auto max-w-7xl">
-      <PageHeader eyebrow="Clientes" title="CRM" actions={<><ButtonLink href="/admin/crm/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/crm/nuevo">Nuevo prospecto</ButtonLink></>}>
+      <PageHeader eyebrow="Clientes" title="CRM" actions={<><ButtonLink href="/admin/crm/invitar-flex" variant="secondary">Invitar a Flex</ButtonLink><ButtonLink href="/admin/crm/importar" variant="secondary">Importar</ButtonLink><ButtonLink href="/admin/crm/nuevo">Nuevo prospecto</ButtonLink></>}>
         Prospectos desde que se interesan hasta que envían con regularidad. De «Dado de alta» en adelante avanza solo.
       </PageHeader>
 
@@ -91,9 +95,16 @@ export default async function CrmPage({ searchParams }: PageProps<"/admin/crm">)
         ))}
       </nav>
 
+      {origen ? (
+        <p className="mb-3 text-sm">Mostrando solo el listado de vendedores de MercadoLibre · <Link href="/admin/crm" className="text-brand hover:underline">ver todo el CRM</Link></p>
+      ) : (
+        <p className="mb-3 text-xs text-slate-500">Los vendedores del listado de ML sin contactar no aparecen aquí: <Link href="/admin/crm?origen=LISTA_ML" className="text-brand hover:underline">ver el listado</Link> o <Link href="/admin/crm/invitar-flex" className="text-brand hover:underline">invitarlos a Flex</Link>.</p>
+      )}
+
       {view !== "enfriando" && (
         <form className="mb-4 flex flex-wrap gap-2 text-sm">
           {view && <input type="hidden" name="vista" value={view} />}
+          {origen && <input type="hidden" name="origen" value={origen} />}
           <input name="q" defaultValue={q} placeholder="Negocio, contacto, teléfono, correo o alcaldía" className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2" />
           <select name="zona" defaultValue={zona} aria-label="Zona" className="rounded-lg border border-slate-300 bg-white px-2 py-2">
             <option value="">CDMX y Edomex</option>

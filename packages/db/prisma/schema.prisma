@@ -1384,6 +1384,7 @@ enum LeadSource {
   REDES
   VISITA
   MANUAL
+  LISTA_ML // listado de vendedores que comparte MercadoLibre
 }
 
 model Lead {
@@ -1400,6 +1401,8 @@ model Lead {
   monthlyVolume String?
   salesChannels String? // "Dónde vende": enlace(s) a su tienda
   notes         String?
+  mlSellerId    BigInt?        @unique // vendedor de MercadoLibre (listados de ML)
+  address       String?
   ownerId       String?
   owner         User?          @relation("LeadOwner", fields: [ownerId], references: [id])
   nextAction    String? // qué sigue ("llamar", "mandar tarifas"…)

@@ -81,6 +81,7 @@ export * from "./cleanup.ts";
 export * from "./mercadopago.ts";
 export * from "./ml-flex.ts";
 export * from "./ml-health.ts";
+export * from "./ml-sellers.ts";
 export * from "./ml-courier.ts";
 export * from "./facturacion.ts";
 export * from "./flex-drivers.ts";
