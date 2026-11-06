@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { closeStaleShifts, syncStoreCatalog, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { requeueStaleMlOrders, closeStaleShifts, syncStoreCatalog, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -101,6 +101,24 @@ function startMlSync() {
   };
   void tick();
   setInterval(tick, 15_000);
+}
+
+/**
+ * Cada 10 min: respaldo por si los avisos de ML se atrasan. Los pedidos ML en ruta (o entregados hoy
+ * en la app sin «entregado» en ML) que no se sincronizan hace 20 min vuelven a la cola.
+ */
+function startMlRefresh() {
+  const run = async () => {
+    if (!mlConfig()) return;
+    try {
+      const n = await requeueStaleMlOrders(prisma);
+      if (n) console.log(`[worker] MercadoLibre: ${n} pedido(s) en ruta re-encolados para revisar su estado`);
+    } catch (e) {
+      console.error("[worker] Refresco ML:", e instanceof Error ? e.message : e);
+    }
+  };
+  setTimeout(run, 90_000);
+  setInterval(run, 10 * 60_000);
 }
 
 /** Webhooks de estado a sistemas de clientes [I08], cada 15 s. */
@@ -417,6 +435,7 @@ async function main() {
   startCrm();
   startClientPush();
   startMlSync();
+  startMlRefresh();
   startNotifier();
   startBackups();
   startWebhooks();
