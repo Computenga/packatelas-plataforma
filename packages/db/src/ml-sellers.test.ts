@@ -62,6 +62,13 @@ describe("listado de vendedores de ML", () => {
     expect(sent.queued).toBeGreaterThanOrEqual(2);
     expect((await flexInviteTargets(prisma)).targets.some((x) => x.phone.endsWith(ph(1)))).toBe(false); // una sola vez
 
+    // Toca el botón: queda como interesado y va al WhatsApp oficial con su cuenta.
+    const { flexInviteClick } = await import("./ml-sellers.ts");
+    const dos = await prisma.lead.findUniqueOrThrow({ where: { mlSellerId: BigInt(seller(2)) } });
+    expect(await flexInviteClick(prisma, dos.id)).toMatch(/^https:\/\/wa\.me\/525664275415\?text=.*TIENDA_DOS/);
+    expect((await prisma.lead.findUniqueOrThrow({ where: { id: dos.id } })).stage).toBe("INTERESADO");
+    expect(await flexInviteClick(prisma, "nada")).toMatch(/^https:\/\/wa\.me\/525664275415/);
+
     // Respuestas: botón «Me interesa» y «No me interesa».
     const msg = (from: string, text: string) => ({ entry: [{ changes: [{ value: { messages: [{ from, button: { text } }] } }] }] });
     await applyWhatsappStatuses(prisma, msg(`521${ph(1)}`, "Me interesa"));
@@ -76,9 +83,11 @@ describe("plantilla de invitación", () => {
   it("lleva botón al WhatsApp oficial con la cuenta del vendedor", async () => {
     const { whatsappTemplatePayload, templateSendComponents } = await import("./notifications.ts");
     const p = whatsappTemplatePayload("invitacion_flex");
-    expect(JSON.stringify(p.components[1])).toContain("wa.me/525664275415");
-    const c = templateSendComponents("pk_invitacion_flex", ["MI TIENDA"]);
-    expect(c[1]).toMatchObject({ type: "button", sub_type: "url", index: "0", parameters: [{ text: "MI%20TIENDA" }] });
+    expect(JSON.stringify(p.components[1])).toContain("portal.packatelas.mx/f/{{1}}");
+    expect(JSON.stringify(p.components)).not.toContain("wa.me");
+    const c = templateSendComponents("pk_invitacion_flex", ["MI TIENDA", "lead123"]);
+    expect(c[0]).toMatchObject({ type: "body", parameters: [{ text: "MI TIENDA" }] });
+    expect(c[1]).toMatchObject({ type: "button", sub_type: "url", index: "0", parameters: [{ text: "lead123" }] });
     expect(templateSendComponents("pk_en_camino", ["a", "b"])).toHaveLength(1);
   });
   it("responde solo con el número oficial", async () => {

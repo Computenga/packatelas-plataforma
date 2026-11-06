@@ -155,7 +155,7 @@ export async function sendFlexInvites(prisma: PrismaClient, actorUserId: string 
   let queued = 0;
   for (const t of targets) {
     const ok = await prisma.notification
-      .create({ data: { event: "invitacion_flex", to: t.phone, template: NOTIFY_EVENTS.invitacion_flex.template, params: [t.name.slice(0, 60)], preview: t.preview, dedupeKey: inviteKey(t.leadId) } })
+      .create({ data: { event: "invitacion_flex", to: t.phone, template: NOTIFY_EVENTS.invitacion_flex.template, params: [t.name.slice(0, 60), t.leadId], preview: t.preview, dedupeKey: inviteKey(t.leadId) } })
       .then(() => true)
       .catch(() => false);
     if (!ok) continue;
@@ -183,6 +183,25 @@ export async function flexInviteStats(prisma: PrismaClient) {
 export const OFFICIAL_WA = "525664275415";
 export const officialWaLink = (seller?: string) =>
   `https://wa.me/${OFFICIAL_WA}?text=${encodeURIComponent(`Hola, me interesa Flex con Packatelas.${seller ? ` Mi cuenta de Mercado Libre: ${seller}` : ""}`)}`;
+
+/**
+ * El vendedor tocó «Escribir a Packatelas» en la invitación: se anota en el CRM y se devuelve el
+ * enlace al chat del número oficial (con su cuenta de ML ya escrita).
+ */
+export async function flexInviteClick(prisma: PrismaClient, leadId: string) {
+  const lead = /^[a-z0-9]{20,40}$/.test(leadId)
+    ? await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, businessName: true, stage: true, source: true } })
+    : null;
+  if (!lead || lead.source !== "LISTA_ML") return officialWaLink();
+  const recent = await prisma.leadActivity.findFirst({ where: { leadId: lead.id, text: { startsWith: "Tocó «Escribir a Packatelas»" }, createdAt: { gte: new Date(Date.now() - 3600_000) } } });
+  if (!recent) {
+    await addLeadActivity(prisma, lead.id, "whatsapp", "Tocó «Escribir a Packatelas» en la invitación (abrió el chat del WhatsApp oficial)");
+    if (["NUEVO", "CONTACTADO"].includes(lead.stage)) await setLeadStage(prisma, lead.id, "INTERESADO").catch(() => false);
+    await prisma.lead.update({ where: { id: lead.id }, data: { nextAction: "Confirmar que escribió al WhatsApp oficial y darlo de alta", nextActionAt: new Date() } });
+    await sendPush(prisma, await adminUserIds(prisma), { title: `Invitación Flex: ${lead.businessName} quiere escribir`, body: "Abrió el chat del WhatsApp oficial (56 6427 5415).", url: `/admin/crm/${lead.id}`, tag: `flex-${lead.id}` }).catch(() => null);
+  }
+  return officialWaLink(lead.businessName);
+}
 
 /** Respuesta automática (dentro de la ventana de 24 h que abre la persona al escribir). */
 export function flexInviteAutoReply(kind: "si" | "no" | "otro", seller: string) {

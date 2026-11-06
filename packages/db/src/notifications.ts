@@ -11,7 +11,7 @@ export type NotifyEvent = "en_camino" | "entregado" | "no_entregado" | "regresa_
 /** Plantillas: deben darse de alta igual (nombre y número de variables) en WhatsApp Manager. */
 export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comprador" | "Tienda"; template: string; text: string; example: string[]; category?: "UTILITY" | "MARKETING";
   /** Botones: enlace con el primer parámetro al final (urlParam) y respuestas rápidas. */
-  urlButton?: { text: string; url: string; example: string }; buttons?: string[] }> = {
+  urlButton?: { text: string; url: string; example: string; param: number }; buttons?: string[] }> = {
   // Reglas de Meta: el texto no puede empezar ni terminar con una variable.
   en_camino: { label: "Envío en camino", audience: "Comprador", template: "pk_en_camino", text: "Hola {{1}}, tu pedido de {{2}} ({{3}}) ya va en camino. Puedes seguirlo aquí: {{4}} ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826", "https://nuevo.packatelas.mx/s/abc"] },
   entregado: { label: "Envío entregado", audience: "Comprador", template: "pk_envio_entregado", text: "Hola {{1}}, entregamos tu pedido de {{2}} ({{3}}). ¡Gracias por tu compra!", example: ["Ana", "Tienda Ejemplo", "ML-48341193826"] },
@@ -29,8 +29,10 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
     label: "Invitación a usar Flex (campaña a vendedores de ML)", audience: "Tienda", template: "pk_invitacion_flex", category: "MARKETING",
     text: "Hola {{1}}, somos Packatelas, mensajería para envíos Flex de Mercado Libre en CDMX y Estado de México. Recolectamos en tu domicilio y entregamos el mismo día, con rastreo en vivo y foto de entrega. ¿Te gustaría que llevemos tus envíos Flex? Escríbenos a nuestro WhatsApp oficial 56 6427 5415 con el botón de abajo y te damos de alta con tarifas.",
     example: ["TIENDA_EJEMPLO"],
-    // El botón abre el chat del número oficial con un mensaje que ya trae la cuenta de ML del vendedor.
-    urlButton: { text: "Escribir a Packatelas", url: "https://wa.me/525664275415?text=Hola%2C%20me%20interesa%20Flex%20con%20Packatelas.%20Mi%20cuenta%20de%20Mercado%20Libre%3A%20{{1}}", example: "https://wa.me/525664275415?text=Hola%2C%20me%20interesa%20Flex%20con%20Packatelas.%20Mi%20cuenta%20de%20Mercado%20Libre%3A%20TIENDA_EJEMPLO" },
+    // Meta no permite enlaces directos a WhatsApp en botones: el botón abre portal.packatelas.mx/f/<prospecto>,
+    // que registra el clic en el CRM y redirige al chat del número oficial con la cuenta de ML ya escrita.
+    // El segundo parámetro (id del prospecto) va al final del enlace; el cuerpo solo usa el primero.
+    urlButton: { text: "Escribir a Packatelas", url: "https://portal.packatelas.mx/f/{{1}}", example: "https://portal.packatelas.mx/f/ejemplo", param: 1 },
     buttons: ["No me interesa"],
   },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
@@ -180,10 +182,13 @@ export async function sendWeeklyReminders(prisma: PrismaClient, now = new Date()
 
 /** Componentes al mandar la plantilla: cuerpo y, si tiene enlace con variable, el final del enlace. */
 export function templateSendComponents(template: string, params: string[]) {
-  const comps: Record<string, unknown>[] = params.length ? [{ type: "body", parameters: params.map((text) => ({ type: "text", text })) }] : [];
   const ev = Object.values(NOTIFY_EVENTS).find((x) => x.template === template);
+  // Al cuerpo solo van tantos parámetros como variables tenga su texto.
+  const bodyVars = ev ? (ev.text.match(/\{\{\d+\}\}/g) ?? []).length : params.length;
+  const body = params.slice(0, bodyVars);
+  const comps: Record<string, unknown>[] = body.length ? [{ type: "body", parameters: body.map((text) => ({ type: "text", text })) }] : [];
   if (ev?.urlButton?.url.includes("{{1}}")) {
-    comps.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: encodeURIComponent(params[0] ?? "") }] });
+    comps.push({ type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: params[ev.urlButton.param] ?? "" }] });
   }
   return comps;
 }
