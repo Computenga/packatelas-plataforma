@@ -324,3 +324,19 @@ export async function mergeEmployees(prisma: PrismaClient, input: { keepEmployee
   });
   return { kept: keep.employeeNo, dropped: drops.map((d) => d.employeeNo) };
 }
+
+/** Una vez al día: aviso a los repartidores activos que aún no vinculan su ID de driver Flex. */
+export async function remindFlexLink(prisma: PrismaClient, now = new Date()) {
+  const ymd = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(now);
+  const key = "flex.reminder.day";
+  if (((await prisma.setting.findUnique({ where: { key } }))?.value as string | undefined) === ymd) return 0;
+  await prisma.setting.upsert({ where: { key }, update: { value: ymd }, create: { key, value: ymd } });
+  const drivers = await prisma.driver.findMany({ where: { active: true, flexExempt: false, flexIdentities: { none: {} }, user: { active: true } }, select: { userId: true } });
+  if (!drivers.length) return 0;
+  await sendPush(prisma, drivers.map((d) => d.userId), {
+    title: "Vincula tu Mercado Libre Flex",
+    body: "Es obligatorio: sin este paso los pedidos que tomas en Flex no se te asignan. Abre la app y escanea un paquete que ya tomaste en Flex.",
+    url: "/repartidor", tag: "flex-link",
+  }).catch(() => null);
+  return drivers.length;
+}

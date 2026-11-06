@@ -77,3 +77,11 @@ export async function linkDriverEmployeeAction(driverId: string, _: ActionState,
   revalidatePath("/admin/repartidores");
   return { ok: "Expediente ligado" };
 }
+
+/** Repartidor que no usa Mercado Libre Flex: la app deja de pedirle vincular su ID de driver. */
+export async function flexExemptAction(driverId: string, exempt: boolean) {
+  const user = await requireUser(["ADMIN", "DESPACHADOR"]);
+  const d = await prisma.driver.update({ where: { id: driverId }, data: { flexExempt: exempt }, select: { user: { select: { name: true } } } });
+  await audit(prisma, { actorUserId: user.id, action: "driver.flex_exempt", entity: "Driver", entityId: driverId, summary: `${d.user.name}: ${exempt ? "no usa Flex" : "debe vincular su Flex"}` });
+  revalidatePath("/admin/repartidores");
+}

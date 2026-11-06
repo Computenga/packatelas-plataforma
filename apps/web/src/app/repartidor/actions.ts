@@ -14,8 +14,15 @@ async function requireDriver() {
   return { user, driver };
 }
 
+/** Sin su ID de driver Flex vinculado no puede trabajar (los paquetes de Flex no se le asignarían). */
+async function assertFlexLinked(driver: { id: string; flexExempt: boolean }) {
+  if (driver.flexExempt) return;
+  if (!(await prisma.flexIdentity.count({ where: { driverId: driver.id } }))) throw new Error("Primero vincula tu Mercado Libre Flex en tu perfil");
+}
+
 export async function toggleShift() {
   const { user, driver } = await requireDriver();
+  if (!driver.onDuty) await assertFlexLinked(driver);
   await setShift(prisma, driver.id, !driver.onDuty, user.id);
   revalidatePath("/repartidor");
 }
@@ -23,6 +30,7 @@ export async function toggleShift() {
 /** Inicia turno con la primera ubicación (el botón ya revisó que el GPS funciona). */
 export async function startShift(pos: { lat: number; lng: number; accuracy?: number } | null) {
   const { user, driver } = await requireDriver();
+  if (!driver.onDuty) await assertFlexLinked(driver);
   if (!driver.onDuty) await setShift(prisma, driver.id, true, user.id);
   const ok = pos && Number.isFinite(pos.lat) && Number.isFinite(pos.lng) && Math.abs(pos.lat) <= 90 && Math.abs(pos.lng) <= 180;
   if (ok) await recordLocations(prisma, driver.id, [{ lat: pos.lat, lng: pos.lng, accuracy: pos.accuracy, at: new Date() }]).catch(() => null);

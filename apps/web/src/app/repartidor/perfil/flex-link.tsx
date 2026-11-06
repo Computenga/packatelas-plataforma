@@ -7,12 +7,16 @@ import type { ActionState } from "@/components/action-form";
 import { selfLinkFlex } from "./actions";
 
 /** Escanear una etiqueta Flex que ya trae asignada para ligar su ID de driver de ML. */
-export function FlexLink() {
+export function FlexLink({ onLinked }: { onLinked?: () => void } = {}) {
   const [state, setState] = useState<ActionState>({});
   const [pending, start] = useTransition();
   const [open, setOpen] = useState(false);
   const [manual, setManual] = useState("");
-  const go = (raw: string) => start(async () => setState(await selfLinkFlex(raw)));
+  const go = (raw: string) => start(async () => {
+    const r = await selfLinkFlex(raw);
+    setState(r);
+    if (r.ok && onLinked) setTimeout(onLinked, 1800);
+  });
 
   if (state.ok) return <FormMessage state={state} />;
   return (

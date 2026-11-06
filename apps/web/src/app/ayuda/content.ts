@@ -335,9 +335,9 @@ const repartidor: Guide = {
     {
       id: "flex",
       title: "Vincular tu Mercado Libre Flex",
-      intro: "Una sola vez: escanea aquí un paquete que ya tomaste en tu app de Flex. Desde entonces, los paquetes que tomes en Flex se te asignan solos.",
+      intro: "Obligatorio y una sola vez: mientras no lo vincules, la app no te deja trabajar. Escanea aquí un paquete que ya tomaste en tu app de Flex; desde entonces, los paquetes que tomes en Flex se te asignan solos.",
       steps: [
-        "Toca el aviso amarillo «Vincula tu Mercado Libre Flex» o entra a Perfil.",
+        "Al abrir la app aparece la pantalla «Vincula tu Mercado Libre Flex» (si no usas Flex, oficina te puede quitar este paso).",
         "En tu app Flex de Mercado Libre, escanea un paquete (que quede a tu nombre).",
         "Aquí, toca «Escanear etiqueta Flex» y escanea ese mismo paquete (o escribe el número de envío y toca «Vincular»).",
       ],

@@ -5,7 +5,7 @@ import { fecha } from "@/lib/format";
 import { APP_RELEASE, olderThanLatest } from "@/lib/app-release";
 import { ActionForm } from "@/components/action-form";
 import { Badge, ButtonLink, Card, Checkbox, Field, PageHeader } from "@/components/ui";
-import { linkFlex, unlinkFlex, updateDriver } from "./actions";
+import { flexExemptAction, linkFlex, unlinkFlex, updateDriver } from "./actions";
 import { DriverFile } from "./driver-file";
 
 export const metadata: Metadata = { title: "Repartidores" };
@@ -39,6 +39,7 @@ export default async function RepartidoresPage() {
         {active.filter((d) => d.onDuty).length} en turno de {active.length} activos · App {APP_RELEASE.versionName}: {active.length - outdated - noApp} al día
         {outdated > 0 && `, ${outdated} con versión vieja`}
         {noApp > 0 && `, ${noApp} sin la app`}
+        {` · ${active.filter((d) => !d.flexExempt && d.flexIdentities.length === 0).length} sin vincular Flex`}
       </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -91,8 +92,11 @@ export default async function RepartidoresPage() {
                     </form>
                   </li>
                 ))}
-                {d.flexIdentities.length === 0 && <li className="text-xs text-slate-500">Sin vincular</li>}
+                {d.flexIdentities.length === 0 && <li className="text-xs text-slate-500">{d.flexExempt ? "No usa Flex (no se le pide vincular)" : "Sin vincular: la app le pide vincularlo antes de trabajar"}</li>}
               </ul>
+              <form action={flexExemptAction.bind(null, d.id, !d.flexExempt)} className="mb-2">
+                <button className="text-xs text-brand hover:underline">{d.flexExempt ? "Sí usa Flex: pedirle que lo vincule" : "No usa Flex: no pedirle vincular"}</button>
+              </form>
               <ActionForm action={linkFlex.bind(null, d.id)} submitLabel="Vincular" resetOnSuccess>
                 <Field label="ID driver Flex" name="flexDriverId" inputMode="numeric" required />
                 <Checkbox label="Reemplazar si ya está con otro repartidor" name="force" />

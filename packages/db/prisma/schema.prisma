@@ -204,6 +204,7 @@ model Driver {
   plate           String?
   photoKey        String? // foto de perfil (se ve en el rastreo de recolecciones)
   legacyCarrierId Int?      @unique // carrier de Shipday en el sistema anterior (migración)
+  flexExempt      Boolean   @default(false) // no usa Mercado Libre Flex: no se le pide vincular su ID de driver
   active          Boolean   @default(true)
   onDuty          Boolean   @default(false)
   shiftStartedAt  DateTime?

@@ -1,6 +1,6 @@
 // Proceso en segundo plano: revisa Gmail y aplica los depósitos de Fondeadora [F04, I03].
 import "dotenv/config";
-import { syncDriverEmployees, requeueStaleMlOrders, closeStaleShifts, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
+import { remindFlexLink, syncDriverEmployees, requeueStaleMlOrders, closeStaleShifts, syncLegacy, copyDriveFiles, taskReminders, processBuyerMessages, backfillMlSaleDetails, processClientPush, advanceLeads, backfillLeadsFromSignups, remindFollowUps, sweepCustody, trackFlexAssignments, autoInvoicePayments, facturaConfig, processCourierReports, refreshOpenFlex, sweepFlexShipments, reconcileMp, dailyCleanup, evaluateAlerts, syncAlerts, processWebhooks, deliverPending, getCreditRules, ingestFondeadoraEmail, mlConfig, prisma, processMlJobs, refreshAllBlockedPickups, reportHealth, sendWeeklyReminders } from "@packatelas/db";
 import { whatsappSender } from "./whatsapp.ts";
 import { startBackups } from "./backups.ts";
 import { shrinkOldPhotos } from "./photos.ts";
@@ -127,6 +127,12 @@ function startDriverEmployees() {
     try {
       const r = await syncDriverEmployees(prisma);
       if (r.created.length || r.linked.length) console.log(`[worker] Repartidores → empleados: ${r.created.length} creados, ${r.linked.length} vinculados`);
+      // Aviso diario (a partir de las 8:00) a quien no ha vinculado su Flex.
+      const h = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/Mexico_City", hour: "numeric", hourCycle: "h23" }).format(new Date()));
+      if (h >= 8 && h < 20) {
+        const n = await remindFlexLink(prisma);
+        if (n) console.log(`[worker] Aviso de vincular Flex a ${n} repartidor(es)`);
+      }
     } catch (e) {
       console.error("[worker] Repartidores → empleados:", e instanceof Error ? e.message : e);
     }
