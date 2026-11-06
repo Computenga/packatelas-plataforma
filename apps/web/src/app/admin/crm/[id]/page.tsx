@@ -70,7 +70,8 @@ export default async function LeadPage({ params, searchParams }: PageProps<"/adm
             <div className="flex flex-wrap gap-2 text-sm">
               {digits.length === 10 && (
                 <>
-                  <a href={`https://wa.me/52${digits}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer" className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white">WhatsApp</a>
+                  <Link href={`/admin/whatsapp?tel=52${digits}`} className="rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white">Conversación en el portal</Link>
+                  <a href={`https://wa.me/52${digits}?text=${encodeURIComponent(waText)}`} target="_blank" rel="noreferrer" className="rounded-lg border border-emerald-600 px-3 py-2 font-medium text-emerald-700">WhatsApp personal</a>
                   <a href={`tel:+52${digits}`} className="rounded-lg border border-slate-300 bg-white px-3 py-2">Llamar {lead.phone}</a>
                 </>
               )}

@@ -28,12 +28,12 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
     <div className="mx-auto max-w-4xl space-y-6">
       <Link href="/admin/crm" className="text-sm text-brand hover:underline">← CRM</Link>
       <PageHeader eyebrow="CRM" title="Invitar a Flex">
-        WhatsApp a los vendedores del listado de MercadoLibre que aún no son clientes. Un solo mensaje por vendedor. El botón «Escribir a Packatelas» abre el chat del WhatsApp oficial (56 6427 5415) con su cuenta de ML ya escrita. Si alguien contesta al número de avisos, se le responde solo con el enlace al oficial; quien toca «No me interesa» o responde BAJA no vuelve a recibir nada.
+        WhatsApp a los vendedores del listado de MercadoLibre que aún no son clientes. Un solo mensaje por vendedor. Las respuestas llegan a la bandeja de <Link href="/admin/whatsapp" className="underline">WhatsApp</Link> del portal y se contestan desde ahí (24 h de ventana); «Me interesa» lo pasa a Interesado y quien toca «No me interesa» o responde BAJA no vuelve a recibir nada.
       </PageHeader>
 
       <Card title="Plantilla en Meta">
         <p className="text-sm">pk_invitacion_flex (Marketing) <Badge tone={ready ? "green" : tpl === "REJECTED" ? "red" : "amber"}>{tpl}</Badge></p>
-        {meta?.outdated && <p className="mt-2 text-sm font-semibold text-red-700">La versión aprobada en Meta es la anterior (sin el botón al WhatsApp oficial). Actualízala en <Link href="/admin/avisos" className="underline">Avisos → Plantillas</Link> antes de enviar.</p>}
+        {meta?.outdated && <p className="mt-2 text-sm font-semibold text-red-700">La versión aprobada en Meta es la anterior. Actualízala en <Link href="/admin/avisos" className="underline">Avisos → Plantillas</Link> antes de enviar.</p>}
         {!ready && !meta?.outdated && <p className="mt-2 text-sm text-slate-600">Si dice «No registrada», regístrala en <Link href="/admin/avisos" className="text-brand underline">Avisos → Plantillas</Link>. El envío se habilita cuando Meta la aprueba.</p>}
       </Card>
 
@@ -63,7 +63,7 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
           </form>
         </div>
         <p className="mb-2 text-xs text-slate-500">Recomendado: lotes de 100 a 200 al día para cuidar la calificación del número en Meta. Se manda en este orden:</p>
-        {targets[0] && <p className="mb-3 rounded-lg bg-slate-50 p-3 text-xs">«{targets[0].preview}» <span className="text-slate-500">[Escribir a Packatelas → WhatsApp oficial 56 6427 5415] [No me interesa]</span></p>}
+        {targets[0] && <p className="mb-3 rounded-lg bg-slate-50 p-3 text-xs">«{targets[0].preview}» <span className="text-slate-500">[Me interesa] [No me interesa]</span></p>}
         <ul className="divide-y divide-slate-100 text-sm">
           {targets.map((t) => (
             <li key={t.leadId} className="flex flex-wrap items-center gap-2 py-1.5">

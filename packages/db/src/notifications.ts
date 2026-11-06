@@ -3,6 +3,7 @@
 // Sin credenciales se marca "omitido" para que se vea qué se habría mandado.
 import { Prisma, type PrismaClient } from "../generated/prisma/client.ts";
 import { audit } from "./orders.ts";
+import type { recordInbound } from "./wa-inbox.ts";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -27,13 +28,9 @@ export const NOTIFY_EVENTS: Record<NotifyEvent, { label: string; audience: "Comp
   conectar_ml: { label: "Recordatorio: conectar Mercado Libre (campaña)", audience: "Tienda", template: "pk_conectar_ml", text: "Hola {{1}}, gracias por activar tu acceso al nuevo portal de Packatelas. Falta un paso: entra a portal.packatelas.mx, ve a «Conectar Mercado Libre» y autoriza tu cuenta {{2}}. Sin esto no vemos tus ventas Flex y no podemos recolectarlas a tiempo.", example: ["Ana", "cmx00151"] },
   invitacion_flex: {
     label: "Invitación a usar Flex (campaña a vendedores de ML)", audience: "Tienda", template: "pk_invitacion_flex", category: "MARKETING",
-    text: "Hola {{1}}, somos Packatelas, mensajería para envíos Flex de Mercado Libre en CDMX y Estado de México. Recolectamos en tu domicilio y entregamos el mismo día, con rastreo en vivo y foto de entrega. ¿Te gustaría que llevemos tus envíos Flex? Escríbenos a nuestro WhatsApp oficial 56 6427 5415 con el botón de abajo y te damos de alta con tarifas.",
+    text: "Hola {{1}}, somos Packatelas, mensajería para envíos Flex de Mercado Libre en CDMX y Estado de México. Recolectamos en tu domicilio y entregamos el mismo día, con rastreo en vivo y foto de entrega. ¿Te gustaría que llevemos tus envíos Flex? Toca «Me interesa» o respóndenos por aquí y te damos de alta con tarifas.",
     example: ["TIENDA_EJEMPLO"],
-    // Meta no permite enlaces directos a WhatsApp en botones: el botón abre portal.packatelas.mx/f/<prospecto>,
-    // que registra el clic en el CRM y redirige al chat del número oficial con la cuenta de ML ya escrita.
-    // El segundo parámetro (id del prospecto) va al final del enlace; el cuerpo solo usa el primero.
-    urlButton: { text: "Escribir a Packatelas", url: "https://portal.packatelas.mx/f/{{1}}", example: "https://portal.packatelas.mx/f/ejemplo", param: 1 },
-    buttons: ["No me interesa"],
+    buttons: ["Me interesa", "No me interesa"],
   },
   recordatorio_pago: { label: "Recordatorio de pago", audience: "Tienda", template: "pk_recordatorio_pago", text: "Hola {{1}}, tu saldo con Packatelas es de {{2}}. Transfiere con la referencia {{3}} antes del {{4}} para que tus recolecciones sigan activas.", example: ["Tienda Ejemplo", "$1,150.00", "CMX00151", "lunes 2 de noviembre"] },
 };
@@ -216,6 +213,9 @@ export async function deliverPending(prisma: PrismaClient, sender: Sender | null
     const r = await sender({ to: n.to, template: n.template, params: n.params as string[] });
     if (r.ok) {
       await prisma.notification.update({ where: { id: n.id }, data: { status: "SENT", sentAt: new Date(), externalId: r.id, error: null } });
+      // Queda en la conversación de la bandeja de WhatsApp (contexto para quien responde).
+      const { recordOutbound } = await import("./wa-inbox.ts");
+      await recordOutbound(prisma, { phone: n.to, kind: "template", text: n.preview, waId: r.id ?? null }).catch(() => null);
       out.sent++;
     } else {
       const last = r.permanent || n.attempts + 1 >= 5;
@@ -275,33 +275,42 @@ const WA_ERROR_ES: Record<number, string> = {
 const RANK: Record<string, number> = { SENT: 1, DELIVERED: 2, READ: 3 };
 
 /** Aplica los estados (entregado, leído, falló) que reporta WhatsApp por webhook. */
-export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown, reply?: (to: string, text: string) => Promise<unknown>) {
+export async function applyWhatsappStatuses(prisma: PrismaClient, body: unknown, reply?: (to: string, text: string) => Promise<string | null | false>) {
   const statuses: WaStatus[] = [];
-  const inbound: { from?: string; text?: { body?: string }; button?: { text?: string }; interactive?: { button_reply?: { title?: string } } }[] = [];
-  for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[]; messages?: typeof inbound } }[] }[] })?.entry ?? [])) {
+  type In = Parameters<typeof recordInbound>[1];
+  const inbound: { m: In; name: string | null }[] = [];
+  for (const e of ((body as { entry?: { changes?: { value?: { statuses?: WaStatus[]; messages?: In[]; contacts?: { wa_id?: string; profile?: { name?: string } }[] } }[] }[] })?.entry ?? [])) {
     for (const c of e.changes ?? []) {
       statuses.push(...(c.value?.statuses ?? []));
-      inbound.push(...(c.value?.messages ?? []));
+      const contacts = c.value?.contacts ?? [];
+      for (const m of c.value?.messages ?? []) inbound.push({ m, name: contacts.find((x) => x.wa_id === m.from)?.profile?.name ?? contacts[0]?.profile?.name ?? null });
     }
   }
-  // Mensajes que nos escriben: «BAJA» / «ALTA» para dejar o volver a recibir avisos.
-  for (const m of inbound) {
-    const raw = m.text?.body ?? m.button?.text ?? m.interactive?.button_reply?.title ?? "";
-    const t = raw.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const { recordInbound: save, recordOutbound, notifyInbound, applyWaMessageStatus } = await import("./wa-inbox.ts");
+  for (const { m, name } of inbound) {
     if (!m.from) continue;
+    const raw = (await import("./wa-inbox.ts")).inboundText(m) ?? "";
+    const isNew = await save(prisma, m, name).catch((e) => { console.error("[whatsapp] guardar", e); return true; });
+    if (!isNew) continue; // aviso repetido de WhatsApp
+    const t = raw.trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     // Respuesta a la invitación a Flex (listado de vendedores de ML): la maneja el CRM.
     const { handleFlexInviteReply, flexInviteAutoReply } = await import("./ml-sellers.ts");
     const kind = raw ? await handleFlexInviteReply(prisma, m.from, raw).catch(() => false as const) : false;
     if (kind) {
-      if (reply) {
-        const lead = await prisma.lead.findFirst({ where: { phoneKey: m.from.replace(/\D/g, "").slice(-10), source: "LISTA_ML" }, select: { businessName: true } });
-        await reply(m.from, flexInviteAutoReply(kind, lead?.businessName ?? "")).catch(() => null);
+      // Acuse una sola vez por conversación (la respuesta la da alguien desde el portal).
+      const answered = await prisma.waMessage.count({ where: { phone: m.from.replace(/\D/g, "").replace(/^521?/, "52"), direction: "out", kind: "text", createdAt: { gte: new Date(Date.now() - 24 * 3600_000) } } });
+      if (reply && !answered) {
+        const text = flexInviteAutoReply(kind);
+        const waId = await reply(m.from, text).catch(() => null);
+        await recordOutbound(prisma, { phone: m.from, kind: "text", text, waId: waId || null }).catch(() => null);
       }
       continue;
     }
     if (/^(BAJA|STOP|ALTO|CANCELAR AVISOS)$/.test(t)) await setOptOut(prisma, m.from, true);
     else if (/^(ALTA|START)$/.test(t)) await setOptOut(prisma, m.from, false);
+    await notifyInbound(prisma, m.from, raw || null, name).catch(() => null);
   }
+  for (const s of statuses) if (s.id && s.status) await applyWaMessageStatus(prisma, s.id, s.status, s.errors?.[0]?.message).catch(() => false);
   let n = 0;
   for (const s of statuses) {
     if (!s.id || !s.status) continue;

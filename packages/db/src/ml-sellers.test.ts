@@ -80,18 +80,16 @@ describe("listado de vendedores de ML", () => {
 });
 
 describe("plantilla de invitación", () => {
-  it("lleva botón al WhatsApp oficial con la cuenta del vendedor", async () => {
+  it("responde en el mismo número: botones de respuesta rápida y sin enlaces", async () => {
     const { whatsappTemplatePayload, templateSendComponents } = await import("./notifications.ts");
     const p = whatsappTemplatePayload("invitacion_flex");
-    expect(JSON.stringify(p.components[1])).toContain("portal.packatelas.mx/f/{{1}}");
+    expect(JSON.stringify(p.components[1])).toContain("QUICK_REPLY");
     expect(JSON.stringify(p.components)).not.toContain("wa.me");
     const c = templateSendComponents("pk_invitacion_flex", ["MI TIENDA", "lead123"]);
-    expect(c[0]).toMatchObject({ type: "body", parameters: [{ text: "MI TIENDA" }] });
-    expect(c[1]).toMatchObject({ type: "button", sub_type: "url", index: "0", parameters: [{ text: "lead123" }] });
-    expect(templateSendComponents("pk_en_camino", ["a", "b"])).toHaveLength(1);
+    expect(c).toEqual([{ type: "body", parameters: [{ type: "text", text: "MI TIENDA" }] }]);
   });
-  it("responde solo con el número oficial", async () => {
+  it("acusa recibo y sigue la conversación por aquí", async () => {
     const { flexInviteAutoReply } = await import("./ml-sellers.ts");
-    expect(flexInviteAutoReply("otro", "TIENDA X")).toMatch(/56 6427 5415.*wa\.me\/525664275415/);
+    expect(flexInviteAutoReply("otro")).toMatch(/por aquí mismo/);
   });
 });

@@ -1693,3 +1693,26 @@ model GateCheck {
   @@index([ymd, kind])
   @@index([driverId, at])
 }
+
+// Bandeja de WhatsApp: conversaciones con quien escribe al número de avisos (prospectos, tiendas,
+// compradores). Se responde desde el portal dentro de la ventana de 24 h que abre la persona.
+model WaMessage {
+  id          String    @id @default(cuid())
+  phone       String // 52 + 10 dígitos
+  direction   String // in | out
+  kind        String // text, button, template, image, audio, video, document, sticker, location, other
+  text        String?
+  mediaId     String? // id del archivo en WhatsApp (imágenes, audios, documentos)
+  mime        String?
+  waId        String?   @unique // id del mensaje en WhatsApp
+  status      String? // sent, delivered, read, failed (salientes)
+  error       String?
+  contactName String? // nombre de perfil de WhatsApp de la persona
+  userId      String? // quién respondió desde el portal
+  readAt      DateTime? // entrante leído en el portal
+  createdAt   DateTime  @default(now())
+
+  @@index([phone, createdAt])
+  @@index([direction, readAt])
+  @@index([createdAt])
+}

@@ -203,10 +203,10 @@ export async function flexInviteClick(prisma: PrismaClient, leadId: string) {
   return officialWaLink(lead.businessName);
 }
 
-/** Respuesta automática (dentro de la ventana de 24 h que abre la persona al escribir). */
-export function flexInviteAutoReply(kind: "si" | "no" | "otro", seller: string) {
+/** Acuse automático: la conversación sigue en este mismo número y la atiende el equipo desde el portal. */
+export function flexInviteAutoReply(kind: "si" | "no" | "otro") {
   if (kind === "no") return "Gracias por avisarnos. No te volveremos a escribir por este medio.";
-  return `¡Gracias! Este número solo envía avisos y no recibe mensajes. Para darte de alta y compartirte tarifas escríbenos a nuestro WhatsApp oficial 56 6427 5415: ${officialWaLink(seller)}`;
+  return "¡Gracias por responder! En un momento alguien del equipo de Packatelas te atiende por aquí mismo para darte de alta y compartirte tarifas.";
 }
 
 const NO = /^(NO ME INTERESA|NO GRACIAS|NO,? GRACIAS|NO|BAJA|STOP|ALTO)\b/;

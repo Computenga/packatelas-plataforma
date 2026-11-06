@@ -150,15 +150,37 @@ export async function subscribeWebhook(): Promise<{ ok: boolean; error?: string 
   return res.ok && j.success ? { ok: true } : { ok: false, error: j.error?.message ?? `HTTP ${res.status}` };
 }
 
-/** Mensaje de texto libre (solo válido dentro de las 24 h después de que la persona nos escribió). */
-export async function sendWhatsappText(to: string, text: string) {
+/** Mensaje de texto libre (solo válido dentro de las 24 h después de que la persona nos escribió). Devuelve el id del mensaje o null. */
+export async function sendWhatsappText(to: string, text: string): Promise<string | null> {
+  const r = await sendWhatsappTextDetailed(to, text);
+  return r.ok ? r.id : null;
+}
+
+export async function sendWhatsappTextDetailed(to: string, text: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const c = phoneCfg();
-  if (!c) return false;
-  const res = await fetch(`${GRAPH}/${c.phone}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text.slice(0, 4000), preview_url: true } }),
-    signal: AbortSignal.timeout(15_000),
-  });
-  return res.ok;
+  if (!c) return { ok: false, error: "Faltan WHATSAPP_TOKEN o WHATSAPP_PHONE_ID" };
+  try {
+    const res = await fetch(`${GRAPH}/${c.phone}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to, type: "text", text: { body: text.slice(0, 4000), preview_url: true } }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const j = (await res.json().catch(() => ({}))) as { messages?: { id: string }[]; error?: { message?: string; code?: number } };
+    if (res.ok && j.messages?.[0]?.id) return { ok: true, id: j.messages[0].id };
+    return { ok: false, error: j.error?.code === 131047 ? "Pasaron más de 24 h desde su último mensaje: ya no se puede responder con texto libre" : (j.error?.message ?? `HTTP ${res.status}`) };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Error de red" };
+  }
+}
+
+/** Descarga un archivo que mandó alguien por WhatsApp (imagen, audio, documento). */
+export async function fetchWhatsappMedia(mediaId: string): Promise<{ data: ArrayBuffer; mime: string } | null> {
+  const c = phoneCfg();
+  if (!c || !/^\d{5,30}$/.test(mediaId)) return null;
+  const meta = (await fetch(`${GRAPH}/${mediaId}`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) }).then((r) => r.json()).catch(() => null)) as { url?: string; mime_type?: string } | null;
+  if (!meta?.url) return null;
+  const res = await fetch(meta.url, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(30_000) });
+  if (!res.ok) return null;
+  return { data: await res.arrayBuffer(), mime: meta.mime_type ?? res.headers.get("content-type") ?? "application/octet-stream" };
 }
