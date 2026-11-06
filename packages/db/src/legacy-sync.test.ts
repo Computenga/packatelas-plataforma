@@ -20,6 +20,7 @@ const sheets: Record<string, string[][]> = {
 const read: SheetReader = async (_id, range) => sheets[range] ?? [];
 
 afterAll(async () => {
+  await prisma.setting.deleteMany({ where: { key: { startsWith: "legacy.sync.snap." } } });
   const v = await prisma.vehicle.findUnique({ where: { code: "M-990" } });
   if (v) {
     await prisma.repair.deleteMany({ where: { vehicleId: v.id } });
@@ -80,5 +81,19 @@ describe("unificación con las hojas actuales [A37]", () => {
     expect(p.at.toISOString()).toBe("2026-10-09T14:13:51.000Z");
     expect(p.kind).toBe("acceso");
     expect(await prisma.punch.count({ where: { employeeId: ana.id } })).toBe(1);
+  });
+
+  it("no regresa al dato de la hoja lo que se editó en el portal; sí copia lo que cambió en la hoja", async () => {
+    // Edición en el portal: moto a taller→activa y otro número de serie; teléfono del empleado.
+    await prisma.vehicle.update({ where: { code: "M-990" }, data: { status: "TALLER", vin: "SERIE-PORTAL" } });
+    await prisma.employee.update({ where: { employeeNo: N1 }, data: { phone: "5500000001" } });
+    await syncLegacy(prisma, read, { force: true });
+    expect(await prisma.vehicle.findUniqueOrThrow({ where: { code: "M-990" } })).toMatchObject({ status: "TALLER", vin: "SERIE-PORTAL" });
+    expect((await prisma.employee.findUniqueOrThrow({ where: { employeeNo: N1 } })).phone).toBe("5500000001");
+    // Cambio en la hoja (color y km): se copia solo eso.
+    sheets["Vehiculos!A:K"][1][5] = "ROJO";
+    sheets["Vehiculos!A:K"][1][7] = "21000";
+    await syncLegacy(prisma, read, { force: true });
+    expect(await prisma.vehicle.findUniqueOrThrow({ where: { code: "M-990" } })).toMatchObject({ status: "TALLER", vin: "SERIE-PORTAL", color: "ROJO", km: 21000 });
   });
 });

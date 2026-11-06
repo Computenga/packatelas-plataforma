@@ -11,6 +11,24 @@ import { normalizePunchKind, parseClock, parseWorkdays } from "./attendance-rule
 import { parseEmployees, parsePunches } from "./personnel-import.ts";
 
 const KEY = "legacy.sync";
+/** Lo que traía la hoja la vuelta anterior: solo se copia lo que cambió EN LA HOJA (así no se pisa lo que se edita en el portal). */
+const SNAP = (name: string) => `legacy.sync.snap.${name}`;
+async function readSnap<T>(prisma: PrismaClient, name: string): Promise<Record<string, T> | null> {
+  const v = (await prisma.setting.findUnique({ where: { key: SNAP(name) } }))?.value;
+  return v && typeof v === "object" ? (v as Record<string, T>) : null;
+}
+async function writeSnap(prisma: PrismaClient, name: string, value: Record<string, unknown>) {
+  const v = JSON.parse(JSON.stringify(value)) as Prisma.InputJsonObject;
+  await prisma.setting.upsert({ where: { key: SNAP(name) }, create: { key: SNAP(name), value: v }, update: { value: v } });
+}
+/** Comparación sin importar el orden de las llaves (jsonb las reordena) ni Date vs. texto. */
+const stable = (v: unknown): unknown => {
+  const j = JSON.parse(JSON.stringify(v ?? null)) as unknown;
+  if (Array.isArray(j)) return j.map(stable);
+  if (j && typeof j === "object") return Object.fromEntries(Object.keys(j).sort().filter((k) => (j as Record<string, unknown>)[k] !== undefined).map((k) => [k, stable((j as Record<string, unknown>)[k])]));
+  return j;
+};
+const same = (a: unknown, b: unknown) => JSON.stringify(stable(a)) === JSON.stringify(stable(b));
 const STATUS = "legacy.sync.status";
 export const LEGACY_DEFAULTS = {
   checadorSheetId: "1U6RRubCwjpfmOilWSWRY1txh7dwP9d7SdAxXWmpxsf0",
@@ -123,12 +141,12 @@ async function syncChecador(prisma: PrismaClient, read: SheetReader, sheetId: st
     const cur = byNo.get(no);
     if (cur && (n === 2 || n === 4)) cur.punchesPerDay = n;
   }
-  // Solo lo que cambió, para no reescribir 100 empleados cada vuelta.
-  const existing = new Map((await prisma.employee.findMany({ select: { employeeNo: true, updatedAt: true, name: true, entryTime: true, status: true, phone: true } })).map((x) => [x.employeeNo, x]));
-  const rows = [...byNo.values()].filter((r) => {
-    const x = existing.get(r.employeeNo);
-    return !x || x.name !== r.name || (r.entryTime && x.entryTime !== r.entryTime) || (r.status && x.status !== r.status) || (r.phone && x.phone !== r.phone);
-  });
+  // Solo empleados nuevos o cuyo renglón cambió EN LA HOJA desde la vuelta anterior: lo que se
+  // corrige en el portal (teléfono, estatus, horario…) no se regresa al dato de la hoja.
+  const existing = new Set((await prisma.employee.findMany({ select: { employeeNo: true } })).map((x) => x.employeeNo));
+  const snap = await readSnap<unknown>(prisma, "empleados");
+  const rows = [...byNo.values()].filter((r) => !existing.has(r.employeeNo) || (snap !== null && !same(snap[String(r.employeeNo)], r)));
+  await writeSnap(prisma, "empleados", Object.fromEntries([...byNo.values()].map((r) => [String(r.employeeNo), r])));
   if (rows.length) {
     const r = await importEmployees(prisma, rows);
     out.empleados = `${r.created} nuevos, ${r.updated} actualizados`;
@@ -225,8 +243,12 @@ async function syncFlotilla(prisma: PrismaClient, read: SheetReader, sheetId: st
   const empId = (u: string | undefined) => { const n = empNo(u); return n ? emps.get(n) ?? null : null; };
   const skipped: string[] = [];
 
-  // Vehículos: alta y datos; el km solo sube.
+  // Vehículos: alta; de los que ya existen solo se copia el dato que cambió EN LA HOJA desde la
+  // vuelta anterior (lo que se edita en el portal, como estatus o número de serie, se respeta). El km solo sube.
   let vNew = 0;
+  type VSnap = { plate: string | null; brand: string | null; model: string | null; year: number | null; color: string | null; vin: string | null; status: string; km: number };
+  const vSnap = await readSnap<VSnap>(prisma, "vehiculos");
+  const nextSnap: Record<string, VSnap> = {};
   for (const v of veh) {
     const code = (v["vehiculo_id"] ?? "").toUpperCase();
     if (!/^M-\d+$/.test(code)) continue;
@@ -236,10 +258,20 @@ async function syncFlotilla(prisma: PrismaClient, read: SheetReader, sheetId: st
       status: (/baja/.test(st) ? "BAJA" : /taller/.test(st) ? "TALLER" : "ACTIVO") as "BAJA" | "TALLER" | "ACTIVO",
     };
     const km = num(v["km_actual"]) ?? 0;
+    nextSnap[code] = { ...data, km };
+    const prev = vSnap?.[code];
     const cur = await prisma.vehicle.findUnique({ where: { code }, select: { id: true, km: true } });
-    if (cur) await prisma.vehicle.update({ where: { id: cur.id }, data: { ...data, ...(km > cur.km ? { km } : {}) } });
-    else { await prisma.vehicle.create({ data: { code, ...data, km, notes: v["notas"] || null } }); vNew++; }
+    if (!cur) {
+      await prisma.vehicle.create({ data: { code, ...data, km, notes: v["notas"] || null } });
+      vNew++;
+      continue;
+    }
+    if (!prev) continue; // primera vuelta con esta regla: solo se toma la foto de la hoja
+    const changed = Object.fromEntries((Object.keys(data) as (keyof typeof data)[]).filter((k) => !same(prev[k], data[k])).map((k) => [k, data[k]]));
+    const kmUp = km > cur.km && km !== prev.km;
+    if (Object.keys(changed).length || kmUp) await prisma.vehicle.update({ where: { id: cur.id }, data: { ...changed, ...(kmUp ? { km } : {}) } });
   }
+  await writeSnap(prisma, "vehiculos", nextSnap);
   const vehicles = new Map((await prisma.vehicle.findMany({ select: { id: true, code: true } })).map((x) => [x.code, x.id]));
   const vid = (c: string | undefined) => vehicles.get((c ?? "").toUpperCase()) ?? null;
 
