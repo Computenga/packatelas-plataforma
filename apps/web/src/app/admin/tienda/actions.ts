@@ -21,6 +21,7 @@ export async function toggleProductAction(id: string) {
   const p = await prisma.storeProduct.findUniqueOrThrow({ where: { id } });
   await prisma.storeProduct.update({ where: { id }, data: { active: !p.active } });
   revalidatePath("/admin/tienda");
+  revalidatePath("/cliente/tienda");
 }
 
 export async function readyAction(id: string) {
@@ -28,4 +29,25 @@ export async function readyAction(id: string) {
   const o = await prisma.storeOrder.update({ where: { id }, data: { status: "READY" } });
   await audit(prisma, { actorUserId: user.id, action: "store.ready", entity: "StoreOrder", entityId: o.id, summary: `Pedido de tienda T-${o.number} preparado` });
   revalidatePath("/admin/tienda");
+}
+
+/** Precio del portal: vacío = usar el de WooCommerce. */
+export async function setPortalPriceAction(id: string, _: ActionState, fd: FormData): Promise<ActionState> {
+  const user = await requireUser(["ADMIN"]);
+  const raw = String(fd.get("price") ?? "").replace(/[$,\s]/g, "");
+  const value = raw === "" ? null : Number(raw);
+  if (value !== null && !(Number.isFinite(value) && value > 0 && value < 1_000_000)) return { error: "Precio inválido" };
+  const p = await prisma.storeProduct.update({ where: { id }, data: { portalPrice: value === null ? null : value.toFixed(2) } });
+  await audit(prisma, { actorUserId: user.id, action: "store.price", entity: "StoreProduct", entityId: id, summary: value === null ? `${p.name}: precio de WooCommerce` : `${p.name}: precio en el portal $${value.toFixed(2)} (WooCommerce $${p.price})` });
+  revalidatePath("/admin/tienda");
+  revalidatePath("/cliente/tienda");
+  return { ok: value === null ? "Usa el de WooCommerce" : "Guardado" };
+}
+
+/** Mostrar u ocultar varios a la vez (todos, o los de una categoría). */
+export async function bulkVisibleAction(active: boolean, category: string | null) {
+  await requireUser(["ADMIN"]);
+  await prisma.storeProduct.updateMany({ where: category ? { category } : {}, data: { active } });
+  revalidatePath("/admin/tienda");
+  revalidatePath("/cliente/tienda");
 }

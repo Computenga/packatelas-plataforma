@@ -56,6 +56,11 @@ export async function syncStoreCatalog(prisma: PrismaClient, fetchImpl: Fetch = 
 
 const money = (n: number) => new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" }).format(n);
 
+/** Precio que ve y paga la tienda: el del portal si el admin lo puso, si no el de WooCommerce. */
+export function storePrice(p: { price: { toString(): string }; portalPrice?: { toString(): string } | null }) {
+  return Number((p.portalPrice ?? p.price).toString());
+}
+
 /** Valida el carrito contra el catálogo vigente (precios del servidor, nunca del navegador). */
 async function priceCart(prisma: PrismaClient, cart: { productId: string; qty: number }[]) {
   const lines = cart.filter((c) => Number.isInteger(c.qty) && c.qty > 0 && c.qty <= 500).slice(0, 50);
@@ -66,7 +71,7 @@ async function priceCart(prisma: PrismaClient, cart: { productId: string; qty: n
   for (const l of lines) {
     const p = byId.get(l.productId);
     if (!p) throw new Error("Un producto del carrito ya no está disponible; quítalo e intenta de nuevo");
-    items.push({ productId: p.id, sku: p.sku, name: p.name, price: Number(p.price), qty: l.qty });
+    items.push({ productId: p.id, sku: p.sku, name: p.name, price: storePrice(p), qty: l.qty });
   }
   const total = Math.round(items.reduce((s, i) => s + i.price * i.qty, 0) * 100) / 100;
   return { items, total };

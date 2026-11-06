@@ -5,7 +5,8 @@ import { requireUser } from "@/lib/auth";
 import { fecha, mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { readyAction, syncCatalogAction, toggleProductAction } from "./actions";
+import { PriceForm } from "./price-form";
+import { bulkVisibleAction, readyAction, setPortalPriceAction, syncCatalogAction, toggleProductAction } from "./actions";
 
 export const metadata: Metadata = { title: "Tienda" };
 const DIA = new Intl.DateTimeFormat("es-MX", { timeZone: "UTC", weekday: "short", day: "numeric", month: "short" });
@@ -74,23 +75,50 @@ export default async function TiendaAdminPage({ searchParams }: PageProps<"/admi
       </Table>
 
       {user.role === "ADMIN" && (
-        <Card title={`Catálogo (${products.filter((p) => p.active && p.inStock).length} a la venta)`} actions={<ActionForm action={syncCatalogAction} submitLabel="Actualizar desde WooCommerce"><span /></ActionForm>}>
+        <Card title={`Catálogo (${products.filter((p) => p.active && p.inStock).length} visibles en el portal de ${products.length})`} actions={<ActionForm action={syncCatalogAction} submitLabel="Actualizar desde WooCommerce"><span /></ActionForm>}>
           <p className="mb-3 text-sm text-slate-600">
-            Productos, precios, fotos y existencias se copian solos cada hora de <a href={WOO_STORE_URL} target="_blank" rel="noreferrer" className="text-brand underline">{WOO_STORE_URL.replace(/^https?:\/\//, "")}</a>. Para cambiar algo, hazlo en WooCommerce. Aquí solo puedes ocultar un producto del portal.
+            Nombre, fotos, existencias y precio base se copian solos cada hora de <a href={WOO_STORE_URL} target="_blank" rel="noreferrer" className="text-brand underline">{WOO_STORE_URL.replace(/^https?:\/\//, "")}</a>.
+            Aquí eliges qué productos ven las tiendas y, si quieres, un precio distinto para el portal (vacío = el de WooCommerce).
           </p>
-          <ul className="divide-y divide-slate-100 text-sm">
-            {products.map((p) => (
-              <li key={p.id} className="flex items-center justify-between gap-3 py-2">
-                <span className={`min-w-0 ${p.active && p.inStock ? "" : "text-slate-400"}`}>
-                  <span className="block truncate">{p.name}</span>
-                  <span className="text-xs">{p.category} · {mxn(p.price)}{!p.inStock && " · agotado"}</span>
-                </span>
-                <form action={toggleProductAction.bind(null, p.id)}>
-                  <button className="rounded border border-slate-300 px-2 py-1 text-xs">{p.active ? "Ocultar" : "Mostrar"}</button>
-                </form>
-              </li>
-            ))}
-          </ul>
+          <div className="mb-3 flex flex-wrap gap-2 text-xs">
+            <form action={bulkVisibleAction.bind(null, true, null)}><button className="rounded border border-slate-300 px-2 py-1">Mostrar todos</button></form>
+            <form action={bulkVisibleAction.bind(null, false, null)}><button className="rounded border border-slate-300 px-2 py-1">Ocultar todos</button></form>
+          </div>
+          {[...new Set(products.map((p) => p.category))].map((cat) => {
+            const list = products.filter((p) => p.category === cat);
+            return (
+              <div key={cat} className="mb-4">
+                <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-1">
+                  <h3 className="font-semibold">{cat}</h3>
+                  <span className="text-xs text-slate-500">{list.filter((p) => p.active).length}/{list.length} visibles</span>
+                  <form action={bulkVisibleAction.bind(null, true, cat)}><button className="text-xs text-brand hover:underline">Mostrar todos</button></form>
+                  <form action={bulkVisibleAction.bind(null, false, cat)}><button className="text-xs text-brand hover:underline">Ocultar todos</button></form>
+                </div>
+                <ul className="divide-y divide-slate-100 text-sm">
+                  {list.map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center gap-3 py-2">
+                      <form action={toggleProductAction.bind(null, p.id)}>
+                        <button
+                          role="switch"
+                          aria-checked={p.active}
+                          aria-label={p.active ? `Ocultar ${p.name}` : `Mostrar ${p.name}`}
+                          className={`w-24 rounded-md px-2 py-1 text-xs font-semibold ${p.active ? "bg-[#E5F5EC] text-[#168A4D]" : "bg-slate-100 text-slate-500"}`}
+                        >
+                          {p.active ? "✓ Visible" : "Oculto"}
+                        </button>
+                      </form>
+                      <span className={`min-w-0 flex-1 ${p.active && p.inStock ? "" : "text-slate-400"}`}>
+                        <span className="block truncate">{p.name}</span>
+                        <span className="text-xs">WooCommerce: {mxn(p.price)}{!p.inStock && " · agotado"}</span>
+                      </span>
+                      <PriceForm action={setPortalPriceAction.bind(null, p.id)} current={p.portalPrice ? Number(p.portalPrice).toFixed(2) : ""} woo={Number(p.price).toFixed(2)} />
+                      {p.portalPrice && <Badge tone="blue">Precio propio</Badge>}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
         </Card>
       )}
     </div>

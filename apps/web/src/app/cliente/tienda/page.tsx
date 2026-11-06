@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { earliestPickupDate, getClientBalance, mpConfigured, pickupDayLabel, prisma, storeFolio, STORE_STATUS, type StoreItem } from "@packatelas/db";
+import { earliestPickupDate, getClientBalance, mpConfigured, pickupDayLabel, prisma, storeFolio, storePrice, STORE_STATUS, type StoreItem } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { mxn } from "@/lib/format";
 import { Badge, Card } from "@/components/ui";
@@ -42,7 +42,7 @@ export default async function TiendaPage({ searchParams }: PageProps<"/cliente/t
       {!branches.length && <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">Agrega primero una dirección en Menú → Direcciones y accesos.</p>}
       {products.length ? (
         <StoreClient
-          products={[...products].sort((a, b) => Number(b.category === "Insumos") - Number(a.category === "Insumos")).map((p) => ({ id: p.id, name: p.name, category: p.category, price: Number(p.price), imageUrl: p.imageUrl, description: p.description }))}
+          products={[...products].sort((a, b) => Number(b.category === "Insumos") - Number(a.category === "Insumos")).map((p) => ({ id: p.id, name: p.name, category: p.category, price: storePrice(p), imageUrl: p.imageUrl, description: p.description }))}
           branches={branches}
           favor={-Number(balance)}
           cardEnabled={mpConfigured()}

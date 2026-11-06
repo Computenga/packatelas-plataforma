@@ -51,3 +51,11 @@ describe("tienda de insumos [P17]", () => {
     expect((await prisma.storeOrder.findUniqueOrThrow({ where: { id: r.id } })).status).toBe("DELIVERED");
   });
 });
+
+describe("precio del portal", () => {
+  it("usa el del portal si lo hay; si no, el de WooCommerce", async () => {
+    const { storePrice } = await import("./store.ts");
+    expect(storePrice({ price: "120.00", portalPrice: null })).toBe(120);
+    expect(storePrice({ price: "120.00", portalPrice: "99.50" })).toBe(99.5);
+  });
+});

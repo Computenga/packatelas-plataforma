@@ -1527,7 +1527,8 @@ model StoreProduct {
   sku         String?
   name        String
   category    String
-  price       Decimal  @db.Decimal(12, 2)
+  price       Decimal  @db.Decimal(12, 2) // precio en WooCommerce (se copia cada hora)
+  portalPrice Decimal? @db.Decimal(12, 2) // precio distinto para el portal (si el admin lo pone)
   imageUrl    String?
   description String?
   url         String?
