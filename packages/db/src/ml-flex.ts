@@ -47,6 +47,11 @@ export function isMlLabelQr(raw: string | null | undefined): raw is string {
   }
 }
 
+/** El QR tal como lo pone MercadoLibre en sus etiquetas Flex (comprobado en producción, nov 2026). */
+export function mlLabelQrFor(shipmentId: bigint, senderId: bigint) {
+  return `{"id":"${shipmentId}","sender_id":${senderId},"hash_code":null,"security_digit":null}`;
+}
+
 /** El mejor QR conocido: primero uno con hash, luego cualquier QR de etiqueta escaneado. */
 export function bestMlQr(...qrs: (string | null | undefined)[]): string | null {
   return qrs.find((q) => isFullMlQr(q))?.trim() ?? qrs.find((q) => isMlLabelQr(q))?.trim() ?? null;
@@ -407,6 +412,12 @@ export async function guiaData(prisma: PrismaClient, shipmentId: bigint, opts: {
     if (qrRaw) {
       if (cap) await prisma.mlFlexShipment.update({ where: { id: cap.id }, data: { qrRaw } });
       if (order && !order.mlQrRaw) await prisma.order.update({ where: { id: order.id }, data: { mlQrRaw: qrRaw } });
+    }
+    // ML ya no entrega la etiqueta cuando el envío está en camino («status is shipped»): se arma el
+    // mismo QR que trae su etiqueta (número de envío y vendedor; hash y dígito en null).
+    if (!qrRaw) {
+      const acc = await prisma.mlAccount.findUnique({ where: { id: accountId }, select: { mlUserId: true } });
+      if (acc) qrRaw = mlLabelQrFor(shipmentId, acc.mlUserId);
     }
   }
   const pick = <T>(a: T | null | undefined, b: T | null | undefined) => (a ?? b ?? null) as T | null;

@@ -1,7 +1,7 @@
 import "dotenv/config";
 import { deflateRawSync } from "node:zlib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { bestMlQr, captureShipment, encryptSecret, firstFileFromZip, isFullMlQr, isMlLabelQr, prisma, qrFromZpl, registerScan, sweepFlexShipments } from "./index.ts";
+import { bestMlQr, mlLabelQrFor, captureShipment, encryptSecret, firstFileFromZip, isFullMlQr, isMlLabelQr, prisma, qrFromZpl, registerScan, sweepFlexShipments } from "./index.ts";
 
 process.env.ENCRYPTION_KEY ??= Buffer.alloc(32, 7).toString("base64");
 process.env.ML_CLIENT_ID = "123";
@@ -86,6 +86,7 @@ describe("QR de la etiqueta", () => {
     expect(isMlLabelQr(String(FLEX))).toBe(false);
     expect(bestMlQr(sinHash, QR(FLEX))).toBe(QR(FLEX));
     expect(bestMlQr(null, sinHash)).toBe(sinHash);
+    expect(mlLabelQrFor(BigInt(FLEX), BigInt(seller))).toBe(sinHash);
   });
 });
 
