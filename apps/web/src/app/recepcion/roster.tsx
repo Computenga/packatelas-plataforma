@@ -85,6 +85,9 @@ export function RosterView({ mode, day, rows }: { mode: "llegada" | "salida"; da
             ref={keyRef}
             autoFocus
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             enterKeyHint="go"
             disabled={pending}
             onKeyDown={(e) => {

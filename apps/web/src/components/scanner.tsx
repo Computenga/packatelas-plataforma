@@ -136,6 +136,9 @@ export function Scanner({ onScan, busy, initialMode = "camera" }: { onScan: (raw
           <input
             ref={pdaRef}
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
             enterKeyHint="done"
             onKeyDown={(e) => {
               if (e.key !== "Enter") return;

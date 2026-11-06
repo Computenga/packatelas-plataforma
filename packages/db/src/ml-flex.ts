@@ -7,6 +7,7 @@
 // security_digit). La API de ML entrega la etiqueta con hash_code en null, así que el QR válido se
 // toma de la lectura del escáner (bodega o repartidor) de la etiqueta que imprimió el vendedor.
 // Nunca se genera una guía con el hash vacío.
+import { normalizeScan } from "./scan.ts";
 import { alertNotVisited, isNotVisited } from "./faltas.ts";
 import { inflateRawSync } from "node:zlib";
 import type { Prisma, PrismaClient } from "../generated/prisma/client.ts";
@@ -288,7 +289,8 @@ export async function captureShipment(prisma: PrismaClient, accountId: string, s
 /** Al escanear un envío ML: se liga a su registro de Recuperados (pasa al histórico) y se guarda el QR. */
 export async function linkFlexScan(db: Db, orderId: string, shipmentId: bigint, raw: string) {
   await enqueueCourierReport(db, shipmentId).catch(() => false);
-  const qr = isMlLabelQr(raw) ? raw.trim() : null;
+  const clean = normalizeScan(raw);
+  const qr = isMlLabelQr(clean) ? clean : null;
   // Uno con hash reemplaza a uno sin hash; uno sin hash solo llena el vacío.
   const replaceable = isFullMlQr(qr);
   if (qr) {

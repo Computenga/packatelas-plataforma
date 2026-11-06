@@ -1,7 +1,7 @@
 // Registro de pedidos: escaneo de etiquetas ML [A01], alta manual [A03] y eventos [A09].
 import { Prisma, type PrismaClient, type OrderStatus, type EventSource } from "../generated/prisma/client.ts";
 import { chargeOrder } from "./ledger.ts";
-import { parseScan } from "./scan.ts";
+import { normalizeScan, parseScan } from "./scan.ts";
 import { pickRoute } from "./ml-routes.ts";
 import { enqueueMlJob } from "./ml-api.ts";
 import { bestMlQr, linkFlexScan } from "./ml-flex.ts";
@@ -144,7 +144,7 @@ export async function registerScan(
           branchId: route?.branchId,
           mlAccountId: account.id,
           mlShipmentId: parsed.shipmentId,
-          mlQrRaw: bestMlQr(input.raw, known?.qrRaw),
+          mlQrRaw: bestMlQr(normalizeScan(input.raw), known?.qrRaw),
           ...fromKnown,
         },
       });
