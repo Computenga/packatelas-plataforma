@@ -8,19 +8,27 @@ const cfg = () => {
   return token && waba ? { token, waba } : null;
 };
 
-export type TemplateStatus = { template: string; label: string; status: string; reason?: string; category?: string };
+export type TemplateStatus = { template: string; label: string; status: string; reason?: string; category?: string; id?: string; outdated?: boolean };
+
+type MetaComponent = { type: string; text?: string; buttons?: { type: string; text?: string; url?: string }[] };
+/** Texto y botones, para comparar lo que hay en Meta con lo que espera el portal. */
+const shape = (comps: MetaComponent[] | undefined) =>
+  JSON.stringify((comps ?? []).filter((c) => ["BODY", "BUTTONS"].includes(c.type.toUpperCase())).map((c) => ({
+    type: c.type.toUpperCase(), text: c.text ?? null, buttons: (c.buttons ?? []).map((b) => ({ type: b.type.toUpperCase(), text: b.text ?? null, url: b.url ?? null })),
+  })));
 
 /** Estado de nuestras plantillas en Meta (APPROVED, PENDING, REJECTED o "No registrada"). */
 export async function templateStatuses(): Promise<TemplateStatus[] | null> {
   const c = cfg();
   if (!c) return null;
   try {
-    const res = await fetch(`${GRAPH}/${c.waba}/message_templates?fields=name,status,rejected_reason,language,category&limit=200`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
-    const j = (await res.json()) as { data?: { name: string; status: string; rejected_reason?: string; language: string; category?: string }[]; error?: { message: string } };
+    const res = await fetch(`${GRAPH}/${c.waba}/message_templates?fields=id,name,status,rejected_reason,language,category,components&limit=200`, { headers: { Authorization: `Bearer ${c.token}` }, cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    const j = (await res.json()) as { data?: { id: string; name: string; status: string; rejected_reason?: string; language: string; category?: string; components?: MetaComponent[] }[]; error?: { message: string } };
     if (!res.ok) throw new Error(j.error?.message ?? `HTTP ${res.status}`);
     return (Object.keys(NOTIFY_EVENTS) as NotifyEvent[]).map((k) => {
       const t = j.data?.find((d) => d.name === NOTIFY_EVENTS[k].template && d.language === "es_MX");
-      return { template: NOTIFY_EVENTS[k].template, label: NOTIFY_EVENTS[k].label, status: t?.status ?? "No registrada", reason: t?.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : undefined, category: t?.category };
+      const outdated = !!t && shape(t.components) !== shape(whatsappTemplatePayload(k).components as MetaComponent[]);
+      return { template: NOTIFY_EVENTS[k].template, label: NOTIFY_EVENTS[k].label, status: t?.status ?? "No registrada", reason: t?.rejected_reason && t.rejected_reason !== "NONE" ? t.rejected_reason : undefined, category: t?.category, id: t?.id, outdated };
     });
   } catch (e) {
     return [{ template: "—", label: "Error al consultar Meta", status: e instanceof Error ? e.message : "Error" }];
@@ -46,6 +54,28 @@ export async function registerTemplates(): Promise<{ created: string[]; errors: 
     else errors.push(`${NOTIFY_EVENTS[k].template}: ${j.error?.error_user_msg ?? j.error?.message ?? res.status}`);
   }
   return { created, errors };
+}
+
+/** Manda a Meta el texto y los botones actuales de las plantillas que cambiaron (vuelven a revisión). */
+export async function updateOutdatedTemplates(): Promise<{ updated: string[]; errors: string[] }> {
+  const c = cfg();
+  if (!c) return { updated: [], errors: ["Faltan WHATSAPP_TOKEN o WHATSAPP_WABA_ID en Coolify"] };
+  const current = (await templateStatuses()) ?? [];
+  const updated: string[] = [], errors: string[] = [];
+  for (const k of Object.keys(NOTIFY_EVENTS) as NotifyEvent[]) {
+    const t = current.find((x) => x.template === NOTIFY_EVENTS[k].template);
+    if (!t?.id || !t.outdated) continue;
+    const res = await fetch(`${GRAPH}/${t.id}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${c.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ components: whatsappTemplatePayload(k).components }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const j = (await res.json().catch(() => ({}))) as { error?: { message?: string; error_user_msg?: string } };
+    if (res.ok) updated.push(t.template);
+    else errors.push(`${t.template}: ${j.error?.error_user_msg ?? j.error?.message ?? res.status}`);
+  }
+  return { updated, errors };
 }
 
 const phoneCfg = () => {

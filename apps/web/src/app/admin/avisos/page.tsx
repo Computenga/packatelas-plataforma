@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/auth";
 import { fecha } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card, PageHeader, Table, Td } from "@/components/ui";
-import { saveBuyerMessageAction, registerPhoneAction, registerTemplatesAction, retryAction, saveNotifyAction, subscribeWebhookAction, testSendAction } from "./actions";
+import { saveBuyerMessageAction, registerPhoneAction, registerTemplatesAction, updateTemplatesAction, retryAction, saveNotifyAction, subscribeWebhookAction, testSendAction } from "./actions";
 import { phoneStatus, templateStatuses, webhookSubscriptions, webhookVerifyToken } from "@/lib/wa-templates";
 
 export const metadata: Metadata = { title: "Avisos" };
@@ -94,9 +94,15 @@ export default async function AvisosPage({ searchParams }: PageProps<"/admin/avi
                   <p className={`text-xs font-medium ${t.status === "APPROVED" ? "text-emerald-700" : t.status === "REJECTED" ? "text-red-700" : "text-amber-700"}`}>
                     {t.status === "APPROVED" ? "Aprobada" : t.status === "PENDING" ? "En revisión" : t.status === "REJECTED" ? `Rechazada${t.reason ? `: ${t.reason}` : ""}` : t.status}{t.category ? ` · ${t.category === "MARKETING" ? "Marketing" : t.category === "UTILITY" ? "Utilidad" : t.category}` : ""}
                   </p>
+                  {t.outdated && <p className="text-xs font-semibold text-red-700">En Meta tiene otro texto o botones: actualízala</p>}
                 </li>
               ))}
             </ul>
+            {templates.some((t) => t.outdated) && (
+              <ActionForm action={updateTemplatesAction} submitLabel="Actualizar en Meta las desactualizadas">
+                <p className="text-xs text-slate-500">Se manda el texto y los botones actuales; Meta las vuelve a revisar (suele tardar minutos) y mientras tanto no se pueden enviar.</p>
+              </ActionForm>
+            )}
             <ActionForm action={registerTemplatesAction} submitLabel="Registrar las que falten">
               <p className="text-xs text-slate-500">Se mandan a revisión de Meta en Español (MEX), como Utilidad salvo las campañas (Marketing). Suelen aprobarse en minutos.</p>
             </ActionForm>

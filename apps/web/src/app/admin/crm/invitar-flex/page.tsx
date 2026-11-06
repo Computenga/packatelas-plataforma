@@ -17,8 +17,9 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
   const zone = sp.zona === "cmx" || sp.zona === "emx" ? sp.zona : null;
   const limit = Math.min(500, Math.max(1, Number(sp.lote) || 150));
   const [{ total, optedOut, targets }, stats, st] = await Promise.all([flexInviteTargets(prisma, { zone, limit }), flexInviteStats(prisma), templateStatuses()]);
-  const tpl = st?.find((s) => s.template === "pk_invitacion_flex")?.status ?? "—";
-  const ready = tpl === "APPROVED";
+  const meta = st?.find((s) => s.template === "pk_invitacion_flex");
+  const tpl = meta?.status ?? "—";
+  const ready = tpl === "APPROVED" && !meta?.outdated;
   const tab = (z: string | null, label: string) => (
     <Link href={`/admin/crm/invitar-flex?${new URLSearchParams({ ...(z ? { zona: z } : {}), lote: String(limit) })}`} className={`rounded-lg px-3 py-1.5 text-sm ${zone === z ? "bg-brand text-white" : "bg-white text-slate-700"}`}>{label}</Link>
   );
@@ -32,7 +33,8 @@ export default async function InvitarFlexPage({ searchParams }: PageProps<"/admi
 
       <Card title="Plantilla en Meta">
         <p className="text-sm">pk_invitacion_flex (Marketing) <Badge tone={ready ? "green" : tpl === "REJECTED" ? "red" : "amber"}>{tpl}</Badge></p>
-        {!ready && <p className="mt-2 text-sm text-slate-600">Si dice «No registrada», regístrala en <Link href="/admin/avisos" className="text-brand underline">Avisos → Plantillas</Link>. El envío se habilita cuando Meta la aprueba.</p>}
+        {meta?.outdated && <p className="mt-2 text-sm font-semibold text-red-700">La versión aprobada en Meta es la anterior (sin el botón al WhatsApp oficial). Actualízala en <Link href="/admin/avisos" className="underline">Avisos → Plantillas</Link> antes de enviar.</p>}
+        {!ready && !meta?.outdated && <p className="mt-2 text-sm text-slate-600">Si dice «No registrada», regístrala en <Link href="/admin/avisos" className="text-brand underline">Avisos → Plantillas</Link>. El envío se habilita cuando Meta la aprueba.</p>}
       </Card>
 
       <Card title="Resultados">

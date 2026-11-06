@@ -31,6 +31,16 @@ export async function registerTemplatesAction(): Promise<ActionState> {
   return { ok: r.created.length ? `Enviadas a revisión de Meta: ${r.created.join(", ")}` : "Todas las plantillas ya estaban registradas" };
 }
 
+export async function updateTemplatesAction(): Promise<ActionState> {
+  await requireUser(["ADMIN"]);
+  const { updateOutdatedTemplates } = await import("@/lib/wa-templates");
+  const r = await updateOutdatedTemplates();
+  revalidatePath("/admin/avisos");
+  revalidatePath("/admin/crm/invitar-flex");
+  if (r.errors.length) return { error: r.errors.join(" · ") };
+  return { ok: r.updated.length ? `Actualizadas en Meta (vuelven a revisión): ${r.updated.join(", ")}` : "No hay plantillas desactualizadas" };
+}
+
 export async function registerPhoneAction(_: ActionState, fd: FormData): Promise<ActionState> {
   await requireUser(["ADMIN"]);
   const pin = String(fd.get("pin") ?? "").trim();

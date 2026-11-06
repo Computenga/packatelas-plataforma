@@ -9,7 +9,9 @@ export async function sendFlexInvitesAction(_: ActionState, fd: FormData): Promi
   const user = await requireUser(["ADMIN"]);
   const { templateStatuses } = await import("@/lib/wa-templates");
   const st = (await templateStatuses()) ?? [];
-  if (st.find((s) => s.template === "pk_invitacion_flex")?.status !== "APPROVED") return { error: "Meta aún no aprueba la plantilla pk_invitacion_flex" };
+  const t = st.find((s) => s.template === "pk_invitacion_flex");
+  if (t?.status !== "APPROVED") return { error: "Meta aún no aprueba la plantilla pk_invitacion_flex" };
+  if (t.outdated) return { error: "La plantilla en Meta es la versión anterior: actualízala en Avisos → Plantillas" };
   const zone = fd.get("zone") === "cmx" || fd.get("zone") === "emx" ? String(fd.get("zone")) : null;
   const limit = Number(fd.get("limit")) || 150;
   const r = await sendFlexInvites(prisma, user.id, { zone, limit });
