@@ -31,17 +31,30 @@ export function sameName(a?: string | null, b?: string | null) {
 
 type Person = { name: string; phone?: string | null; email?: string | null };
 
-/** Empleado sin usuario que coincide con la persona; solo si hay uno solo (si hay duda, no se liga). */
-export async function matchEmployee(db: Db, p: Person) {
-  const free = await db.employee.findMany({ where: { userId: null }, select: { id: true, employeeNo: true, name: true, phone: true, email: true, status: true } });
+const AUTO_NOTE = "Alta automática al crear su usuario de repartidor.";
+
+/**
+ * Empleado sin usuario que coincide con la persona. Si hay varios, se queda con el único ACTIVO;
+ * si aun así hay duda, no se liga. Un nombre de una sola palabra («marlon») solo liga si hay un único
+ * empleado activo sin usuario cuyo nombre empieza con ella.
+ */
+export async function matchEmployee(db: Db, p: Person, opts: { excludeId?: string } = {}) {
+  const free = (await db.employee.findMany({ where: { userId: null }, select: { id: true, employeeNo: true, name: true, phone: true, email: true, status: true, notes: true } }))
+    .filter((e) => e.id !== opts.excludeId && !e.notes?.startsWith(AUTO_NOTE));
+  const pick = <T extends { status: string }>(list: T[]) => (list.length === 1 ? list[0] : list.filter((e) => e.status === "ACTIVO").length === 1 ? list.find((e) => e.status === "ACTIVO")! : null);
   const ph = phone10(p.phone);
   const em = p.email?.trim().toLowerCase();
-  const byPhone = ph ? free.filter((e) => phone10(e.phone) === ph) : [];
-  if (byPhone.length === 1) return { employee: byPhone[0], by: "teléfono" as const };
-  const byEmail = em ? free.filter((e) => e.email?.trim().toLowerCase() === em) : [];
-  if (byEmail.length === 1) return { employee: byEmail[0], by: "correo" as const };
-  const byName = free.filter((e) => sameName(e.name, p.name));
-  if (byName.length === 1) return { employee: byName[0], by: "nombre" as const };
+  const byPhone = pick(ph ? free.filter((e) => phone10(e.phone) === ph) : []);
+  if (byPhone) return { employee: byPhone, by: "teléfono" as const };
+  const byEmail = pick(em ? free.filter((e) => e.email?.trim().toLowerCase() === em) : []);
+  if (byEmail) return { employee: byEmail, by: "correo" as const };
+  const byName = pick(free.filter((e) => sameName(e.name, p.name)));
+  if (byName) return { employee: byName, by: "nombre" as const };
+  const single = nameTokens(p.name);
+  if (single.length === 1 && single[0].length >= 4) {
+    const firsts = free.filter((e) => e.status === "ACTIVO" && nameTokens(e.name.split(/\s+/)[0])[0] === single[0]);
+    if (firsts.length === 1) return { employee: firsts[0], by: "nombre" as const };
+  }
   return null;
 }
 
@@ -91,7 +104,7 @@ export async function ensureDriverEmployee(prisma: PrismaClient, userId: string,
           data: {
             employeeNo: no, name: user.name, phone: phone10(person.phone), email: user.email, userId: user.id, kind: "repartidor", position: "Repartidor",
             status: "ACTIVO", hireDate: new Date(new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mexico_City" }).format(new Date())),
-            notes: "Alta automática al crear su usuario de repartidor. Falta registrar su huella en el checador.",
+            notes: `${AUTO_NOTE} Falta registrar su huella en el checador.`,
           },
         });
         await markCounter(tx, "empleado", no);
@@ -111,6 +124,14 @@ export async function ensureDriverEmployee(prisma: PrismaClient, userId: string,
  * empleado, avisa a administración qué número se asignó y le pide al repartidor llenar sus datos.
  */
 export async function syncDriverEmployees(prisma: PrismaClient, actorUserId?: string) {
+  const fixed = await reconcileAutoEmployees(prisma).catch((e) => { console.error("[empleados] corrección", e); return []; });
+  if (fixed.length) {
+    await sendPush(prisma, await adminUserIds(prisma), {
+      title: "Corrección de empleados",
+      body: `Ligados a su empleado de antes: ${fixed.map((f) => `${f.name} → #${f.to} (se quitó #${f.from})`).join(", ")}`,
+      url: "/admin/personal", tag: "driver-employees-fix",
+    }).catch(() => null);
+  }
   const users = await prisma.user.findMany({ where: { role: "REPARTIDOR", active: true, employee: null, driver: { is: { active: true } } }, select: { id: true } });
   const results: DriverEmployeeResult[] = [];
   for (const u of users) {
@@ -139,4 +160,97 @@ export async function notifyDriverData(prisma: PrismaClient, userId: string) {
   if (!e || !missingEmployeeData(e).length) return false;
   await sendPush(prisma, [userId], { title: "Completa tus datos", body: "Llena tus datos de expediente (CURP, RFC, NSS, domicilio, CLABE y contacto de emergencia) en tu perfil.", url: "/repartidor/perfil#expediente", tag: "mis-datos" });
   return true;
+}
+
+/** Empleados creados solos que aún no tienen checadas, documentos ni nómina (se pueden corregir sin perder nada). */
+async function untouchedAuto(db: Db) {
+  return db.employee.findMany({
+    where: { notes: { startsWith: AUTO_NOTE }, punches: { none: {} }, employeeDocuments: { none: {} }, payroll: { none: {} } },
+    select: { id: true, employeeNo: true, name: true, phone: true, email: true, userId: true, user: { select: { id: true, name: true, username: true, email: true, lastLoginAt: true, driver: { select: { phone: true, lastLocationAt: true } } } } },
+    orderBy: { employeeNo: "asc" },
+  });
+}
+
+/**
+ * Corrige altas automáticas: si con las reglas actuales su repartidor sí coincide con un empleado
+ * que ya existía (sin usuario), se liga a ese y se borra el que se creó de más.
+ */
+export async function reconcileAutoEmployees(prisma: PrismaClient) {
+  const fixed: { from: number; to: number; name: string; by: string }[] = [];
+  for (const a of await untouchedAuto(prisma)) {
+    if (!a.user) continue;
+    const m = await matchEmployee(prisma, { name: a.user.name, phone: a.user.driver?.phone ?? a.phone, email: a.user.email }, { excludeId: a.id });
+    if (!m) continue;
+    await prisma.$transaction(async (tx) => {
+      await tx.employee.delete({ where: { id: a.id } });
+      await tx.employee.update({ where: { id: m.employee.id }, data: { userId: a.user!.id, kind: "repartidor" } });
+    });
+    await audit(prisma, { action: "employee.linked_driver", entity: "Employee", entityId: m.employee.id, summary: `Corrección: ${a.user.name} ligado al empleado #${m.employee.employeeNo} ${m.employee.name} (coincide por ${m.by}); se quitó el #${a.employeeNo} creado de más` });
+    fixed.push({ from: a.employeeNo, to: m.employee.employeeNo, name: a.user.name, by: m.by });
+  }
+  return fixed;
+}
+
+export type DuplicateCase = {
+  autoId: string; autoNo: number; userId: string; user: string; username: string; lastSeen: Date | null;
+  others: { employeeId: string; employeeNo: number; name: string; userId: string | null; username: string | null; lastSeen: Date | null; status: string }[];
+};
+
+/**
+ * Altas automáticas que se parecen (nombre o teléfono) a un empleado que ya tiene OTRO usuario:
+ * casi siempre es la misma persona con dos usuarios. Lo decide administración.
+ */
+export async function driverDuplicateCases(db: Db): Promise<DuplicateCase[]> {
+  const autos = await untouchedAuto(db);
+  if (!autos.length) return [];
+  const all = await db.employee.findMany({ select: { id: true, employeeNo: true, name: true, phone: true, status: true, userId: true, user: { select: { username: true, lastLoginAt: true, driver: { select: { lastLocationAt: true } } } } } });
+  const seen = (u: { lastLoginAt: Date | null; driver: { lastLocationAt: Date | null } | null } | null) => {
+    const ts = [u?.lastLoginAt, u?.driver?.lastLocationAt].filter((d): d is Date => !!d).map((d) => d.getTime());
+    return ts.length ? new Date(Math.max(...ts)) : null;
+  };
+  const out: DuplicateCase[] = [];
+  for (const a of autos) {
+    if (!a.user) continue;
+    const ph = phone10(a.user.driver?.phone ?? a.phone);
+    const others = all.filter((e) => e.id !== a.id && (sameName(e.name, a.user!.name) || (ph && phone10(e.phone) === ph)));
+    if (!others.length) continue;
+    out.push({
+      autoId: a.id, autoNo: a.employeeNo, userId: a.user.id, user: a.user.name, username: a.user.username, lastSeen: seen(a.user),
+      others: others.map((e) => ({ employeeId: e.id, employeeNo: e.employeeNo, name: e.name, userId: e.userId, username: e.user?.username ?? null, lastSeen: seen(e.user), status: e.status })),
+    });
+  }
+  return out;
+}
+
+/**
+ * Es la misma persona: el usuario `keepUserId` se queda con el empleado `employeeId`; el alta
+ * automática se borra y el otro usuario de repartidor (si había) se desactiva.
+ */
+export async function mergeDriverDuplicate(prisma: PrismaClient, input: { autoId: string; employeeId: string; keepUserId: string }, actorUserId: string) {
+  const [auto, target] = await Promise.all([
+    prisma.employee.findUnique({ where: { id: input.autoId }, select: { id: true, employeeNo: true, notes: true, userId: true, _count: { select: { punches: true, employeeDocuments: true, payroll: true } } } }),
+    prisma.employee.findUnique({ where: { id: input.employeeId }, select: { id: true, employeeNo: true, name: true, userId: true } }),
+  ]);
+  if (!auto || !target || !auto.notes?.startsWith(AUTO_NOTE)) throw new Error("Ya no aplica; recarga la página");
+  if (auto._count.punches + auto._count.employeeDocuments + auto._count.payroll > 0) throw new Error(`El #${auto.employeeNo} ya tiene checadas o documentos; corrígelo a mano`);
+  const users = [auto.userId, target.userId].filter((u): u is string => !!u);
+  if (!users.includes(input.keepUserId)) throw new Error("Usuario inválido");
+  const drop = users.filter((u) => u !== input.keepUserId);
+  await prisma.$transaction(async (tx) => {
+    await tx.employee.delete({ where: { id: auto.id } });
+    await tx.employee.update({ where: { id: target.id }, data: { userId: input.keepUserId, kind: "repartidor" } });
+    for (const u of drop) {
+      await tx.user.update({ where: { id: u }, data: { active: false } });
+      await tx.driver.updateMany({ where: { userId: u }, data: { active: false, onDuty: false } });
+      await tx.session.deleteMany({ where: { userId: u } });
+    }
+  });
+  await audit(prisma, { actorUserId, action: "employee.merged_driver", entity: "Employee", entityId: target.id, summary: `Misma persona: empleado #${target.employeeNo} ${target.name} queda con un solo usuario; se quitó el #${auto.employeeNo} y se desactivó ${drop.length} usuario(s) duplicado(s)` });
+}
+
+/** Es otra persona: el alta automática se queda (deja de aparecer como posible duplicado). */
+export async function keepAutoEmployee(prisma: PrismaClient, autoId: string, actorUserId: string) {
+  const e = await prisma.employee.findUniqueOrThrow({ where: { id: autoId }, select: { notes: true, employeeNo: true } });
+  await prisma.employee.update({ where: { id: autoId }, data: { notes: (e.notes ?? "").replace(AUTO_NOTE, "Alta automática (revisada: es otra persona).") } });
+  await audit(prisma, { actorUserId, action: "employee.auto_confirmed", entity: "Employee", entityId: autoId, summary: `Empleado #${e.employeeNo}: confirmado como persona distinta` });
 }

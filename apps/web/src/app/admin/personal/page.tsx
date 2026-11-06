@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { Badge, ButtonLink, PageHeader, Table, Td } from "@/components/ui";
+import { DriverReview } from "./driver-review";
 
 export const metadata: Metadata = { title: "Personal" };
 const DAY = ["", "L", "M", "X", "J", "V", "S", "D"];
@@ -47,6 +48,7 @@ export default async function PersonalPage({ searchParams }: PageProps<"/admin/p
       >
         Base maestra de empleados. El número es el mismo del ZKTeco y de la flotilla (U-número).
       </PageHeader>
+      {!q && <DriverReview />}
       <form className="flex gap-2 text-sm">
         <input name="q" defaultValue={q} placeholder="Nombre, puesto, número, teléfono o RFC" className="w-72 rounded-lg border border-slate-300 px-3 py-2" />
         <label className="flex items-center gap-1 text-slate-600"><input type="checkbox" name="ver" value="todos" defaultChecked={all} className="accent-brand" /> Incluir bajas</label>
