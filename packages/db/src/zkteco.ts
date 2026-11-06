@@ -11,7 +11,7 @@ const DEVICES = "checador.adms.devices";
 const MAX_DEVICES = 20;
 
 export type AdmsDevice = { lastAt: string; ip?: string; punches: number; lastPunchAt?: string; info?: string; rejected?: number };
-export type AdmsConfig = { enabled: boolean; serials: string[]; ips: string[]; devices: Record<string, AdmsDevice> };
+export type AdmsConfig = { enabled: boolean; serials: string[]; ips: string[]; pushUsers: boolean; devices: Record<string, AdmsDevice> };
 
 export async function getAdmsConfig(prisma: PrismaClient): Promise<AdmsConfig> {
   const [row, dev] = await Promise.all([
@@ -19,7 +19,7 @@ export async function getAdmsConfig(prisma: PrismaClient): Promise<AdmsConfig> {
     prisma.setting.findUnique({ where: { key: DEVICES } }),
   ]);
   const v = (row?.value as Partial<AdmsConfig> | undefined) ?? {};
-  return { enabled: !!v.enabled, serials: v.serials ?? [], ips: v.ips ?? [], devices: (dev?.value as Record<string, AdmsDevice> | undefined) ?? {} };
+  return { enabled: !!v.enabled, serials: v.serials ?? [], ips: v.ips ?? [], pushUsers: v.pushUsers ?? true, devices: (dev?.value as Record<string, AdmsDevice> | undefined) ?? {} };
 }
 
 async function saveDevices(prisma: PrismaClient, d: Record<string, AdmsDevice>) {
@@ -30,9 +30,10 @@ const cleanSn = (s: string) => s.trim().toUpperCase().replace(/[^A-Z0-9]/g, "").
 const cleanIp = (s: string) => s.trim().replace(/[^0-9a-fA-F:.]/g, "").slice(0, 45);
 
 /** Solo el admin: activar, relojes autorizados y la IP pública de la oficina desde donde mandan. */
-export async function setAdmsConfig(prisma: PrismaClient, enabled: boolean, serials: string[], ips: string[] = []) {
+export async function setAdmsConfig(prisma: PrismaClient, enabled: boolean, serials: string[], ips: string[] = [], pushUsers = true) {
   const value = {
     enabled,
+    pushUsers,
     serials: [...new Set(serials.map(cleanSn).filter(Boolean))].slice(0, 10),
     ips: [...new Set(ips.map(cleanIp).filter(Boolean))].slice(0, 10),
   };
@@ -128,4 +129,107 @@ export function admsOptions(sn: string) {
     "Realtime=1",
     "Encrypt=None",
   ].join("\n");
+}
+
+// ── Altas de empleados al reloj ──
+// Primero se le pide al reloj su lista de usuarios (DATA QUERY USERINFO) y solo se dan de alta los
+// números que NO tiene: nunca se modifica ni se borra un usuario que ya exista en el aparato (así no
+// se tocan sus huellas ni los administradores del reloj). La huella se registra en el reloj.
+const USERS = "checador.adms.users";
+type UserSync = { askedAt?: string; listedAt?: string; seq: number; pins: Record<string, string>; cmds: Record<string, { pin?: string; name?: string; kind: "query" | "user"; sentAt: string }>; errors: Record<string, string> };
+
+async function readUsers(prisma: PrismaClient): Promise<Record<string, UserSync>> {
+  return ((await prisma.setting.findUnique({ where: { key: USERS } }))?.value as Record<string, UserSync> | undefined) ?? {};
+}
+async function writeUsers(prisma: PrismaClient, v: Record<string, UserSync>) {
+  await prisma.setting.upsert({ where: { key: USERS }, update: { value: v }, create: { key: USERS, value: v } });
+}
+const blank = (): UserSync => ({ seq: 0, pins: {}, cmds: {}, errors: {} });
+/** Nombre como lo acepta el reloj: sin acentos ni tabuladores, máximo 24 caracteres. */
+export const zkName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").replace(/[^A-Za-z0-9 .\-]/g, "").trim().slice(0, 24).trim();
+
+/** Comandos para el reloj en su consulta periódica (getrequest). */
+export async function admsCommands(prisma: PrismaClient, sn: string, now = new Date()): Promise<string[]> {
+  const c = await getAdmsConfig(prisma);
+  if (!c.pushUsers) return [];
+  const all = await readUsers(prisma);
+  const u = all[sn] ?? blank();
+  const t = now.getTime();
+  // Comandos sin respuesta en 10 minutos se vuelven a intentar.
+  for (const [id, cmd] of Object.entries(u.cmds)) if (t - new Date(cmd.sentAt).getTime() > 10 * 60_000) delete u.cmds[id];
+  const pending = Object.values(u.cmds);
+  const out: string[] = [];
+  const stale = !u.listedAt || t - new Date(u.listedAt).getTime() > 12 * 3600_000;
+  if (stale && !pending.some((x) => x.kind === "query") && (!u.askedAt || t - new Date(u.askedAt).getTime() > 5 * 60_000)) {
+    const id = String(++u.seq);
+    u.cmds[id] = { kind: "query", sentAt: now.toISOString() };
+    u.askedAt = now.toISOString();
+    out.push(`C:${id}:DATA QUERY USERINFO`);
+  } else if (u.listedAt) {
+    const busy = new Set(pending.map((x) => x.pin));
+    const emps = await prisma.employee.findMany({ where: { status: "ACTIVO", employeeNo: { lt: 100_000 } }, select: { employeeNo: true, name: true }, orderBy: { employeeNo: "asc" } });
+    for (const e of emps.filter((e) => !(String(e.employeeNo) in u.pins) && !busy.has(String(e.employeeNo))).slice(0, 10)) {
+      const id = String(++u.seq);
+      const name = zkName(e.name);
+      u.cmds[id] = { kind: "user", pin: String(e.employeeNo), name, sentAt: now.toISOString() };
+      out.push(`C:${id}:DATA UPDATE USERINFO PIN=${e.employeeNo}\tName=${name}\tPri=0\tPasswd=\tCard=\tGrp=1\tTZ=0000000100000000\tVerify=0`);
+    }
+  }
+  if (out.length || Object.keys(u.cmds).length !== pending.length) {
+    all[sn] = u;
+    await writeUsers(prisma, all);
+  }
+  return out;
+}
+
+/** Lista de usuarios que manda el reloj (respuesta a DATA QUERY USERINFO): «USER PIN=1\tName=…». */
+export async function admsReceiveUsers(prisma: PrismaClient, sn: string, body: string) {
+  const lines = body.split(/\r?\n/).filter((l) => /^USER\s/i.test(l.trim()));
+  if (!lines.length) return 0;
+  const all = await readUsers(prisma);
+  const u = all[sn] ?? blank();
+  for (const l of lines) {
+    const f = Object.fromEntries(l.trim().replace(/^USER\s+/i, "").split("\t").map((kv) => { const i = kv.indexOf("="); return [kv.slice(0, i), kv.slice(i + 1)]; }));
+    if (f.PIN) u.pins[f.PIN] = f.Name ?? "";
+  }
+  u.listedAt = new Date().toISOString();
+  for (const [id, cmd] of Object.entries(u.cmds)) if (cmd.kind === "query") delete u.cmds[id];
+  all[sn] = u;
+  await writeUsers(prisma, all);
+  return lines.length;
+}
+
+/** Resultado de comandos (devicecmd): «ID=5&Return=0&CMD=DATA», uno por renglón. */
+export async function admsCommandResults(prisma: PrismaClient, sn: string, body: string) {
+  const all = await readUsers(prisma);
+  const u = all[sn];
+  if (!u) return 0;
+  let n = 0;
+  for (const line of body.split(/\r?\n/)) {
+    const p = new URLSearchParams(line.trim());
+    const id = p.get("ID");
+    if (!id || !u.cmds[id]) continue;
+    const cmd = u.cmds[id];
+    const ret = Number(p.get("Return"));
+    if (cmd.kind === "user" && cmd.pin) {
+      if (ret >= 0) { u.pins[cmd.pin] = cmd.name ?? ""; delete u.errors[cmd.pin]; }
+      else u.errors[cmd.pin] = `El reloj respondió ${p.get("Return")}`;
+    }
+    if (cmd.kind === "query" && ret >= 0 && !u.listedAt) u.listedAt = new Date().toISOString();
+    delete u.cmds[id];
+    n++;
+  }
+  all[sn] = u;
+  await writeUsers(prisma, all);
+  return n;
+}
+
+/** Estado de las altas al reloj (para la pantalla del checador). */
+export async function admsUserStatus(prisma: PrismaClient) {
+  const [all, emps] = await Promise.all([readUsers(prisma), prisma.employee.findMany({ where: { status: "ACTIVO", employeeNo: { lt: 100_000 } }, select: { employeeNo: true, name: true } })]);
+  return Object.entries(all).map(([sn, u]) => ({
+    sn, listedAt: u.listedAt ? new Date(u.listedAt) : null, onDevice: Object.keys(u.pins).length,
+    missing: emps.filter((e) => !(String(e.employeeNo) in u.pins)).map((e) => ({ no: e.employeeNo, name: e.name })),
+    errors: Object.entries(u.errors).map(([pin, e]) => `#${pin}: ${e}`),
+  }));
 }

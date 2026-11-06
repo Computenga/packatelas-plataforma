@@ -1,6 +1,6 @@
 import "dotenv/config";
-import { afterAll, describe, expect, it } from "vitest";
-import { admsContact, admsReceiveAttlog, getAdmsConfig, parseAttlog, prisma, setAdmsConfig } from "./index.ts";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { admsCommandResults, admsCommands, admsContact, admsReceiveAttlog, admsReceiveUsers, getAdmsConfig, parseAttlog, prisma, setAdmsConfig, zkName } from "./index.ts";
 
 const no = 900000 + Math.floor(Math.random() * 9999);
 afterAll(async () => {
@@ -43,4 +43,30 @@ describe("ZKTeco ADMS", () => {
     expect(await admsReceiveAttlog(prisma, "CQZ123", body)).toMatchObject({ added: 0, duplicates: 2 });
     expect((await getAdmsConfig(prisma)).devices.CQZ123.punches).toBe(2);
   });
+});
+
+describe("altas al reloj ZKTeco", () => {
+  const sn = `TEST${Date.now()}`;
+  const uno = 89000 + Number(String(Date.now()).slice(-3));
+  beforeAll(async () => {
+    await setAdmsConfig(prisma, true, [sn], [], true);
+    await prisma.employee.create({ data: { employeeNo: uno, name: "José Ñúñez Pérez Prueba Larguísimo" } });
+  });
+  afterAll(async () => { await prisma.employee.deleteMany({ where: { employeeNo: uno } }); });
+  it("primero pide la lista de usuarios y solo da de alta los que faltan, sin tocar los existentes", async () => {
+    const c1 = await admsCommands(prisma, sn);
+    expect(c1).toHaveLength(1);
+    expect(c1[0]).toMatch(/^C:\d+:DATA QUERY USERINFO$/);
+    // Mientras no llega la lista, no se manda nada más.
+    expect(await admsCommands(prisma, sn)).toEqual([]);
+    await admsReceiveUsers(prisma, sn, "USER PIN=1\tName=Admin\tPri=14\nUSER PIN=2\tName=Otro\tPri=0\n");
+    const c2 = await admsCommands(prisma, sn);
+    const mine = c2.find((c) => c.includes(`PIN=${uno}\t`))!;
+    expect(mine).toMatch(new RegExp(`^C:(\\d+):DATA UPDATE USERINFO PIN=${uno}\\tName=Jose Nunez Perez Prueba\\tPri=0`));
+    expect(c2.some((c) => /PIN=1\t|PIN=2\t/.test(c))).toBe(false);
+    const id = mine.split(":")[1];
+    await admsCommandResults(prisma, sn, `ID=${id}&Return=0&CMD=DATA\n`);
+    expect((await admsCommands(prisma, sn)).some((c) => c.includes(`PIN=${uno}\t`))).toBe(false);
+  });
+  it("limpia nombres", () => expect(zkName("Ángel\tMoctezuma")).toBe("Angel Moctezuma"));
 });

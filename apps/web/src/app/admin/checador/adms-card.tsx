@@ -1,4 +1,4 @@
-import { getAdmsConfig, prisma } from "@packatelas/db";
+import { admsUserStatus, getAdmsConfig, prisma } from "@packatelas/db";
 import { ActionForm } from "@/components/action-form";
 import { Badge, Card } from "@/components/ui";
 import { fecha } from "@/lib/format";
@@ -6,7 +6,7 @@ import { admsConfigAction, forgetDeviceAction } from "./actions";
 
 /** Recepción directa del checador ZKTeco por ADMS [A23]. Apagada hasta que el admin la active. */
 export async function AdmsCard() {
-  const c = await getAdmsConfig(prisma);
+  const [c, users] = await Promise.all([getAdmsConfig(prisma), admsUserStatus(prisma)]);
   const host = (process.env.PUBLIC_URL ?? "https://portal.packatelas.mx").replace(/^https?:\/\//, "").replace(/\/$/, "");
   const devices = Object.entries(c.devices).sort((a, b) => b[1].lastAt.localeCompare(a[1].lastAt));
   return (
@@ -16,6 +16,7 @@ export async function AdmsCard() {
       </p>
       <ActionForm action={admsConfigAction} submitLabel="Guardar">
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="enabled" defaultChecked={c.enabled} /> Recibir checadas del reloj</label>
+        <label className="flex items-center gap-2 text-sm"><input type="checkbox" name="pushUsers" defaultChecked={c.pushUsers} /> Dar de alta en el reloj a los empleados nuevos (solo los números que el reloj no tenga; la huella se registra en el reloj)</label>
         <label className="block text-sm">Número(s) de serie autorizados
           <input name="serials" defaultValue={c.serials.join(", ")} placeholder="Ej. CQZ7224460123" className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 font-mono" />
         </label>
@@ -41,6 +42,16 @@ export async function AdmsCard() {
           ))}
         </ul>
       )}
+      {c.pushUsers && users.map((u) => (
+        <div key={u.sn} className="mt-4 rounded-lg bg-slate-50 p-3 text-sm">
+          <p className="font-medium">Altas al reloj <span className="font-mono text-xs">{u.sn}</span></p>
+          <p className="text-xs text-slate-600">
+            {u.listedAt ? `El reloj tiene ${u.onDevice} usuario(s) (lista del ${fecha(u.listedAt)}).` : "Esperando la lista de usuarios del reloj…"}
+            {u.listedAt && (u.missing.length ? ` Por dar de alta: ${u.missing.slice(0, 30).map((m) => `#${m.no}`).join(", ")}${u.missing.length > 30 ? "…" : ""} (van de 10 en 10 cada que el reloj consulta).` : " Todos los empleados activos ya están en el reloj.")}
+          </p>
+          {u.errors.length > 0 && <p className="mt-1 text-xs text-red-700">Errores: {u.errors.join(" · ")}</p>}
+        </div>
+      ))}
       <details className="mt-4 text-sm text-slate-600">
         <summary className="cursor-pointer">Cómo configurar el reloj (el día que se decida)</summary>
         <ol className="mt-2 list-decimal space-y-1 pl-5">
@@ -50,7 +61,7 @@ export async function AdmsCard() {
           <li>Copia ese número en «Número(s) de serie autorizados», marca “Recibir checadas” y guarda. El reloj manda su historial y después cada checada al momento; las repetidas se ignoran.</li>
           <li>Si el modelo no tiene HTTPS, avísale a soporte: hay que abrir una entrada HTTP solo para /iclock.</li>
         </ol>
-        <p className="mt-2 text-xs">Solo se leen checadas: la plataforma nunca manda comandos al reloj ni cambia sus usuarios. La exportación por archivo sigue funcionando igual.</p>
+        <p className="mt-2 text-xs">Además de leer checadas, la plataforma solo da de alta en el reloj los números de empleado que no tiene; nunca modifica ni borra usuarios ni huellas que ya existan. La exportación por archivo sigue funcionando igual.</p>
       </details>
     </Card>
   );

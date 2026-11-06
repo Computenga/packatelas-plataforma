@@ -1,4 +1,4 @@
-import { admsContact, admsOptions, admsReceiveAttlog, prisma } from "@packatelas/db";
+import { admsContact, admsOptions, admsReceiveAttlog, admsReceiveUsers, prisma } from "@packatelas/db";
 import { clientIp, readCapped, text } from "@/lib/iclock";
 
 // Protocolo ADMS del ZKTeco [A23]. Apagado hasta activarlo en Admin → Checador.
@@ -25,5 +25,7 @@ export async function POST(request: Request) {
     if (r.unknownEmployees.length) console.warn(`[zkteco ${sn}] Números sin empleado: ${r.unknownEmployees.join(", ")}`);
     return text(`OK: ${r.received}`);
   }
+  // Lista de usuarios del reloj (respuesta a la consulta que se le pide antes de dar altas).
+  await admsReceiveUsers(prisma, sn, body).catch((e) => console.error(`[zkteco ${sn}] usuarios`, e));
   return text(`OK: ${lines}`);
 }
