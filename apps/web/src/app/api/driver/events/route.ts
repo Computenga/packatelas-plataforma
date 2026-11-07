@@ -13,6 +13,7 @@ const eventSchema = z.object({
   receiverName: z.string().trim().max(120).optional(),
   reason: z.enum(Object.keys(FAIL_REASONS) as [keyof typeof FAIL_REASONS]).optional(),
   note: z.string().trim().max(500).optional(),
+  codCollected: z.number().min(0).max(200000).optional(),
   photoKey: z.string().regex(/^evidence\/[\w/.-]+$/).max(120).optional(),
 });
 

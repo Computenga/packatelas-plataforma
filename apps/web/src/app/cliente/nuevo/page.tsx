@@ -4,6 +4,7 @@ import { prisma } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
 import { mxn } from "@/lib/format";
 import { ActionForm } from "@/components/action-form";
+import { CodField } from "@/components/cod-field";
 import { AddressPicker } from "@/components/address-picker";
 import { Card, Field, Select, TextArea } from "@/components/ui";
 import { createClientOrder } from "./actions";
@@ -42,6 +43,7 @@ export default async function NuevoEnvioPage() {
           <AddressPicker />
           <TextArea label="Referencias para el repartidor" name="instructions" rows={2} />
           <Field label="Contenido (opcional)" name="itemsSummary" />
+          <CodField />
         </ActionForm>
       </Card>
       <p className="text-xs text-slate-500">Pega la etiqueta con el código PK- que te mostramos al terminar, o escribe el código en el paquete.</p>

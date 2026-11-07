@@ -327,6 +327,10 @@ model Order {
 
   requestedDeliveryAt DateTime?
   deliveredAt         DateTime?
+  // Pago contra entrega: el repartidor cobra este importe al entregar.
+  codAmount           Decimal?  @db.Decimal(12, 2)
+  codCollected        Decimal?  @db.Decimal(12, 2) // lo que confirmó haber cobrado
+  codCollectedAt      DateTime?
   attempts            Int       @default(0)
 
   driverId String?

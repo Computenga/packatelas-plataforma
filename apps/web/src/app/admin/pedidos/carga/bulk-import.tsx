@@ -181,6 +181,7 @@ export function BulkImport({ clients, fixed = false, doneHref = "/admin/despacho
                   <th className="px-2 py-2">Destinatario</th>
                   <th className="px-2 py-2">Dirección</th>
                   <th className="px-2 py-2">CP</th>
+                  <th className="px-2 py-2">Por cobrar</th>
                   <th className="px-2 py-2">Mapa</th>
                   <th className="px-2 py-2">Revisión</th>
                 </tr>
@@ -192,6 +193,7 @@ export function BulkImport({ clients, fixed = false, doneHref = "/admin/despacho
                     <td className="px-2 py-1.5">{r.data.recipientName ?? "—"}</td>
                     <td className="max-w-md truncate px-2 py-1.5">{[r.data.addressLine, r.data.neighborhood, r.data.city].filter(Boolean).join(", ")}</td>
                     <td className="px-2 py-1.5">{r.data.zip ?? "—"}</td>
+                    <td className="px-2 py-1.5 font-semibold">{r.data.cod ? `$${Number(r.data.cod).toLocaleString("es-MX", { minimumFractionDigits: 2 })}` : "—"}</td>
                     <td className="px-2 py-1.5"><GeoCell row={r} /></td>
                     <td className="px-2 py-1.5 text-red-700">{r.errors.join(" · ")}</td>
                   </tr>

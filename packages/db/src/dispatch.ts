@@ -113,6 +113,8 @@ export async function closeStaleShifts(prisma: PrismaClient, now = new Date()) {
   return open.length;
 }
 
+const mxn = (n: number) => `$${n.toLocaleString("es-MX", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
 export type DriverEventInput = {
   driverId: string;
   actorUserId: string;
@@ -126,6 +128,8 @@ export type DriverEventInput = {
   reason?: FailReason;
   note?: string;
   photoKey?: string;
+  /** Pago contra entrega: importe que el repartidor confirma haber cobrado. */
+  codCollected?: number;
 };
 
 export type DriverEventResult =
@@ -212,12 +216,17 @@ async function applyOnceTx(prisma: PrismaClient, e: DriverEventInput, reassigned
 
     if (e.type === "delivered") {
       if (!e.photoKey) return { ok: false as const, error: "Falta la foto de entrega" };
+      const cod = order.codAmount != null ? Number(order.codAmount) : 0;
+      if (cod > 0 && (e.codCollected == null || !(e.codCollected >= 0))) return { ok: false as const, error: `Es por cobrar: confirma que cobraste ${mxn(cod)}` };
+      const codNote = cod > 0 ? `Cobró ${mxn(e.codCollected!)}${Math.abs(e.codCollected! - cod) >= 0.01 ? ` (debía cobrar ${mxn(cod)})` : ""}` : null;
       const ev = await addOrderEvent(tx, {
         ...base,
         type: "delivered",
         toStatus: "DELIVERED",
-        note: e.receiverName ? `Recibió: ${e.receiverName}` : e.note,
+        note: [e.receiverName ? `Recibió: ${e.receiverName}` : e.note, codNote].filter(Boolean).join(" · ") || undefined,
+        ...(cod > 0 ? { data: { codCollected: e.codCollected } } : {}),
       });
+      if (cod > 0) await tx.order.update({ where: { id: order.id }, data: { codCollected: e.codCollected!.toFixed(2), codCollectedAt: occurredAt } });
       await tx.evidence.create({
         data: { orderId: order.id, eventId: ev.id, kind: "PHOTO", storageKey: e.photoKey, receiverName: e.receiverName },
       });

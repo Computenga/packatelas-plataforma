@@ -120,6 +120,9 @@ export default async function PedidoPage({ params }: PageProps<"/admin/pedidos/[
               )}
               <Row label="Instrucciones" value={order.instructions} />
               <Row label="Contenido" value={order.itemsSummary} />
+              {order.codAmount != null && (
+                <Row label="Por cobrar" value={<b>{mxn(order.codAmount)} · {order.codCollectedAt ? `cobrado ${mxn(order.codCollected ?? order.codAmount)} (${fecha(order.codCollectedAt)})` : "pendiente"}</b>} />
+              )}
               <Row label="Repartidor" value={order.driver?.user.name} />
               <Row label="Intentos" value={String(order.attempts)} />
               <Row label="Entregado" value={order.deliveredAt ? fecha(order.deliveredAt) : null} />

@@ -71,6 +71,7 @@ export default async function ClienteHome({ searchParams }: PageProps<"/cliente"
       code: o.code,
       sale: o.mlOrderId ? `Venta ${o.mlOrderId}` : o.mlShipmentId ? "Mercado Libre" : "Envío propio",
       own: !o.mlShipmentId,
+      cod: o.codAmount != null ? `${o.codCollectedAt ? "Cobrado" : "Por cobrar"} ${mxn(o.codCollected ?? o.codAmount)}` : null,
       recipient: o.recipientName ?? "—",
       where: [o.neighborhood, o.city].filter(Boolean).join(", ") || (o.addressLine ?? ""),
       status: STATUS_LABEL[o.status],

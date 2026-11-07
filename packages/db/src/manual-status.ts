@@ -22,7 +22,7 @@ export async function adminMarkOrder(
 ) {
   const note = input.note.trim();
   if (note.length < 3) throw new Error("Escribe por qué se marca a mano (queda en el historial)");
-  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, kind: true, source: true, status: true, code: true, pickupId: true } });
+  const order = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true, kind: true, source: true, status: true, code: true, pickupId: true, codAmount: true } });
   if (!order) throw new Error("Pedido no encontrado");
   if (order.kind === "PICKUP" && order.pickupId) return adminMarkPickup(prisma, order.pickupId, { collected: input.outcome === "delivered", note }, actorUserId);
   if (!OPEN_DELIVERY.includes(order.status)) throw new Error("Este pedido ya está cerrado");
@@ -32,7 +32,8 @@ export async function adminMarkOrder(
         orderId, type: "delivered", source: "ADMIN", toStatus: "DELIVERED", actorUserId,
         note: `Marcado entregado a mano: ${note}${input.receiverName ? ` · Recibió: ${input.receiverName}` : ""}`, data: { manual: true },
       });
-      await tx.order.update({ where: { id: orderId }, data: { attempts: { increment: 1 } } });
+      // Pago contra entrega: al marcarlo entregado a mano se da por cobrado el importe completo.
+      await tx.order.update({ where: { id: orderId }, data: { attempts: { increment: 1 }, ...(order.codAmount != null ? { codCollected: order.codAmount, codCollectedAt: new Date() } : {}) } });
       await reconcileCustody(tx, orderId);
       if (order.kind === "RETURN") await completeReturnOrder(tx, orderId, actorUserId, input.receiverName);
       if (order.source === "TIENDA") await storeDeliveryDone(tx, orderId);

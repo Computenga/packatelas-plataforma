@@ -20,6 +20,8 @@ const body = z.object({
     indicaciones: str(500),
   }),
   contenido: str(200),
+  // Pago contra entrega: importe que el repartidor cobra al destinatario (MXN).
+  cobrar_a_la_entrega: z.number().positive("cobrar_a_la_entrega debe ser mayor a 0").max(200000).multipleOf(0.01).optional().nullable(),
 });
 
 const STATUSES = ["CREATED", "ASSIGNED", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "RESCHEDULED", "RETURNING", "RETURNED_TO_WAREHOUSE", "RETURNED_TO_SELLER", "CANCELLED"];
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
       lat, lng,
       instructions: d.direccion.indicaciones ?? undefined,
       itemsSummary: d.contenido ?? undefined,
+      codAmount: d.cobrar_a_la_entrega ?? undefined,
       externalRef: d.referencia ?? undefined,
       source: "API",
       eventSource: "CLIENT",

@@ -29,7 +29,7 @@ type OrderRow = {
   id: string; code: string; externalRef: string | null; status: OrderStatus; createdAt: Date; deliveredAt: Date | null; attempts: number;
   recipientName: string | null; recipientPhone: string | null; addressLine: string | null; neighborhood: string | null; city: string | null;
   state: string | null; zip: string | null; lat: number | null; lng: number | null; instructions: string | null; itemsSummary: string | null;
-  source: string;
+  source: string; codAmount?: { toString(): string } | null; codCollectedAt?: Date | null;
 };
 
 export function orderView(o: OrderRow) {
@@ -45,6 +45,8 @@ export function orderView(o: OrderRow) {
     destinatario: { nombre: o.recipientName, telefono: o.recipientPhone },
     direccion: { calle: o.addressLine, colonia: o.neighborhood, ciudad: o.city, estado: o.state, cp: o.zip, lat: o.lat, lng: o.lng, indicaciones: o.instructions },
     contenido: o.itemsSummary,
+    cobrar_a_la_entrega: o.codAmount != null ? Number(o.codAmount) : null,
+    cobrado: o.codAmount != null ? !!o.codCollectedAt : null,
     seguimiento_url: `${base()}${trackingPath(o.id)}`,
   };
 }

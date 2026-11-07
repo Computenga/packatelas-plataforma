@@ -26,7 +26,11 @@ export type Stop = {
   mlDelivered?: boolean;
   /** Tienda sin ML autorizado: falta la dirección (se escribe de la etiqueta). */
   pendingAddress?: boolean;
+  /** Pago contra entrega: importe a cobrar antes de entregar. */
+  cod?: number | null;
 };
+
+const MXN = new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN" });
 
 /** Distancia en metros entre dos puntos. */
 function meters(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
@@ -197,6 +201,7 @@ export function RouteList() {
                   {s.mlDelivered && <span className="mr-1 rounded bg-red-100 px-1 font-semibold text-red-800">ENTREGADO EN ML · FALTA FOTO</span>}
                   {s.id === nearId && <span className="mr-1 rounded bg-emerald-100 px-1 font-semibold text-emerald-800">ESTÁS AQUÍ</span>}
                   {s.kind === "RETURN" && <span className="mr-1 rounded bg-amber-100 px-1 font-semibold text-amber-800">DEVOLUCIÓN</span>}
+                  {s.cod ? <span className="mr-1 rounded bg-black px-1 font-bold text-white">COBRAR {MXN.format(s.cod)}</span> : null}
                   {s.pendingAddress && <span className="mr-1 rounded bg-amber-100 px-1 font-semibold text-amber-800">SIN DIRECCIÓN</span>}
                   <span className="font-mono">{s.code}</span> · {s.client}
                   {s.etaMin != null && <span className="ml-1 text-slate-600">· ~{s.etaMin} min</span>}
@@ -257,6 +262,7 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
   const [receiver, setReceiver] = useState(stop.recipient ?? "");
   const [reason, setReason] = useState("nadie");
   const [note, setNote] = useState("");
+  const [codOk, setCodOk] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string>();
   const camRef = useRef<HTMLInputElement>(null);
@@ -300,6 +306,7 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
   const submit = async () => {
     setErr(undefined);
     if (mode === "deliver" && !shot) return setErr("Toma la foto de la entrega.");
+    if (mode === "deliver" && stop.cod && !codOk) return setErr(`Es por cobrar: confirma que cobraste ${MXN.format(stop.cod)}.`);
     setSaving(true);
     try {
       // Coordenadas y hora de la foto; sin foto (no entregado), las de este momento.
@@ -312,6 +319,7 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
         lat: shot?.lat ?? pos?.coords.latitude,
         lng: shot?.lng ?? pos?.coords.longitude,
         receiverName: mode === "deliver" ? receiver.trim() || undefined : undefined,
+        codCollected: mode === "deliver" && stop.cod ? stop.cod : undefined,
         reason: mode === "fail" ? reason : undefined,
         note: note.trim() || undefined,
         photo: shot?.blob,
@@ -331,6 +339,13 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
   return (
     <div className="space-y-3 border-t border-slate-100 p-3">
       {stop.kind === "RETURN" && stop.items && <p className="rounded-lg bg-slate-100 p-2 text-sm"><strong>Entregar a la tienda:</strong> {stop.items}</p>}
+      {stop.cod ? (
+        <div className="rounded-lg bg-black p-3 text-center text-white">
+          <p className="text-xs font-semibold tracking-wide">POR COBRAR · PAGO CONTRA ENTREGA</p>
+          <p className="text-3xl font-black">{MXN.format(stop.cod)}</p>
+          <p className="text-xs">Cobra al destinatario antes de entregar el paquete.</p>
+        </div>
+      ) : null}
       {stop.instructions && <p className="rounded-lg bg-amber-50 p-2 text-sm text-amber-900">{stop.instructions}</p>}
       <div className="grid grid-cols-3 gap-2 text-center text-sm">
         <a className="rounded-lg border border-slate-300 py-2" href={`https://www.google.com/maps/dir/?api=1&destination=${dest}`} target="_blank" rel="noreferrer">
@@ -375,6 +390,12 @@ function StopActions({ stop, onDone }: { stop: Stop; onDone: () => void }) {
 
       {mode !== "none" && (
         <div className="space-y-3">
+          {mode === "deliver" && stop.cod ? (
+            <label className="flex items-center gap-3 rounded-lg border-2 border-black p-3 text-sm font-semibold">
+              <input type="checkbox" checked={codOk} onChange={(e) => setCodOk(e.target.checked)} className="h-6 w-6" />
+              Cobré {MXN.format(stop.cod)} al destinatario
+            </label>
+          ) : null}
           {mode === "deliver" ? (
             <label className="block text-sm">
               <span className="font-medium">¿Quién recibió?</span>

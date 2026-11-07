@@ -208,6 +208,8 @@ export type ManualOrderInput = {
   lng?: number;
   instructions?: string;
   itemsSummary?: string;
+  /** Pago contra entrega: importe que el repartidor cobra al entregar. */
+  codAmount?: number;
   source?: "MANUAL" | "IMPORT" | "EXTERNAL_SCAN" | "API";
   externalRef?: string;
   /** Quién lo dio de alta (para el historial): administración o la propia tienda [C04]. */
@@ -217,8 +219,9 @@ export type ManualOrderInput = {
 async function insertManualOrder(tx: Prisma.TransactionClient, input: ManualOrderInput, actorUserId?: string) {
   const [{ n }] = await tx.$queryRaw<{ n: bigint }[]>`SELECT nextval('order_code_seq') AS n`;
   const code = `PK-${n.toString().padStart(6, "0")}`;
-  const { source = "MANUAL", eventSource, ...data } = input;
-  const order = await tx.order.create({ data: { ...data, code, source } });
+  const { source = "MANUAL", eventSource, codAmount, ...data } = input;
+  if (codAmount != null && !(codAmount > 0 && codAmount <= 200_000)) throw new Error("El importe a cobrar debe ser mayor a $0 y hasta $200,000");
+  const order = await tx.order.create({ data: { ...data, code, source, ...(codAmount ? { codAmount: codAmount.toFixed(2) } : {}) } });
   await addOrderEvent(tx, {
     orderId: order.id,
     type: "created",

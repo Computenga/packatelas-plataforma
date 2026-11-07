@@ -12,6 +12,7 @@ export type QueuedEvent = {
   lat?: number;
   lng?: number;
   receiverName?: string;
+  codCollected?: number;
   reason?: string;
   note?: string;
   photo?: Blob;
@@ -108,6 +109,7 @@ export function flush(): Promise<void> {
             lat: i.lat,
             lng: i.lng,
             receiverName: i.receiverName,
+            codCollected: i.codCollected,
             reason: i.reason,
             note: i.note,
             photoKey: i.photoKey,

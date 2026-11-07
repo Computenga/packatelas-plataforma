@@ -72,6 +72,20 @@ describe("despacho", () => {
     expect(done.evidence[0].receiverName).toBe("Ana");
   });
 
+  it("pago contra entrega: sin confirmar el cobro no se entrega; al confirmarlo queda registrado", async () => {
+    await expect(createManualOrder(prisma, { clientId, recipientName: "X", addressLine: "Calle 1", codAmount: -5 })).rejects.toThrow();
+    const o = await createManualOrder(prisma, { clientId, recipientName: "X", addressLine: "Calle 1", codAmount: 1250.5 });
+    expect(Number(o.codAmount)).toBe(1250.5);
+    await assignOrders(prisma, [o.id], driverA.id);
+    await ev(driverA, o.id, "loaded");
+    expect(await ev(driverA, o.id, "delivered", { photoKey: "x.jpg" })).toMatchObject({ ok: false, error: expect.stringMatching(/por cobrar/i) });
+    expect(await ev(driverA, o.id, "delivered", { photoKey: "x.jpg", codCollected: 1250.5 })).toMatchObject({ ok: true, status: "DELIVERED" });
+    const done = await prisma.order.findUniqueOrThrow({ where: { id: o.id }, include: { events: { where: { type: "delivered" } } } });
+    expect(Number(done.codCollected)).toBe(1250.5);
+    expect(done.codCollectedAt).not.toBeNull();
+    expect(done.events[0].note).toMatch(/Cobró \$1,250\.50/);
+  });
+
   it("otro repartidor no puede cerrar un pedido ajeno sin escanearlo", async () => {
     const o = await order();
     await assignOrders(prisma, [o.id], driverA.id);

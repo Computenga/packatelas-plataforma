@@ -17,7 +17,17 @@ export const orderFields = z.object({
   lng: coord(-118, -86),
   instructions: z.string().trim().max(500).optional(),
   itemsSummary: z.string().trim().max(200).optional(),
+  /** Pago contra entrega («cobrar a la entrega») y su importe. */
+  cod: z.literal("on").optional(),
+  codAmount: z.string().trim().optional(),
+}).superRefine((d, ctx) => {
+  if (!d.cod) return;
+  const n = Number((d.codAmount ?? "").replace(/[$,\s]/g, ""));
+  if (!(n > 0 && n <= 200_000)) ctx.addIssue({ code: "custom", path: ["codAmount"], message: "Escribe el importe a cobrar al entregar" });
 });
+
+/** Importe a cobrar (si marcó «cobrar a la entrega»). */
+export const codFrom = (d: { cod?: "on"; codAmount?: string }) => (d.cod ? Number((d.codAmount ?? "").replace(/[$,\s]/g, "")) : undefined);
 
 const blank = (v?: string) => (v ? v : undefined);
 
@@ -36,5 +46,6 @@ export function toManualInput(d: z.infer<typeof orderFields>, clientId: string, 
     lng: d.lng === "" ? undefined : d.lng,
     instructions: blank(d.instructions),
     itemsSummary: blank(d.itemsSummary),
+    codAmount: codFrom(d),
   };
 }

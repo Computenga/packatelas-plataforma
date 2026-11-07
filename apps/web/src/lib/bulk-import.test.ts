@@ -29,6 +29,12 @@ describe("readRows", () => {
     expect(rows[1].errors).toEqual(["Falta destinatario"]);
     expect(rows[2].errors).toEqual(["CP inválido", "Teléfono inválido", "Coordenadas inválidas"]);
   });
+  it("lee el importe a cobrar a la entrega", () => {
+    const { rows } = readRows(parseTable("Destinatario\tDirección\tPor cobrar\nAna\tLago Zurich 245\t$1,250.50\nBeto\tLago Zurich 246\t\nCarla\tLago Zurich 247\tabc\n"));
+    expect(rows[0].data.cod).toBe("1250.50");
+    expect(rows[1].data.cod).toBeUndefined();
+    expect(rows[2].errors).toContain("Importe a cobrar inválido");
+  });
   it("sin columna de dirección no se puede cargar", () => {
     expect(readRows([["nombre"], ["Ana"]]).error).toMatch(/Dirección/);
   });

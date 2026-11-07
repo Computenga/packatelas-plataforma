@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { prisma } from "@packatelas/db";
 import { requireUser } from "@/lib/auth";
 import { ActionForm } from "@/components/action-form";
+import { CodField } from "@/components/cod-field";
 import { Card, Field, PageHeader, Select, TextArea } from "@/components/ui";
 import { AddressPicker } from "@/components/address-picker";
 import { createOrder } from "../actions";
@@ -46,6 +47,7 @@ export default async function NuevoPedidoPage() {
           <AddressPicker />
           <TextArea label="Instrucciones de entrega" name="instructions" rows={2} />
           <Field label="Contenido" name="itemsSummary" />
+          <CodField />
         </ActionForm>
       </Card>
     </div>

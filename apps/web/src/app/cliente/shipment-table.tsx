@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui";
 export type ShipmentRow = {
   id: string; code: string; sale: string; own: boolean; recipient: string; where: string; status: string;
   tone: "gray" | "blue" | "green" | "amber" | "red"; attempts: number; lastText: string; lastAt: string; driver: string | null; tracking: string;
+  /** Pago contra entrega: «Por cobrar $1,250.00» o «Cobrado $1,250.00». */
+  cod?: string | null;
 };
 
 /** Envíos con acciones por renglón y en lote (como el panel de 99minutos): etiquetas, links de rastreo, exportar. */
@@ -64,7 +66,7 @@ export function ShipmentTable({ rows }: { rows: ShipmentRow[] }) {
             {rows.map((r) => (
               <tr key={r.id} className={`border-b border-slate-100 last:border-0 ${sel.has(r.id) ? "bg-amber-50/60" : ""}`}>
                 <td className="px-3 py-2.5"><input type="checkbox" aria-label={`Seleccionar ${r.code}`} checked={sel.has(r.id)} onChange={() => toggle(r.id)} className="h-4 w-4 accent-brand" /></td>
-                <td className="px-3"><Link href={`/cliente/envio/${r.id}`} className="font-bold tabular-nums hover:underline">{r.code}</Link><span className="block text-xs text-slate-500">{r.sale}</span></td>
+                <td className="px-3"><Link href={`/cliente/envio/${r.id}`} className="font-bold tabular-nums hover:underline">{r.code}</Link><span className="block text-xs text-slate-500">{r.sale}</span>{r.cod && <span className="mt-0.5 inline-block rounded bg-black px-1.5 text-[11px] font-bold text-white">{r.cod}</span>}</td>
                 <td className="px-3">{r.recipient}<span className="block text-xs text-slate-500">{r.where}</span></td>
                 <td className="px-3"><Badge tone={r.tone}>{r.attempts > 0 && r.status !== "Entregado" ? `${r.status} · intento ${r.attempts}` : r.status}</Badge></td>
                 <td className="max-w-64 px-3"><span className="line-clamp-1">{r.lastText}</span><span className="block text-xs text-slate-500">{r.lastAt}</span></td>
@@ -93,6 +95,7 @@ export function ShipmentTable({ rows }: { rows: ShipmentRow[] }) {
                   <Badge tone={r.tone}>{r.status}</Badge>
                 </span>
                 <span className="block truncate text-sm text-slate-600">{r.where}</span>
+                {r.cod && <span className="mt-0.5 inline-block rounded bg-black px-1.5 text-xs font-bold text-white">{r.cod}</span>}
                 <span className="block text-xs text-slate-500"><b className="text-slate-700 tabular-nums">{r.code}</b> · {r.lastText} · {r.lastAt}</span>
               </Link>
               <span className="mt-2 flex gap-4 text-sm font-semibold text-brand">

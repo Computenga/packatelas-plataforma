@@ -41,6 +41,7 @@ const rowSchema = z.object({
   zip: z.string().regex(/^\d{5}$/).optional(),
   instructions: text(500),
   itemsSummary: text(200),
+  cod: z.string().regex(/^\d{1,6}(\.\d{1,2})?$/).optional(),
   lat: z.number().min(14).max(33).optional(),
   lng: z.number().min(-118).max(-86).optional(),
 });
@@ -66,7 +67,8 @@ export async function createImportedOrders(input: unknown): Promise<ImportAnswer
   if (!client?.active) return { error: "Cliente no encontrado o inactivo" };
   const branchId = d.branchId && client.branches.some((b) => b.id === d.branchId) ? d.branchId : client.branches[0]?.id;
   try {
-    const r = await importOrders(prisma, { batchId: d.batchId, clientId: client.id, branchId, byClient, rows: d.rows }, user.id);
+    const rows = d.rows.map(({ cod, ...r }) => ({ ...r, ...(cod ? { codAmount: Number(cod) } : {}) }));
+    const r = await importOrders(prisma, { batchId: d.batchId, clientId: client.id, branchId, byClient, rows }, user.id);
     return { codes: r.codes, already: r.status === "already" };
   } catch (e) {
     console.error("[carga masiva]", e);

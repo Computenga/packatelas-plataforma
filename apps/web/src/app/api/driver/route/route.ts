@@ -26,6 +26,8 @@ export async function GET(request: Request) {
       status: o.status,
       kind: o.kind,
       items: o.kind === "RETURN" ? o.itemsSummary : null,
+      /** Pago contra entrega: importe a cobrar al destinatario. */
+      cod: o.codAmount != null ? Number(o.codAmount) : null,
       client: o.client.name,
       recipient: o.recipientName,
       phone: o.recipientPhone,

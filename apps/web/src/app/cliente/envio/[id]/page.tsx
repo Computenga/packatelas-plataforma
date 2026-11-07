@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { prisma } from "@packatelas/db";
 import { requireClient } from "@/lib/client-scope";
-import { fecha, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
+import { fecha, mxn, STATUS_LABEL, STATUS_TONE } from "@/lib/format";
 import { Badge, Card } from "@/components/ui";
 import { CopyLink } from "@/components/copy-link";
 import { trackingPath } from "@/lib/tracking";
@@ -62,6 +62,11 @@ export default async function EnvioPage({ params, searchParams }: PageProps<"/cl
       <Card title="Destino">
         <p className="text-sm">{order.recipientName ?? "—"}</p>
         <p className="text-sm text-slate-600">{[order.addressLine, order.neighborhood, order.city, order.zip].filter(Boolean).join(", ")}</p>
+        {order.codAmount != null && (
+          <p className="mt-2 text-sm font-semibold">
+            Pago contra entrega: {mxn(order.codAmount)} · {order.codCollectedAt ? `cobrado ${mxn(order.codCollected ?? order.codAmount)} el ${fecha(order.codCollectedAt)}` : "pendiente de cobro"}
+          </p>
+        )}
       </Card>
       <MlSaleCard order={order} />
       <Card title="Seguimiento">

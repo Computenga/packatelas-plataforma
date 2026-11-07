@@ -101,10 +101,11 @@ export default async function ApiPage() {
     "direccion": { "calle": "Av. Insurgentes Sur 1234", "colonia": "Del Valle",
                    "ciudad": "Benito Juárez", "estado": "CDMX", "cp": "03100",
                    "indicaciones": "Tocar el timbre 3" },
-    "contenido": "1 caja mediana"
+    "contenido": "1 caja mediana",
+    "cobrar_a_la_entrega": 1250.00
   }'`}</pre>
             <p className="mt-1 text-xs text-slate-500">
-              <code>referencia</code> es tu número de pedido: si repites la misma, recibes el envío ya creado en lugar de uno duplicado. Puedes mandar <code>lat</code> y <code>lng</code>; si no, ubicamos la dirección. Se cobra con tu tarifa, igual que un envío creado en el portal.
+              <code>referencia</code> es tu número de pedido: si repites la misma, recibes el envío ya creado en lugar de uno duplicado. Puedes mandar <code>lat</code> y <code>lng</code>; si no, ubicamos la dirección. Se cobra con tu tarifa, igual que un envío creado en el portal. Si el envío es de pago contra entrega, manda <code>cobrar_a_la_entrega</code> con el importe en pesos que el repartidor cobrará al destinatario; omítelo si no hay cobro.
             </p>
           </div>
           <div>

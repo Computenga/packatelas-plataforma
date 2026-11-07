@@ -3,7 +3,7 @@
 
 export type ImportField =
   | "recipientName" | "recipientPhone" | "addressLine" | "neighborhood" | "city" | "state" | "zip"
-  | "instructions" | "itemsSummary" | "lat" | "lng";
+  | "instructions" | "itemsSummary" | "cod" | "lat" | "lng";
 
 export const FIELD_LABEL: Record<ImportField, string> = {
   recipientName: "Destinatario",
@@ -15,6 +15,7 @@ export const FIELD_LABEL: Record<ImportField, string> = {
   zip: "CP",
   instructions: "Referencias",
   itemsSummary: "Contenido",
+  cod: "Cobrar a la entrega",
   lat: "Latitud",
   lng: "Longitud",
 };
@@ -30,6 +31,7 @@ const ALIASES: Record<ImportField, string[]> = {
   zip: ["cp", "c.p.", "codigo postal", "c p", "zip"],
   instructions: ["referencias", "referencia", "notas", "instrucciones", "indicaciones", "comentarios"],
   itemsSummary: ["contenido", "producto", "productos", "articulo", "descripcion"],
+  cod: ["cobrar a la entrega", "cobrar", "por cobrar", "contra entrega", "pago contra entrega", "cod", "importe a cobrar", "monto a cobrar"],
   lat: ["lat", "latitud", "latitude"],
   lng: ["lng", "lon", "long", "longitud", "longitude"],
 };
@@ -112,6 +114,13 @@ export function readRows(table: string[][]): { rows: ImportRow[]; error?: string
       else if (z.length === 5) data.zip = z;
       else errors.push("CP inválido");
     }
+    if (data.cod) {
+      // Vacío o 0 = sin cobro; «$1,250.00» → 1250.00
+      const n = Number(data.cod.replace(/[$,\s]|mxn/gi, ""));
+      if (n === 0) delete data.cod;
+      else if (!(n > 0 && n <= 200_000)) errors.push("Importe a cobrar inválido");
+      else data.cod = n.toFixed(2);
+    }
     if (data.recipientPhone) {
       const digits = data.recipientPhone.replace(/\D/g, "");
       if (digits.length < 8 || digits.length > 15) errors.push("Teléfono inválido");
@@ -132,4 +141,4 @@ export function geocodeQuery(d: ImportRow["data"]): string {
   return [d.addressLine, d.neighborhood, d.zip, d.city, d.state ?? "México"].filter(Boolean).join(", ");
 }
 
-export const TEMPLATE_HEADERS = ["Destinatario", "Teléfono", "Dirección", "Colonia", "CP", "Alcaldía / municipio", "Estado", "Referencias", "Contenido"];
+export const TEMPLATE_HEADERS = ["Destinatario", "Teléfono", "Dirección", "Colonia", "CP", "Alcaldía / municipio", "Estado", "Referencias", "Contenido", "Cobrar a la entrega"];
