@@ -120,6 +120,7 @@ model Client {
   orders        Order[]
   pickups       Pickup[]
   ledger        LedgerEntry[]
+  codPayouts    CodPayout[]
   payments      Payment[]
   invoices      Invoice[]
   apiKeys       ApiKey[]
@@ -331,6 +332,10 @@ model Order {
   codAmount           Decimal?  @db.Decimal(12, 2)
   codCollected        Decimal?  @db.Decimal(12, 2) // lo que confirmó haber cobrado
   codCollectedAt      DateTime?
+  codHandedAt         DateTime? // el repartidor entregó el efectivo en oficina
+  codHandedById       String?
+  codPayoutId         String? // transferencia con la que se le pagó a la tienda
+  codPayout           CodPayout? @relation(fields: [codPayoutId], references: [id], onDelete: SetNull)
   attempts            Int       @default(0)
 
   driverId String?
@@ -1719,4 +1724,20 @@ model WaMessage {
   @@index([phone, createdAt])
   @@index([direction, readAt])
   @@index([createdAt])
+}
+
+/// Transferencia a la tienda del efectivo cobrado contra entrega (sin comisión).
+model CodPayout {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  amount      Decimal  @db.Decimal(12, 2)
+  reference   String // rastreo / folio de la transferencia
+  paidAt      DateTime
+  note        String?
+  createdById String?
+  createdAt   DateTime @default(now())
+  orders      Order[]
+
+  @@index([clientId, paidAt])
 }

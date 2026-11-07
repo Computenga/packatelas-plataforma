@@ -4,7 +4,7 @@
 import type { PrismaClient } from "../generated/prisma/client.ts";
 import { sendPush, type PushMessage } from "./push.ts";
 
-export type ClientPushEvent = "recibido" | "en_ruta" | "entregado" | "no_entregado" | "regresa" | "recoleccion" | "pago" | "saldo" | "factura" | "ml_cuenta" | "resumen" | "soporte";
+export type ClientPushEvent = "recibido" | "en_ruta" | "entregado" | "no_entregado" | "regresa" | "recoleccion" | "pago" | "saldo" | "factura" | "ml_cuenta" | "resumen" | "soporte" | "contra_entrega";
 
 export const CLIENT_PUSH_EVENTS: { key: ClientPushEvent; label: string; hint: string; default: boolean }[] = [
   { key: "soporte", label: "Ayuda y soporte", hint: "Cuando respondemos o resolvemos uno de tus reportes", default: true },
@@ -12,6 +12,7 @@ export const CLIENT_PUSH_EVENTS: { key: ClientPushEvent; label: string; hint: st
   { key: "no_entregado", label: "No entregado", hint: "Si no se pudo entregar y por qué", default: true },
   { key: "regresa", label: "Regresa a tu tienda", hint: "Cuando un envío va de regreso contigo", default: true },
   { key: "recoleccion", label: "Recolecciones", hint: "Asignada, en camino y cuántos paquetes recogimos", default: true },
+  { key: "contra_entrega", label: "Cobros contra entrega transferidos", hint: "Cuando te transferimos lo cobrado a tus compradores", default: true },
   { key: "pago", label: "Pagos aplicados", hint: "Cada abono que se aplica a tu saldo", default: true },
   { key: "saldo", label: "Recolección en pausa por saldo", hint: "Si tu saldo no alcanza para recolectar", default: true },
   { key: "factura", label: "Facturas", hint: "Cuando tu factura está lista para descargar", default: true },

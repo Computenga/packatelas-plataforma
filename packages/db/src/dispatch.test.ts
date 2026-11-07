@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { prisma, assignOrders, unassignOrders, applyDriverEvent, recordLocations, createManualOrder, hashPassword } from "./index.ts";
+import { codCashByDriver, codPendingByClient, createCodPayout, clientCodSummary, receiveDriverCash, prisma, assignOrders, unassignOrders, applyDriverEvent, recordLocations, createManualOrder, hashPassword } from "./index.ts";
 
 const tag = `d${Date.now()}`;
 let clientId: string;
@@ -39,6 +39,7 @@ afterAll(async () => {
   await prisma.orderEvent.deleteMany({ where: { orderId: { in: ids } } });
   await prisma.ledgerEntry.deleteMany({ where: { clientId } });
   await prisma.order.deleteMany({ where: { clientId } });
+  await prisma.codPayout.deleteMany({ where: { clientId } });
   await prisma.client.delete({ where: { id: clientId } });
   for (const d of [driverA, driverB]) {
     await prisma.locationPing.deleteMany({ where: { driverId: d.id } });
@@ -84,6 +85,20 @@ describe("despacho", () => {
     expect(Number(done.codCollected)).toBe(1250.5);
     expect(done.codCollectedAt).not.toBeNull();
     expect(done.events[0].note).toMatch(/Cobró \$1,250\.50/);
+
+    // Corte del repartidor → transferencia a la tienda
+    expect((await codCashByDriver(prisma)).find((d) => d.driverId === driverA.id)?.total).toBe(1250.5);
+    expect(await receiveDriverCash(prisma, driverA.id, driverA.userId)).toMatchObject({ count: 1, total: 1250.5 });
+    await expect(receiveDriverCash(prisma, driverA.id, driverA.userId)).rejects.toThrow(/pendiente/);
+    const pend = (await codPendingByClient(prisma)).find((c) => c.clientId === clientId)!;
+    expect(pend).toMatchObject({ total: 1250.5, inOffice: 1250.5 });
+    await expect(createCodPayout(prisma, { clientId, reference: "x", paidAt: new Date() }, driverA.userId)).rejects.toThrow(/referencia/);
+    expect(await createCodPayout(prisma, { clientId, reference: "SPEI123", paidAt: new Date() }, driverA.userId)).toMatchObject({ amount: 1250.5, count: 1 });
+    await expect(createCodPayout(prisma, { clientId, reference: "SPEI124", paidAt: new Date() }, driverA.userId)).rejects.toThrow(/No hay cobros/);
+    const sum = await clientCodSummary(prisma, clientId);
+    expect(sum.pendingTotal).toBe(0);
+    expect(sum.payouts[0]).toMatchObject({ reference: "SPEI123" });
+    expect(sum.payouts[0].orders.map((x) => x.code)).toEqual([o.code]);
   });
 
   it("otro repartidor no puede cerrar un pedido ajeno sin escanearlo", async () => {

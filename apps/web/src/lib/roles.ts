@@ -84,6 +84,7 @@ export const CLIENT_NAV: NavItem[] = [
   { section: "Envíos", href: "/cliente/recolecciones", label: "Recolecciones" },
   { section: "Envíos", href: "/cliente/devoluciones", label: "Devoluciones" },
   { section: "Dinero", href: "/cliente/cuenta", label: "Estado de cuenta y pagos" },
+  { section: "Dinero", href: "/cliente/contra-entrega", label: "Cobros contra entrega" },
   { section: "Dinero", href: "/cliente/facturas", label: "Facturas y datos fiscales" },
   { section: "Dinero", href: "/cliente/tienda", label: "Tienda de insumos" },
   { section: "Mi negocio", href: "/cliente/mercadolibre", label: "Conectar Mercado Libre" },

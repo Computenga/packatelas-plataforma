@@ -11,7 +11,7 @@ export default async function ClienteLayout({ children }: LayoutProps<"/cliente"
       userName={user.name}
       roleLabel={ROLE_LABEL[user.role]}
       nav={CLIENT_NAV}
-      ready={["/cliente", "/cliente/recolecciones", "/cliente/devoluciones", "/cliente/cuenta", "/cliente/facturas", "/cliente/mercadolibre", "/cliente/avisos", "/cliente/negocio", "/cliente/soporte", "/cliente/tienda", "/ayuda/tienda"]}
+      ready={["/cliente", "/cliente/recolecciones", "/cliente/devoluciones", "/cliente/cuenta", "/cliente/facturas", "/cliente/contra-entrega", "/cliente/mercadolibre", "/cliente/avisos", "/cliente/negocio", "/cliente/soporte", "/cliente/tienda", "/ayuda/tienda"]}
       favorites={CLIENT_FAVORITES}
     >
       {children}

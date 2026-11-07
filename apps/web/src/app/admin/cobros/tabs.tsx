@@ -4,6 +4,7 @@ const TABS = [
   { key: "saldos", label: "Saldos y pagos", href: "/admin/cobros" },
   { key: "reglas", label: "Crédito", href: "/admin/cobros/reglas" },
   { key: "antiguedad", label: "Antigüedad de saldos", href: "/admin/cobros/antiguedad" },
+  { key: "contra_entrega", label: "Contra entrega", href: "/admin/cobros/contra-entrega" },
   { key: "mercadopago", label: "Mercado Pago", href: "/admin/cobros/mercadopago" },
   { key: "facturacion", label: "Facturación", href: "/admin/cobros/facturacion" },
 ] as const;
